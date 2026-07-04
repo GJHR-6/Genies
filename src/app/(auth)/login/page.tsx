@@ -25,8 +25,13 @@ function FormularioLogin() {
     });
 
     if (error || !data.user) {
-      // Sin revelar si el email existe
-      setError("Correo o contraseña incorrectos.");
+      // Sin revelar si el email existe; otras causas (red, config) se
+      // distinguen para no diagnosticar mal una credencial válida.
+      setError(
+        !error || error.code === "invalid_credentials"
+          ? "Correo o contraseña incorrectos."
+          : "No se pudo iniciar sesión. Revisá tu conexión e intentá de nuevo."
+      );
       setCargando(false);
       return;
     }
