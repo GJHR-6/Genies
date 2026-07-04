@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { rutaInicio } from "@/lib/roles";
 
-export default function LoginPage() {
+function FormularioLogin() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -17,18 +19,34 @@ export default function LoginPage() {
     setCargando(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
+    if (error || !data.user) {
+      // Sin revelar si el email existe
       setError("Correo o contraseña incorrectos.");
       setCargando(false);
       return;
     }
 
-    router.push("/");
+    // Destino: URL de retorno (?next=) si es una ruta interna válida;
+    // si no, la pantalla inicial según el rol del perfil.
+    const next = searchParams.get("next");
+    let destino: string;
+    if (next && next.startsWith("/") && !next.startsWith("//")) {
+      destino = next;
+    } else {
+      const { data: perfil } = await supabase
+        .from("perfiles")
+        .select("rol")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+      destino = rutaInicio(perfil?.rol ?? "tienda");
+    }
+
+    router.push(destino);
     router.refresh();
   }
 
@@ -73,7 +91,11 @@ export default function LoginPage() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600" role="alert">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
@@ -85,5 +107,14 @@ export default function LoginPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams exige un límite de Suspense al prerenderizar
+  return (
+    <Suspense>
+      <FormularioLogin />
+    </Suspense>
   );
 }

@@ -31,7 +31,7 @@ Next.js 14+ (App Router) · TypeScript estricto · Tailwind + shadcn/ui · Supab
 8. El proyecto se llama **Genies** (los docs originales tenían el typo "Genios").
 
 ## Estado actual
-M0 completado (scaffold + migración inicial + clientes Supabase + middleware + deploy). Siguiente: hito M1 (autenticación y roles).
+M0 y M1 completados: login/logout, perfil (rol + sucursal) con redirect por rol, protección de rutas en middleware (rutas admin exigen rol admin), tipos generados (`src/lib/types.ts`) y RLS verificada con dos usuarios de prueba (`admin@genies.test`, `cypress@genies.test` — sucursal Cypress). Seed aplicado en Supabase. Siguiente: hito M3 (captura diaria) con datos de prueba; M2 espera el Excel del cliente.
 
 ## Pendiente de datos del cliente
 Catálogo de productos, departamentos y reglas de sugeridos se migran desde el Excel del cliente (hito M2). Mientras tanto, usar datos de prueba (`supabase/seed.sql`).
