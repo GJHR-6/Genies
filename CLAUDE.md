@@ -31,7 +31,7 @@ Next.js 14+ (App Router) · TypeScript estricto · Tailwind + shadcn/ui · Supab
 8. El proyecto se llama **Genies** (los docs originales tenían el typo "Genios").
 
 ## Estado actual
-M0 y M1 completados: login/logout, perfil (rol + sucursal) con redirect por rol, protección de rutas en middleware (rutas admin exigen rol admin), tipos generados (`src/lib/types.ts`) y RLS verificada con dos usuarios de prueba (`admin@genies.test`, `cypress@genies.test` — sucursal Cypress). Seed aplicado en Supabase. Siguiente: hito M3 (captura diaria) con datos de prueba; M2 espera el Excel del cliente.
+M0, M1 y M3 completados: login/logout, perfil (rol + sucursal) con redirect por rol, protección de rutas en middleware (rutas admin exigen rol admin), tipos generados (`src/lib/types.ts`) y RLS verificada con dos usuarios de prueba (`admin@genies.test`, `cypress@genies.test` — sucursal Cypress). Seed aplicado en Supabase. M3 (captura diaria): pantalla P3 con guardado por fila (debounce 800 ms + reintento TanStack Query), decoración solo Principal, cierre del día con modo lectura; verificado contra Supabase (upsert, RLS, cierre). Siguiente: M4 (dashboard y sugeridos); M2 espera el Excel del cliente. Nota: env vars de Vercel en prod/preview son tipo "sensitive" — `vercel env pull` las devuelve vacías por diseño; verificar en el bundle desplegado.
 
 ## Pendiente de datos del cliente
 Catálogo de productos, departamentos y reglas de sugeridos se migran desde el Excel del cliente (hito M2). Mientras tanto, usar datos de prueba (`supabase/seed.sql`).
