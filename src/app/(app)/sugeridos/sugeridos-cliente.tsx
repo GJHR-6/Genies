@@ -5,14 +5,7 @@ import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
-
-export type CeldaSugerido = {
-  objetivo: number;
-  saldo: number | null;
-  sugerido: number;
-  esOverride: boolean;
-  conCaptura: boolean;
-};
+import type { CeldaSugerido } from "@/lib/sugeridos";
 
 type Producto = {
   id: number;
@@ -148,12 +141,20 @@ export function SugeridosCliente({
           <h1 className="text-xl font-bold">Sugeridos</h1>
           <p className="text-sm text-muted-foreground">{fechaLegible}</p>
         </div>
-        <Link
-          href="/dashboard"
-          className="text-sm font-medium text-[#1F4E79] underline-offset-4 hover:underline"
-        >
-          ← Dashboard
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/dashboard"
+            className="text-sm font-medium text-[#1F4E79] underline-offset-4 hover:underline"
+          >
+            ← Dashboard
+          </Link>
+          <Link
+            href="/cuadros"
+            className="rounded-md bg-[#1F4E79] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1F4E79]/90"
+          >
+            Generar cuadros →
+          </Link>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">

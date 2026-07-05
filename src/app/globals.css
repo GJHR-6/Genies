@@ -81,3 +81,11 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Cuadros de producción: formato carta (P7) */
+@media print {
+  @page {
+    size: letter;
+    margin: 12mm;
+  }
+}

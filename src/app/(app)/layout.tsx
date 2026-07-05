@@ -51,7 +51,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="sticky top-0 z-10 border-b bg-background">
+      <header className="sticky top-0 z-10 border-b bg-background print:hidden">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
             <p className="font-semibold leading-tight">Genies</p>
@@ -81,7 +81,7 @@ export default async function AppLayout({
           </form>
         </div>
       </header>
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col p-4">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col p-4 print:max-w-none print:p-0">
         {children}
       </main>
     </div>
