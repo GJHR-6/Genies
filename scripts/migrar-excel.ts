@@ -2,7 +2,7 @@
  * M2 — Migración del Excel del cliente (PRINCIPAL Auto inventario diario.xlsx)
  *
  * Extrae catálogo de productos, departamentos y reglas de sugeridos y genera:
- *   - supabase/migrations/0002_catalogo_cliente.sql  (inserts idempotentes sobre datos de prueba)
+ *   - supabase/migrations/0003_catalogo_cliente.sql  (inserts idempotentes sobre datos de prueba)
  *   - docs/M2-validacion.md                          (reporte para validar con la administradora)
  *
  * Uso:  npx tsx scripts/migrar-excel.ts "/ruta/al/PRINCIPAL Auto inventario diario.xlsx"
@@ -367,7 +367,7 @@ function main(): void {
   lineas.push("commit;");
   lineas.push("");
 
-  const rutaSql = resolve(raiz, "supabase/migrations/0002_catalogo_cliente.sql");
+  const rutaSql = resolve(raiz, "supabase/migrations/0003_catalogo_cliente.sql");
   mkdirSync(dirname(rutaSql), { recursive: true });
   writeFileSync(rutaSql, lineas.join("\n"), "utf8");
 
