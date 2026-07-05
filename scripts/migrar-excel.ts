@@ -19,6 +19,7 @@
 import * as XLSX from "xlsx";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // --- Configuración -----------------------------------------------------------
 
@@ -240,7 +241,7 @@ function main(): void {
     process.exit(1);
   }
 
-  const raiz = resolve(dirname(new URL(import.meta.url).pathname), "..");
+  const raiz = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const libro = XLSX.readFile(resolve(rutaExcel));
   const advertencias: Advertencia[] = [];
 
