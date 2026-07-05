@@ -1,13 +1,48 @@
-export default function DashboardPage() {
+import { createClient } from "@/lib/supabase/server";
+import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
+import { resumirDia } from "@/lib/resumen-dia";
+import { DashboardCliente } from "./dashboard-cliente";
+
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const fecha = hoyTegucigalpa();
+
+  const [sucursalesRes, productosRes, movimientosRes, cierresRes] =
+    await Promise.all([
+      supabase
+        .from("sucursales")
+        .select("id, nombre")
+        .eq("activa", true)
+        .order("id"),
+      supabase
+        .from("productos")
+        .select("id", { count: "exact", head: true })
+        .eq("activo", true),
+      supabase
+        .from("movimientos_diarios")
+        .select("sucursal_id, producto_id, updated_at")
+        .eq("fecha", fecha),
+      supabase
+        .from("cierres_dia")
+        .select("sucursal_id, estado")
+        .eq("fecha", fecha),
+    ]);
+
+  const sucursales = sucursalesRes.data ?? [];
+
   return (
-    <section className="space-y-2">
-      <h1 className="text-xl font-bold">Dashboard</h1>
-      <p className="text-sm text-muted-foreground">
-        Estado de las 6 sucursales en tiempo real.
-      </p>
-      <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-        El dashboard consolidado se construye en el hito M4.
-      </p>
-    </section>
+    <DashboardCliente
+      fecha={fecha}
+      fechaLegible={formatoLargo(fecha)}
+      sucursales={sucursales}
+      totalProductos={productosRes.count ?? 0}
+      resumenInicial={resumirDia(
+        sucursales,
+        movimientosRes.data ?? [],
+        cierresRes.data ?? []
+      )}
+    />
   );
 }
