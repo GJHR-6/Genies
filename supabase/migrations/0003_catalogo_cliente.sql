@@ -1,6 +1,6 @@
 -- =====================================================================
 -- M2 — Catálogo real del cliente, generado por scripts/migrar-excel.ts
--- Fuente: PRINCIPAL Auto inventario diario.xlsx · Generado: 2026-07-05
+-- Fuente: PRINCIPAL Auto inventario diario.xlsx · Generado: 2026-07-07
 -- Reemplaza los datos de prueba de supabase/seed.sql.
 -- =====================================================================
 
@@ -631,6 +631,12 @@ from (values
   ('QUESADILLA ARROZ PORCION', null, 'Altara', null, 4),
   ('QUESADILLA ARROZ PORCION', null, 'Principal', null, 24),
   ('QUESADILLA ARROZ PORCION', null, 'Palenque', null, 4),
+  ('GLASEADO COCO', null, 'Cypress', null, 1),
+  ('GLASEADO COCO', null, 'Chalets', null, 1),
+  ('GLASEADO COCO', null, 'Century', null, 1),
+  ('GLASEADO COCO', null, 'Altara', null, 1),
+  ('GLASEADO COCO', null, 'Principal', null, 2),
+  ('GLASEADO COCO', null, 'Palenque', null, 1),
   ('TARTALETAS FRUTA', null, 'Cypress', null, 6),
   ('TARTALETAS FRUTA', null, 'Chalets', null, 6),
   ('TARTALETAS FRUTA', null, 'Century', null, 6),

@@ -1,14 +1,14 @@
 # M2 — Reporte de migración del Excel (para validar con la administradora)
 
-Generado por `scripts/migrar-excel.ts` el 2026-07-05.
+Generado por `scripts/migrar-excel.ts` el 2026-07-07.
 
 ## Resumen
 
 | Qué | Cantidad |
 |---|---|
 | Departamentos (secciones del Excel) | 17 |
-| Productos | 133 (132 del xlsx + GLASEADO COCO del export CSV del 5 jul) |
-| Reglas de sugeridos | 812 |
+| Productos | 133 |
+| Reglas de sugeridos | 818 |
 | Productos sin ninguna regla | 1 |
 | Advertencias a revisar | 11 |
 
@@ -31,7 +31,6 @@ Se marcó `lleva_decoracion` a los productos de las secciones: VAINILLA, CHOCOLA
 ## Productos sin regla de sugerido
 
 - ESPUMILLA PALETA (REPOSTERIA)
-- GLASEADO COCO (REPOSTERIA DE PAN) — producto nuevo en el export del 5 de julio; aún no está en la hoja de sugeridos
 
 ## Advertencias
 
@@ -52,5 +51,5 @@ Se marcó `lleva_decoracion` a los productos de las secciones: VAINILLA, CHOCOLA
 ## Casos de prueba sugeridos (verificar contra el Excel impreso)
 
 - **VAINILLA 6X2** en Cypress: objetivo 12 (todos los días)
-- **ALBOROTOS (RICE KRISPIES)** en Century: objetivo 6 (todos los días)
+- **ALBOROTOS (RICE KRISPIES)** en Palenque: objetivo 6 (todos los días)
 - **CHOCOFLAN** en Palenque: objetivo 1 (todos los días)
