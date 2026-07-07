@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "verificar": "tsx scripts/verificar-flujo.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
@@ -33,6 +35,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.0",
     "typescript": "^5",
+    "vitest": "^4.1.10",
     "xlsx": "^0.18.5"
   }
 }

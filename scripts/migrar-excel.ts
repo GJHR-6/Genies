@@ -173,7 +173,7 @@ interface ReglaParseada {
   advertencia?: string;
 }
 
-function parsearSugerido(celda: Celda): ReglaParseada {
+export function parsearSugerido(celda: Celda): ReglaParseada {
   if (celda === null) return { porDia: [] };
   if (typeof celda === "number") {
     return { porDia: celda > 0 ? [{ dia: null, objetivo: Math.round(celda) }] : [] };
@@ -445,4 +445,8 @@ function main(): void {
   if (advertencias.length > 0) console.log(`⚠ ${advertencias.length} advertencias — ver el reporte`);
 }
 
-main();
+// Solo correr como CLI; los tests importan parsearSugerido sin efectos.
+const esEjecucionDirecta =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (esEjecucionDirecta) main();
