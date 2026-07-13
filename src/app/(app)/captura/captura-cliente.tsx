@@ -10,6 +10,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { TablesInsert } from "@/lib/types";
+import { ChipColorDia } from "@/components/color-dia";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -369,8 +370,11 @@ export function CapturaCliente({
             {capturados}/{total} productos
           </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {sucursalNombre} · {fechaLegible}
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            {sucursalNombre} · {fechaLegible}
+          </span>
+          <ChipColorDia fecha={fecha} />
         </p>
         <div
           className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"

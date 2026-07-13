@@ -6,6 +6,8 @@ import {
   type ProductoSugerido,
   type SugeridosDelDia,
 } from "@/lib/sugeridos";
+import { colorDelDia } from "@/lib/color-dia";
+import { ChipColorDia } from "@/components/color-dia";
 import { BotonImprimir } from "./boton-imprimir";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +20,21 @@ type Cuadro = {
 export default async function CuadrosPage() {
   const supabase = await createClient();
   const fecha = hoyTegucigalpa();
+  const color = colorDelDia(fecha);
+
+  // Domingo: no hay producción, no se generan cuadros.
+  if (!color) {
+    return (
+      <section className="space-y-2">
+        <h1 className="text-xl font-bold">Cuadros de producción</h1>
+        <p className="text-sm text-muted-foreground">{formatoLargo(fecha)}</p>
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+          Hoy es domingo: no hay producción. Los cuadros se generan de lunes a
+          sábado.
+        </p>
+      </section>
+    );
+  }
 
   let dia: SugeridosDelDia;
   let departamentos: { id: number; nombre: string }[];
@@ -79,6 +96,7 @@ export default async function CuadrosPage() {
         <div>
           <h1 className="text-xl font-bold">Cuadros de producción</h1>
           <p className="text-sm text-muted-foreground">{formatoLargo(fecha)}</p>
+          <ChipColorDia fecha={fecha} conEtiqueta className="mt-1" />
         </div>
         <div className="flex items-center gap-4">
           <Link
@@ -119,9 +137,12 @@ export default async function CuadrosPage() {
             <h2 className="text-lg font-bold">
               Cuadro de producción — {cuadro.departamento}
             </h2>
-            <p className="text-sm text-muted-foreground print:text-black">
-              Genies · {formatoLargo(fecha)}
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground print:text-black">
+                Gennie&apos;s · {formatoLargo(fecha)}
+              </p>
+              <ChipColorDia fecha={fecha} conEtiqueta />
+            </div>
           </header>
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -206,7 +227,9 @@ export default async function CuadrosPage() {
             </tfoot>
           </table>
           <p className="mt-2 text-xs text-muted-foreground print:text-black/60">
-            Los productos marcados con “Decorar” llevan decoración.
+            Los productos marcados con “Decorar” llevan decoración. La
+            producción de hoy se marca con color{" "}
+            <strong>{color.nombre.toLowerCase()}</strong>.
           </p>
         </article>
       ))}

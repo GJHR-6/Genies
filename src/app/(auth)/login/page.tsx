@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { rutaInicio } from "@/lib/roles";
@@ -58,11 +59,21 @@ function FormularioLogin() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold">Genies</h1>
-          <p className="text-sm text-muted-foreground">
-            Inicia sesión para continuar
-          </p>
+        <div className="space-y-3 text-center">
+          <Image
+            src="/logo-gennies.jpeg"
+            alt="Gennie's — Repostería y Pastelería"
+            width={96}
+            height={96}
+            className="mx-auto rounded-2xl shadow-sm"
+            priority
+          />
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold">Gennie&apos;s</h1>
+            <p className="text-sm text-muted-foreground">
+              Repostería y Pastelería · Inicia sesión para continuar
+            </p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -105,7 +116,7 @@ function FormularioLogin() {
           <button
             type="submit"
             disabled={cargando}
-            className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
+            className="w-full rounded-md bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50"
           >
             {cargando ? "Entrando…" : "Entrar"}
           </button>

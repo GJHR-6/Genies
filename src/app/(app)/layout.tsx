@@ -1,6 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { cerrarSesion } from "@/lib/acciones/auth";
+import { hoyTegucigalpa } from "@/lib/fechas";
+import { ChipColorDia } from "@/components/color-dia";
 
 const NOMBRE_ROL: Record<string, string> = {
   admin: "Administración",
@@ -11,11 +14,13 @@ const NOMBRE_ROL: Record<string, string> = {
 const NAV_ADMIN = [
   { href: "/dashboard", etiqueta: "Dashboard" },
   { href: "/sugeridos", etiqueta: "Sugeridos" },
+  { href: "/rotacion", etiqueta: "Rotación" },
   { href: "/historial", etiqueta: "Historial" },
 ];
 
 const NAV_TIENDA = [
   { href: "/captura", etiqueta: "Captura" },
+  { href: "/rotacion", etiqueta: "Rotación" },
   { href: "/historial", etiqueta: "Historial" },
 ];
 
@@ -53,13 +58,27 @@ export default async function AppLayout({
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-10 border-b bg-background print:hidden">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="font-semibold leading-tight">Genies</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {subtitulo}
-              {perfil.nombre ? ` · ${perfil.nombre}` : ""}
-            </p>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Image
+              src="/logo-gennies.jpeg"
+              alt="Gennie's — Repostería y Pastelería"
+              width={38}
+              height={38}
+              className="shrink-0 rounded-md"
+              priority
+            />
+            <div className="min-w-0">
+              <p className="font-semibold leading-tight">Gennie&apos;s</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {subtitulo}
+                {perfil.nombre ? ` · ${perfil.nombre}` : ""}
+              </p>
+            </div>
           </div>
+          <ChipColorDia
+            fecha={hoyTegucigalpa()}
+            className="hidden sm:inline-flex"
+          />
           <nav className="flex items-center gap-1 overflow-x-auto">
             {(perfil.rol === "admin" ? NAV_ADMIN : NAV_TIENDA).map((item) => (
               <Link

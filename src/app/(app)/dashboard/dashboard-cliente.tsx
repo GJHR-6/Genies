@@ -9,6 +9,7 @@ import {
   type ResumenSucursal,
   type SucursalBase,
 } from "@/lib/resumen-dia";
+import { ChipColorDia } from "@/components/color-dia";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -155,7 +156,10 @@ export function DashboardCliente({
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h1 className="text-xl font-bold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">{fechaLegible}</p>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <span>{fechaLegible}</span>
+            <ChipColorDia fecha={fecha} />
+          </p>
         </div>
         <Link
           href="/sugeridos"
