@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Genies — Inventario y producción",
-  description: "Sistema de inventario y producción diaria",
+  title: "Gennie's — Inventario y producción",
+  description:
+    "Sistema de inventario y producción diaria de Gennie's Repostería y Pastelería",
 };
 
 export default function RootLayout({
