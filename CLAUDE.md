@@ -35,6 +35,7 @@ M0, M1 y M3 completados: login/logout, perfil (rol + sucursal) con redirect por 
 
 ## Áreas de producción (demo mié 6 ago 2026)
 La encargada entregó un segundo Excel (`DISTRIBUCION PRODUCCION Y DECORACION.xlsx`) con la distribución de productos **por pastelera**. Los cuadros de `/cuadros` ahora salen por área de producción (6 áreas: Producción 1–5 y 4B/5B, con encargadas) en lugar de por departamento, más un cuadro de **Decoración** (repite los productos "Decorar") y uno final "Sin área asignada" (16 productos que el Excel no menciona). Generado por `scripts/distribucion-excel.ts` → migración `0004_areas_produccion.sql` (tabla `areas_produccion` + `productos.area_id/orden_area`). **Validar `docs/validacion-distribucion.md` con la administradora**: fusión 4B/5B en un cuadro, porciones en el área del producto base, interpretaciones ambiguas y filas del Excel sin producto en el catálogo.
+- **Datos demo en Supabase** (jue 30 jul – mié 5 ago 2026, sin domingo): generados por SQL directo (no hay script en el repo); todos los días cerrados salvo Palenque el 5 ago (en_captura, muestra el aviso de pendientes). ⚠️ Borrarlos antes del piloto junto con los de julio: `delete from cierres_dia; delete from movimientos_diarios;` (rangos 2026-07-06 a 2026-07-21 y 2026-07-30 a 2026-08-05).
 
 ## Demo para la dueña (13 jul 2026)
 - Marca: logo real en `public/logo-gennies.jpeg` (login, header, favicon `src/app/icon.png`); paleta crema/rosado/cobre en `globals.css`. La marca comercial es **Gennie's** (el proyecto sigue llamándose Genies).
