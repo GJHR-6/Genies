@@ -17,6 +17,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      areas_produccion: {
+        Row: {
+          activa: boolean
+          encargadas: string
+          id: number
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          activa?: boolean
+          encargadas: string
+          id?: never
+          nombre: string
+          orden: number
+        }
+        Update: {
+          activa?: boolean
+          encargadas?: string
+          id?: never
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       cierres_dia: {
         Row: {
           cerrado_at: string | null
@@ -165,32 +189,45 @@ export type Database = {
       productos: {
         Row: {
           activo: boolean
+          area_id: number | null
           categoria: string | null
           departamento_id: number | null
           id: number
           lleva_decoracion: boolean
           nombre: string
+          orden_area: number | null
           tamano: string | null
         }
         Insert: {
           activo?: boolean
+          area_id?: number | null
           categoria?: string | null
           departamento_id?: number | null
           id?: never
           lleva_decoracion?: boolean
           nombre: string
+          orden_area?: number | null
           tamano?: string | null
         }
         Update: {
           activo?: boolean
+          area_id?: number | null
           categoria?: string | null
           departamento_id?: number | null
           id?: never
           lleva_decoracion?: boolean
           nombre?: string
+          orden_area?: number | null
           tamano?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "productos_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "areas_produccion"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "productos_departamento_id_fkey"
             columns: ["departamento_id"]

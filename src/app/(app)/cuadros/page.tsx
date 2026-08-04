@@ -13,7 +13,8 @@ import { BotonImprimir } from "./boton-imprimir";
 export const dynamic = "force-dynamic";
 
 type Cuadro = {
-  departamento: string;
+  titulo: string;
+  encargadas: string | null;
   productos: ProductoSugerido[];
 };
 
@@ -37,26 +38,26 @@ export default async function CuadrosPage() {
   }
 
   let dia: SugeridosDelDia;
-  let departamentos: { id: number; nombre: string }[];
+  let areas: { id: number; nombre: string; encargadas: string }[];
   let cerradas = 0;
   try {
-    const [diaCargado, departamentosRes, cierresRes] = await Promise.all([
+    const [diaCargado, areasRes, cierresRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase
-        .from("departamentos")
-        .select("id, nombre")
-        .eq("activo", true)
-        .order("nombre"),
+        .from("areas_produccion")
+        .select("id, nombre, encargadas")
+        .eq("activa", true)
+        .order("orden"),
       supabase
         .from("cierres_dia")
         .select("estado")
         .eq("fecha", fecha)
         .eq("estado", "cerrado"),
     ]);
-    if (departamentosRes.error) throw new Error(departamentosRes.error.message);
+    if (areasRes.error) throw new Error(areasRes.error.message);
     if (cierresRes.error) throw new Error(cierresRes.error.message);
     dia = diaCargado;
-    departamentos = departamentosRes.data;
+    areas = areasRes.data;
     cerradas = (cierresRes.data ?? []).length;
   } catch {
     return (
@@ -72,19 +73,39 @@ export default async function CuadrosPage() {
   const { productos, sucursales, celdas } = dia;
   const pendientes = sucursales.length - cerradas;
 
-  // Un cuadro por departamento; solo productos con alguna regla de sugerido.
+  // Un cuadro por área de producción (pastelera); solo productos con alguna
+  // regla de sugerido. Dentro del área se respeta el orden del Excel.
   const conRegla = productos.filter((p) =>
     sucursales.some((s) => celdas[`${p.id}-${s.id}`] !== undefined)
   );
-  const cuadros: Cuadro[] = departamentos
-    .map((d) => ({
-      departamento: d.nombre,
-      productos: conRegla.filter((p) => p.departamento_id === d.id),
+  const porOrdenArea = (a: ProductoSugerido, b: ProductoSugerido) =>
+    (a.orden_area ?? 0) - (b.orden_area ?? 0);
+  const cuadros: Cuadro[] = areas
+    .map((a) => ({
+      titulo: a.nombre,
+      encargadas: a.encargadas,
+      productos: conRegla.filter((p) => p.area_id === a.id).sort(porOrdenArea),
     }))
     .filter((c) => c.productos.length > 0);
-  const sinDepartamento = conRegla.filter((p) => p.departamento_id === null);
-  if (sinDepartamento.length > 0) {
-    cuadros.push({ departamento: "Sin departamento", productos: sinDepartamento });
+
+  // Decoración no es un área: su cuadro repite los productos marcados
+  // "Decorar", en el mismo orden en que salen en los cuadros de las áreas.
+  const idsPorArea = new Map(areas.map((a, i) => [a.id, i]));
+  const decoracion = conRegla
+    .filter((p) => p.lleva_decoracion)
+    .sort(
+      (a, b) =>
+        (idsPorArea.get(a.area_id ?? -1) ?? areas.length) -
+          (idsPorArea.get(b.area_id ?? -1) ?? areas.length) ||
+        porOrdenArea(a, b)
+    );
+  if (decoracion.length > 0) {
+    cuadros.push({ titulo: "Decoración", encargadas: null, productos: decoracion });
+  }
+
+  const sinArea = conRegla.filter((p) => p.area_id === null);
+  if (sinArea.length > 0) {
+    cuadros.push({ titulo: "Sin área asignada", encargadas: null, productos: sinArea });
   }
 
   const sugeridoDe = (productoId: number, sucursalId: number): number | null =>
@@ -130,12 +151,19 @@ export default async function CuadrosPage() {
 
       {cuadros.map((cuadro) => (
         <article
-          key={cuadro.departamento}
+          key={cuadro.titulo}
           className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0"
         >
           <header className="mb-3 flex items-baseline justify-between gap-2 border-b pb-2 print:border-black">
             <h2 className="text-lg font-bold">
-              Cuadro de producción — {cuadro.departamento}
+              {cuadro.titulo === "Decoración"
+                ? "Cuadro de decoración"
+                : `Cuadro de producción — ${cuadro.titulo}`}
+              {cuadro.encargadas && (
+                <span className="ml-2 text-base font-medium text-muted-foreground print:text-black/70">
+                  {cuadro.encargadas}
+                </span>
+              )}
             </h2>
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground print:text-black">
