@@ -15,6 +15,8 @@ export type ProductoSugerido = {
   tamano: string | null;
   categoria: string | null;
   departamento_id: number | null;
+  area_id: number | null;
+  orden_area: number | null;
   lleva_decoracion: boolean;
 };
 
@@ -48,7 +50,7 @@ export async function cargarSugeridosDelDia(
       supabase
         .from("productos")
         .select(
-          "id, nombre, tamano, categoria, departamento_id, lleva_decoracion"
+          "id, nombre, tamano, categoria, departamento_id, area_id, orden_area, lleva_decoracion"
         )
         .eq("activo", true)
         .order("categoria")
