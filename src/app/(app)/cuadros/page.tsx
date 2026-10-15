@@ -45,8 +45,9 @@ export default async function CuadrosPage() {
       cargarSugeridosDelDia(supabase, fecha),
       supabase
         .from("areas_produccion")
-        .select("id, nombre, encargadas")
+        .select("id, nombre, encargadas, pasteleras(nombre, activa, orden)")
         .eq("activa", true)
+        .eq("es_decoracion", false)
         .order("orden"),
       supabase
         .from("cierres_dia")
@@ -57,7 +58,21 @@ export default async function CuadrosPage() {
     if (areasRes.error) throw new Error(areasRes.error.message);
     if (cierresRes.error) throw new Error(cierresRes.error.message);
     dia = diaCargado;
-    areas = areasRes.data;
+    // Encargadas = pasteleras activas del área (si no hay, el texto original).
+    areas = areasRes.data.map((a) => {
+      const activas = [...(a.pasteleras ?? [])]
+        .filter((p) => p.activa)
+        .sort((x, y) => x.orden - y.orden)
+        .map((p) => p.nombre);
+      return {
+        id: a.id,
+        nombre: a.nombre,
+        encargadas:
+          activas.length > 0
+            ? activas.join(activas.length === 2 ? " y " : ", ")
+            : a.encargadas,
+      };
+    });
     cerradas = (cierresRes.data ?? []).length;
   } catch {
     return (
@@ -127,6 +142,12 @@ export default async function CuadrosPage() {
             ← Sugeridos
           </Link>
           <BotonImprimir />
+          <Link
+            href="/asignar"
+            className="rounded-md bg-[#1F4E79] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1F4E79]/90"
+          >
+            Repartir por pastelera →
+          </Link>
         </div>
       </div>
 

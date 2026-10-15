@@ -14,6 +14,15 @@ const NOMBRE_ROL: Record<string, string> = {
 const NAV_ADMIN = [
   { href: "/dashboard", etiqueta: "Dashboard" },
   { href: "/sugeridos", etiqueta: "Sugeridos" },
+  { href: "/asignar", etiqueta: "Reparto" },
+  { href: "/pasteleras", etiqueta: "Pasteleras" },
+  { href: "/rotacion", etiqueta: "Rotación" },
+  { href: "/historial", etiqueta: "Historial" },
+];
+
+const NAV_PRINCIPAL = [
+  { href: "/captura", etiqueta: "Captura" },
+  { href: "/cocina", etiqueta: "Cocina" },
   { href: "/rotacion", etiqueta: "Rotación" },
   { href: "/historial", etiqueta: "Historial" },
 ];
@@ -80,7 +89,12 @@ export default async function AppLayout({
             className="hidden sm:inline-flex"
           />
           <nav className="flex items-center gap-1 overflow-x-auto">
-            {(perfil.rol === "admin" ? NAV_ADMIN : NAV_TIENDA).map((item) => (
+            {(perfil.rol === "admin"
+              ? NAV_ADMIN
+              : perfil.rol === "principal"
+                ? NAV_PRINCIPAL
+                : NAV_TIENDA
+            ).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
