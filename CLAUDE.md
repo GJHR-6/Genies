@@ -35,7 +35,7 @@ M0, M1 y M3 completados: login/logout, perfil (rol + sucursal) con redirect por 
 
 ## Reparto por pastelera (oct 2026)
 Respuesta de la encargada: el "1*2*3*4" del Excel es **por tanda**; el reparto entre pasteleras es con **porcentaje fijo**; se reparte según las áreas de los cuadros; **una tablet por tienda** (las pasteleras usan la de Principal).
-- Migraciones `0007_indices_rendimiento.sql` (índices de FK, aplicada) y `0008_reparto_pasteleras.sql` (tablas `pasteleras`, `pasteleras_pin`, `planes_dia`, `asignaciones`; área especial "Decoración" con `areas_produccion.es_decoracion`; RPCs `reemplazar_asignaciones`, `fijar_pin_pastelera`, `verificar_pin_pastelera`, `registrar_avance`; Realtime).
+- Migraciones `0007_indices_rendimiento.sql` (índices de FK, aplicada) y `0008_reparto_pasteleras.sql` (**pendiente de aplicar en Supabase** — validada en un Postgres local con RLS y RPCs por rol; tablas `pasteleras`, `pasteleras_pin`, `planes_dia`, `asignaciones`; área especial "Decoración" con `areas_produccion.es_decoracion`; RPCs `reemplazar_asignaciones`, `fijar_pin_pastelera`, `verificar_pin_pastelera`, `registrar_avance`; Realtime).
 - Lógica pura en `src/lib/reparto.ts` (mayor residuo, sobrante rota por día, decoración → área Decoración o, si está vacía, el área del producto) con tests; secciones en `src/lib/secciones-reparto.ts`.
 - Pantallas: `/asignar` (admin: generar → ajustar por tanda T1–T4 → publicar; avance en vivo), `/asignar/imprimir` (hoja carta por pastelera), `/pasteleras` (admin: %, área, activa, PIN), `/cocina` (principal/admin: tablet, nombre + PIN opcional, marcar hechas/listo; vuelve sola a la portada tras 3 min).
 - Total a repartir = suma de sugeridos de las sucursales (igual que el Total del cuadro).
