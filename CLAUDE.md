@@ -41,6 +41,14 @@ Respuesta de la encargada: el "1*2*3*4" del Excel es **por tanda**; el reparto e
 - Total a repartir = suma de sugeridos de las sucursales (igual que el Total del cuadro).
 - Hallazgos del Excel (para la dueña): en INVENTARIO DIARIO la columna CM de Century lee los cambios de Chalets; 5 filas de CM de Palenque leen Altara; 226 referencias inconsistentes en total.
 
+## Demo vie 16 oct 2026
+- Datos: `DEMO_PERMITIR=1 npx tsx --env-file=.env.local scripts/datos-demo.ts` (reproducible; reescribe inventario y cierres de los 6 días de producción anteriores + hoy en TODAS las sucursales, borra el reparto de hoy; hoy Palenque queda "contando"). Guion en `docs/guion-demo.md`. Rango 2026-10-09→16 ya incluido en `limpiar-datos-demo.sql`.
+- Con datos de hoy en Cypress, los E2E se niegan a correr (guarda): limpiar antes o esperar al día siguiente.
+- La service key está en `.env.local` (no en Vercel todavía). Se pegó en el chat: rotarla después de la demo.
+
+## Tests E2E
+`npm run e2e` (Playwright, 25 tests, contra producción con guardas y limpieza; ver `e2e/README.md`). Navegador: `chromium-headless-shell` 1187; si `npx playwright install` se cuelga, descargar el zip de `playwright.download.prss.microsoft.com` y descomprimirlo en `~/Library/Caches/ms-playwright/chromium_headless_shell-1187/`.
+
 ## Navegación y lenguaje (oct 2026)
 Pantallas **independientes, no secuenciales**: el admin entra a `/hoy` (portada con tarjetas Tiendas · Sugeridos · Cuadros · Reparto, cada una con su estado y un número de paso solo orientativo; `src/lib/paso-del-dia.ts` decide qué tarjeta resaltar, con tests). Menú corto por rol en `src/components/menu-principal.tsx` (admin: Hoy · Catálogos · Rotación · Historial; principal: Inventario · Cocina · Rotación · Historial; tienda sin Cocina). Grupos en `src/lib/grupos.ts`; cada pantalla usa `<EncabezadoSeccion>` (fila de botones a las demás del grupo, ícono, título, una línea de "para qué sirve") y `<Aviso>`. No usar enlaces "siguiente →/← anterior". Pasteleras vive dentro de Catálogos.
 - **Colores**: solo tokens (`primary`, `secondary`, `exito`, `aviso`, `destructive` en `globals.css`, con modo oscuro); nada de hex en componentes (los hex de `color-dia.ts` son los colores físicos del día, a propósito).
