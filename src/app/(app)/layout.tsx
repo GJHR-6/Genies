@@ -50,7 +50,7 @@ export default async function AppLayout({
         <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5">
           <Link
             href={rutaInicio(perfil.rol)}
-            className="flex min-w-0 items-center gap-2.5 rounded-lg"
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg sm:flex-none"
             aria-label="Ir al inicio"
           >
             <Image
@@ -72,11 +72,11 @@ export default async function AppLayout({
           <div className="order-last w-full sm:order-none sm:w-auto">
             <MenuPrincipal rol={perfil.rol} />
           </div>
-          <div className="flex items-center gap-2">
-            <ChipColorDia
-              fecha={hoyTegucigalpa()}
-              className="hidden md:inline-flex"
-            />
+          <div className="flex shrink-0 items-center gap-2">
+            {/* El chip pone su propio inline-flex: se oculta con un envoltorio. */}
+            <span className="hidden md:inline-flex">
+              <ChipColorDia fecha={hoyTegucigalpa()} />
+            </span>
             <form action={cerrarSesion}>
               <button
                 type="submit"

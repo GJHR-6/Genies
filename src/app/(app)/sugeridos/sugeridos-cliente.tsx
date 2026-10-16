@@ -277,7 +277,7 @@ function FilasCategoria({
                       if (e.key === "Escape") setEdicion(null);
                     }}
                     className="h-8 w-16 text-right tabular-nums"
-                    aria-label={`Sugerido de ${p.nombre} en ${s.nombre}`}
+                    aria-label={`Sugerido de ${p.nombre}${p.tamano ? ` ${p.tamano}` : ""} en ${s.nombre}`}
                   />
                 </td>
               );
@@ -302,7 +302,7 @@ function FilasCategoria({
                       ? "font-semibold text-primary"
                       : "text-muted-foreground"
                   } ${celda.conCaptura ? "" : "italic"}`}
-                  aria-label={`Sugerido de ${p.nombre} en ${s.nombre}: ${celda.sugerido}${celda.esOverride ? " (ajustado)" : ""}`}
+                  aria-label={`Sugerido de ${p.nombre}${p.tamano ? ` ${p.tamano}` : ""} en ${s.nombre}: ${celda.sugerido}${celda.esOverride ? " (ajustado)" : ""}`}
                 >
                   {celda.esOverride ? "• " : ""}
                   {celda.sugerido}

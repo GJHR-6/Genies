@@ -173,7 +173,8 @@ export function UsuariosCliente({
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-                <p className="text-xs text-muted-foreground">
+                {/* Node y el navegador formatean la hora con espacios distintos. */}
+                <p className="text-xs text-muted-foreground" suppressHydrationWarning>
                   {ultimoIngreso(u.ultimo_ingreso)}
                 </p>
                 <div className="flex gap-2">

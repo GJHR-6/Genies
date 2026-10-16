@@ -137,9 +137,9 @@ export function CapturaCliente({
   );
   const [busqueda, setBusqueda] = useState("");
   const [cerrado, setCerrado] = useState(cerradoInicial);
-  const [enLinea, setEnLinea] = useState(
-    () => typeof navigator === "undefined" || navigator.onLine
-  );
+  // Arranca "en línea" igual en servidor y navegador (Node también tiene un
+  // `navigator` global, sin onLine); el estado real se lee al montar.
+  const [enLinea, setEnLinea] = useState(true);
   const [dialogoCierre, setDialogoCierre] = useState(false);
   const [avisoLive, setAvisoLive] = useState("");
 
@@ -299,6 +299,7 @@ export function CapturaCliente({
       }
     };
     const alCaer = () => setEnLinea(false);
+    if (!navigator.onLine) alCaer();
     window.addEventListener("online", alVolver);
     window.addEventListener("offline", alCaer);
     return () => {
@@ -342,10 +343,18 @@ export function CapturaCliente({
   });
 
   const grupos = useMemo(() => {
-    const termino = normalizar(busqueda.trim());
-    const visibles = termino
-      ? productos.filter((p) => normalizar(p.nombre).includes(termino))
-      : productos;
+    // Cada palabra debe aparecer en nombre, tamaño o categoría:
+    // "choco 10" encuentra "CHOCOLATE · 10X2".
+    const palabras = normalizar(busqueda.trim()).split(/\s+/).filter(Boolean);
+    const visibles =
+      palabras.length > 0
+        ? productos.filter((p) => {
+            const texto = normalizar(
+              `${p.nombre} ${p.tamano ?? ""} ${p.categoria ?? ""}`
+            );
+            return palabras.every((w) => texto.includes(w));
+          })
+        : productos;
     const porCategoria = new Map<string, Producto[]>();
     for (const p of visibles) {
       const cat = p.categoria ?? "Sin categoría";

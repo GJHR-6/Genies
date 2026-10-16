@@ -62,7 +62,7 @@ export function MenuPrincipal({ rol }: { rol: RolUsuario }) {
   return (
     <nav
       aria-label="Menú principal"
-      className="-mx-1 flex items-center gap-1 overflow-x-auto px-1"
+      className="grid auto-cols-fr grid-flow-col gap-1 sm:flex sm:items-center"
     >
       {MENU[rol].map((item) => {
         const Icono = item.icono;
@@ -75,13 +75,14 @@ export function MenuPrincipal({ rol }: { rol: RolUsuario }) {
             href={item.href}
             aria-current={activo ? "page" : undefined}
             className={cn(
-              "flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
+              // Celular: pestañas del mismo ancho, ícono arriba del texto.
+              "flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-xs font-medium transition-colors sm:min-h-11 sm:flex-row sm:gap-1.5 sm:px-3 sm:text-sm",
               activo
                 ? "bg-secondary text-secondary-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-foreground"
             )}
           >
-            <Icono className="size-4" />
+            <Icono className="size-5 sm:size-4" />
             {item.etiqueta}
           </Link>
         );
