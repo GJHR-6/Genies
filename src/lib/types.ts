@@ -519,6 +519,18 @@ export type Database = {
       }
     }
     Functions: {
+      admin_usuarios: {
+        Args: never
+        Returns: {
+          creado: string
+          email: string
+          nombre: string | null
+          rol: Database["public"]["Enums"]["rol_usuario"] | null
+          sucursal_id: number | null
+          ultimo_ingreso: string | null
+          user_id: string
+        }[]
+      }
       es_admin: { Args: never; Returns: boolean }
       fijar_pin_pastelera: {
         Args: { p_pastelera: number; p_pin: string }

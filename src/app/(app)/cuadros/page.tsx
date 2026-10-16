@@ -118,7 +118,10 @@ export default async function CuadrosPage() {
     cuadros.push({ titulo: "Decoración", encargadas: null, productos: decoracion });
   }
 
-  const sinArea = conRegla.filter((p) => p.area_id === null);
+  // Incluye los de un área desactivada en Catálogos, para que no se pierdan.
+  const sinArea = conRegla.filter(
+    (p) => p.area_id === null || !idsPorArea.has(p.area_id)
+  );
   if (sinArea.length > 0) {
     cuadros.push({ titulo: "Sin área asignada", encargadas: null, productos: sinArea });
   }

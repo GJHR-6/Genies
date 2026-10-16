@@ -18,6 +18,7 @@ const NAV_ADMIN = [
   { href: "/pasteleras", etiqueta: "Pasteleras" },
   { href: "/rotacion", etiqueta: "Rotación" },
   { href: "/historial", etiqueta: "Historial" },
+  { href: "/catalogos", etiqueta: "Catálogos" },
 ];
 
 const NAV_PRINCIPAL = [
