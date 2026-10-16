@@ -7,7 +7,8 @@ Rotación.
 
 ## Antes de empezar (5 min)
 
-1. **Pantalla A — compu (lo que proyectás):** entrá como **admin**. Tiene que
+1. **Pantalla A — compu (lo que proyectás):** abrí
+   **https://genies-zeta.vercel.app** y entrá como **admin**. Tiene que
    abrir en **Hoy** y decir *"Falta 1 tienda por terminar su inventario"*.
 2. **Pantalla B — celular** (o una ventana de **otro navegador**, p. ej. Safari):
    entrá como **Palenque**. Una misma ventana no puede tener dos sesiones: si
@@ -59,7 +60,8 @@ cuadros salen solos."
 ### 6. Reparto y tablet de cocina (A + B · 3 min)
 - **Reparto → Hacer el reparto**: cada producto se divide solo entre las
   pasteleras del área según su porcentaje. Se puede pasar parte a otra tanda.
-- **Enviar a cocina**.
+- **Enviar a cocina**. Cuando diga *"Enviado a cocina"*, **recargá la página
+  (F5)**: así el avance de la cocina aparece al instante.
 - En **B**: **Salir** → entrá como **principal** → menú **Cocina** →
   *¿Quién sos?* → tocá **Kenia** → **✓ Listo** en un producto.
 - En **A** (Reparto): *Cómo va la cocina* sube solo. En **Hoy**, la tarjeta
@@ -81,6 +83,8 @@ reales, piloto de 3–5 días en una sucursal junto con el Excel y capacitación
 
 ## Si algo sale raro
 - **Una pantalla no cambió:** recargá la página.
+- **No crees usuarios en la demo:** el botón "Nuevo usuario" está desactivado
+  hasta poner la service key en Vercel.
 - **Se ve otra cuenta:** cada navegador guarda una sola sesión; usá Salir.
 - **"Hoy es domingo":** la demo necesita un día de lunes a sábado.
 
