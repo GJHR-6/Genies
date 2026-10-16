@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { ChipColorDia } from "@/components/color-dia";
+import { Printer, Send, Undo2, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
+import { GRUPO_HOY } from "@/lib/grupos";
 import {
   Dialog,
   DialogContent,
@@ -195,9 +198,9 @@ export function AsignarCliente({
       setErrorCelda(null);
       void queryClient.invalidateQueries({ queryKey: ["reparto", fecha] });
     },
-    onError: (e) =>
+    onError: () =>
       setErrorCelda(
-        `No se pudo guardar el cambio (${e instanceof Error ? e.message : "error"}). Intentá de nuevo.`
+        "No se pudo guardar el cambio. Revisá que haya internet e intentá de nuevo."
       ),
   });
 
@@ -239,147 +242,144 @@ export function AsignarCliente({
   };
 
   const estadoPlan = !plan
-    ? { texto: "Sin generar", clase: "bg-muted text-muted-foreground" }
+    ? { texto: "Todavía no se hace", clase: "bg-muted text-muted-foreground" }
     : plan.estado === "publicado"
       ? {
-          texto: `Publicado a cocina${plan.publicado_at ? ` · ${horaCorta(plan.publicado_at)}` : ""}`,
-          clase: "bg-[#2E7D32]/10 text-[#2E7D32]",
+          texto: `Enviado a cocina${plan.publicado_at ? ` · ${horaCorta(plan.publicado_at)}` : ""}`,
+          clase: "bg-exito/10 text-exito",
         }
-      : { texto: "Borrador", clase: "bg-[#B45309]/10 text-[#B45309]" };
+      : { texto: "Sin enviar a cocina", clase: "bg-aviso/10 text-aviso" };
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold">Reparto de producción</h1>
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-            <span>{fechaLegible}</span>
+      <EncabezadoSeccion
+        grupo={GRUPO_HOY}
+        actual="reparto"
+        detalle={
+          <>
+            <span className="first-letter:uppercase">{fechaLegible}</span>
             <ChipColorDia fecha={fecha} />
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${estadoPlan.clase}`}>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${estadoPlan.clase}`}>
               {estadoPlan.texto}
             </span>
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+          </>
+        }
+      >
+        <Button
+          variant={asignaciones.length > 0 ? "outline" : "default"}
+          size="lg"
+          disabled={pendiente}
+          onClick={() =>
+            asignaciones.length > 0
+              ? setConfirmarGenerar(true)
+              : ejecutar(generarRepartoDelDia)
+          }
+        >
+          <WandSparkles />
+          {asignaciones.length > 0 ? "Hacer de nuevo" : "Hacer el reparto"}
+        </Button>
+        {plan && (
           <Link
-            href="/cuadros"
-            className="text-sm font-medium text-[#1F4E79] underline-offset-4 hover:underline"
+            href="/asignar/imprimir"
+            className="inline-flex h-10 items-center gap-2 rounded-md border bg-background px-4 text-sm font-medium shadow-xs hover:bg-accent"
           >
-            ← Cuadros
+            <Printer className="size-4" />
+            Imprimir hojas
           </Link>
+        )}
+        {plan?.estado === "publicado" ? (
           <Button
             variant="outline"
+            size="lg"
             disabled={pendiente}
-            onClick={() =>
-              asignaciones.length > 0
-                ? setConfirmarGenerar(true)
-                : ejecutar(generarRepartoDelDia)
-            }
+            onClick={() => ejecutar(() => cambiarEstadoReparto(false))}
           >
-            {asignaciones.length > 0 ? "Volver a generar" : "Generar reparto"}
+            <Undo2 />
+            Quitar de la cocina
           </Button>
-          {plan && (
-            <Link
-              href="/asignar/imprimir"
-              className="inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium hover:bg-accent"
-            >
-              Imprimir hojas
-            </Link>
-          )}
-          {plan?.estado === "publicado" ? (
+        ) : (
+          plan &&
+          asignaciones.length > 0 && (
             <Button
-              variant="outline"
+              size="lg"
               disabled={pendiente}
-              onClick={() => ejecutar(() => cambiarEstadoReparto(false))}
-            >
-              Volver a borrador
-            </Button>
-          ) : (
-            <Button
-              className="bg-[#1F4E79] hover:bg-[#1F4E79]/90"
-              disabled={pendiente || !plan || asignaciones.length === 0}
               onClick={() => ejecutar(() => cambiarEstadoReparto(true))}
             >
-              Publicar a cocina
+              <Send />
+              Enviar a cocina
             </Button>
-          )}
-        </div>
-      </div>
+          )
+        )}
+      </EncabezadoSeccion>
 
-      {aviso && (
-        <p
-          role="status"
-          className={`rounded-md px-3 py-2 text-sm font-medium ${
-            aviso.ok ? "bg-[#2E7D32]/10 text-[#2E7D32]" : "bg-[#B3261E]/10 text-[#B3261E]"
-          }`}
-        >
-          {aviso.mensaje}
-        </p>
-      )}
-      {errorCelda && (
-        <p role="status" className="rounded-md bg-[#B3261E]/10 px-3 py-2 text-sm font-medium text-[#B3261E]">
-          {errorCelda}
-        </p>
-      )}
+      {aviso && <Aviso tipo={aviso.ok ? "exito" : "error"}>{aviso.mensaje}</Aviso>}
+      {errorCelda && <Aviso tipo="error">{errorCelda}</Aviso>}
       {sucursalesPendientes > 0 && (
-        <p className="rounded-md bg-[#B45309]/10 px-3 py-2 text-sm font-medium text-[#B45309]">
+        <Aviso tipo="aviso">
           {sucursalesPendientes === 1
-            ? "1 sucursal aún no cierra el día"
-            : `${sucursalesPendientes} sucursales aún no cierran el día`}
-          : si generás ahora, sus cantidades usan el objetivo o la captura parcial.
-        </p>
+            ? "1 tienda todavía no termina su inventario"
+            : `${sucursalesPendientes} tiendas todavía no terminan su inventario`}
+          : si hacés el reparto ahora, sus números pueden cambiar después.
+        </Aviso>
       )}
       {areasDescuadradas.length > 0 && (
-        <p className="rounded-md bg-[#B45309]/10 px-3 py-2 text-sm text-[#B45309]">
-          Porcentajes que no suman 100 %:{" "}
+        <Aviso tipo="aviso">
+          Los porcentajes de estas áreas no suman 100 %:{" "}
           {areasDescuadradas
             .map((a) => `${a.nombre} (${sumas.get(a.id) ?? 0} %)`)
             .join(", ")}
           .{" "}
           <Link href="/pasteleras" className="font-semibold underline">
-            Ajustar pasteleras
+            Arreglarlo en Pasteleras
           </Link>
-        </p>
+        </Aviso>
       )}
       {sinAsignar.length > 0 && (
-        <p className="rounded-md bg-[#B45309]/10 px-3 py-2 text-sm text-[#B45309]">
-          {sinAsignar.length} asignaciones sin pastelera (productos sin área o
-          áreas sin pasteleras activas). Repartilas a mano en la columna
-          &quot;Sin asignar&quot; o configurá las pasteleras.
-        </p>
+        <Aviso tipo="aviso">
+          Hay {sinAsignar.length} trabajos sin pastelera (en la columna
+          &quot;Sin asignar&quot;). Escribí las cantidades en la columna de una
+          pastelera, o asigná pasteleras a esa área en Pasteleras.
+        </Aviso>
       )}
 
       {asignaciones.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Todavía no hay reparto para hoy. Cuando las sucursales cierren,
-          tocá <span className="font-semibold">Generar reparto</span>: se
-          toma el total de cada producto del cuadro y se divide entre las
-          pasteleras de su área según su porcentaje fijo.
+          Todavía no hay reparto para hoy. Tocá{" "}
+          <span className="font-semibold">Hacer el reparto</span>: el total de
+          cada producto del cuadro se divide solo entre las pasteleras de su
+          área, según su porcentaje. Después podés cambiar cualquier número.
         </div>
       ) : (
         <>
           <div className="rounded-lg border bg-card p-3 text-sm">
-            <span className="font-semibold">Avance de cocina:</span>{" "}
+            <span className="font-semibold">Cómo va la cocina:</span>{" "}
             <span className="tabular-nums">
-              {avance.listas}/{avance.tareas} tareas listas · {avance.hechas}/
-              {avance.total} unidades
+              {avance.hechas} de {avance.total} unidades hechas ·{" "}
+              {avance.listas} de {avance.tareas} productos listos
             </span>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full bg-[#2E7D32] transition-all"
+                className="h-full bg-exito transition-all"
                 style={{
                   width: `${avance.total ? Math.round((avance.hechas / avance.total) * 100) : 0}%`,
                 }}
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Cada pastelera tiene 4 casillas: tandas 1, 2, 3 y 4 (el
-            &quot;1*2*3*4&quot; del Excel). El reparto se genera todo en la
-            tanda 1; mové cantidades a otras tandas si hace falta. Celda vacía
-            = 0. Debajo de cada casilla se ve lo que la pastelera ya marcó como
-            hecho.
-          </p>
+          <div className="rounded-2xl border bg-muted/40 p-4 text-sm text-muted-foreground">
+            <p>
+              <span className="font-semibold text-foreground">Cómo leer la tabla:</span>{" "}
+              cada pastelera tiene 4 casillas, una por tanda (T1 = primera
+              tanda, T2 = segunda…). Todo empieza en la primera tanda; si
+              querés que haga una parte más tarde, pasá ese número a otra
+              casilla. Debajo de cada casilla se ve lo que ella ya marcó como
+              hecho.
+            </p>
+            <p className="mt-1">
+              Si la columna <span className="font-semibold">Asignado</span>{" "}
+              muestra ⚠, lo repartido no coincide con el total del cuadro.
+            </p>
+          </div>
           {secciones.map((seccion) => (
             <TablaSeccion
               key={seccion.clave}
@@ -397,14 +397,15 @@ export function AsignarCliente({
       <Dialog open={confirmarGenerar} onOpenChange={setConfirmarGenerar}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>¿Volver a generar el reparto?</DialogTitle>
+            <DialogTitle>¿Hacer el reparto de nuevo?</DialogTitle>
             <DialogDescription>
-              Se reemplazan todas las asignaciones de hoy con las cantidades
-              actuales del cuadro, se pierden los ajustes a mano y el reparto
-              vuelve a borrador.
+              Se vuelve a repartir todo con los números actuales del cuadro. Los
+              cambios que hiciste a mano se pierden y la cocina deja de verlo
+              hasta que lo vuelvas a enviar.
               {conAvance && (
-                <span className="mt-2 block font-semibold text-[#B3261E]">
-                  Ojo: algunas pasteleras ya marcaron avance y se va a borrar.
+                <span className="mt-2 block font-semibold text-destructive">
+                  Ojo: algunas pasteleras ya marcaron trabajo hecho y se va a
+                  borrar.
                 </span>
               )}
             </DialogDescription>
@@ -414,14 +415,13 @@ export function AsignarCliente({
               Cancelar
             </Button>
             <Button
-              className="bg-[#1F4E79] hover:bg-[#1F4E79]/90"
               disabled={pendiente}
               onClick={() => {
                 setConfirmarGenerar(false);
                 ejecutar(generarRepartoDelDia);
               }}
             >
-              Volver a generar
+              Sí, hacerlo de nuevo
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -522,7 +522,7 @@ function TablaSeccion({
                   </td>
                   <td
                     className={`px-2 py-1 text-right font-semibold tabular-nums ${
-                      descuadre ? "text-[#B45309]" : ""
+                      descuadre ? "text-aviso" : ""
                     }`}
                     title={descuadre ? "No coincide con el total del cuadro" : undefined}
                   >
@@ -559,9 +559,9 @@ function TablaSeccion({
                             <div
                               className={`text-[10px] leading-tight tabular-nums ${
                                 asig.estado === "listo"
-                                  ? "font-semibold text-[#2E7D32]"
+                                  ? "font-semibold text-exito"
                                   : asig.estado === "en_proceso"
-                                    ? "text-[#B45309]"
+                                    ? "text-aviso"
                                     : "text-muted-foreground"
                               }`}
                             >

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { EncabezadoCatalogo } from "../catalogos/_componentes/encabezado";
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -106,29 +106,21 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">Pasteleras</h1>
-          <p className="text-sm text-muted-foreground">
-            Cada área reparte su producción entre sus pasteleras con un
-            porcentaje fijo. Los porcentajes de las activas deben sumar 100 %.
-          </p>
-        </div>
-        <Link
-          href="/asignar"
-          className="text-sm font-medium text-[#1F4E79] underline-offset-4 hover:underline"
-        >
-          Ir al reparto →
-        </Link>
-      </div>
+      <EncabezadoCatalogo actual="pasteleras" />
+
+      <p className="text-sm text-muted-foreground">
+        En cada área el trabajo se divide entre sus pasteleras según su
+        porcentaje. Los porcentajes de las pasteleras activas de un área deben
+        sumar 100 %.
+      </p>
 
       {error && (
-        <p role="status" className="rounded-md bg-[#B3261E]/10 px-3 py-2 text-sm font-medium text-[#B3261E]">
+        <p role="status" className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
           {error}
         </p>
       )}
       {ok && !error && (
-        <p role="status" className="rounded-md bg-[#2E7D32]/10 px-3 py-2 text-sm font-medium text-[#2E7D32]">
+        <p role="status" className="rounded-md bg-exito/10 px-3 py-2 text-sm font-medium text-exito">
           {ok}
         </p>
       )}
@@ -158,8 +150,8 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
                         lista.some((p) => p.activa)
                           ? cuadra
-                            ? "bg-[#2E7D32]/10 text-[#2E7D32]"
-                            : "bg-[#B45309]/10 text-[#B45309]"
+                            ? "bg-exito/10 text-exito"
+                            : "bg-aviso/10 text-aviso"
                           : "bg-muted text-muted-foreground"
                       }`}
                     >
@@ -389,7 +381,7 @@ function DialogoPin({
           className="h-12 text-center text-2xl tracking-[0.5em]"
           aria-label="Nuevo PIN"
         />
-        {error && <p className="text-sm text-[#B3261E]">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter className="gap-2">
           {pastelera?.requiere_pin && (
             <Button variant="outline" disabled={guardando} onClick={() => void guardar("")}>
@@ -397,7 +389,7 @@ function DialogoPin({
             </Button>
           )}
           <Button
-            className="bg-[#1F4E79] hover:bg-[#1F4E79]/90"
+            className="bg-primary hover:bg-primary/90"
             disabled={guardando || pin.length !== 4}
             onClick={() => void guardar(pin)}
           >

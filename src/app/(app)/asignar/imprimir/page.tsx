@@ -61,15 +61,15 @@ export default async function ImprimirRepartoPage() {
           <h1 className="text-xl font-bold">Hojas por pastelera</h1>
           <p className="text-sm text-muted-foreground">{formatoLargo(fecha)}</p>
           {datos.plan?.estado !== "publicado" && (
-            <p className="mt-1 text-sm font-medium text-[#B45309]">
-              El reparto está en borrador: puede cambiar.
+            <p className="mt-1 text-sm font-medium text-aviso">
+              Todavía no se envió a cocina: los números pueden cambiar.
             </p>
           )}
         </div>
         <div className="flex items-center gap-4">
           <Link
             href="/asignar"
-            className="text-sm font-medium text-[#1F4E79] underline-offset-4 hover:underline"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
             ← Reparto
           </Link>

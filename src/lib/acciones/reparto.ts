@@ -75,12 +75,12 @@ export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
     revalidatePath("/asignar");
     return {
       ok: true,
-      mensaje: `Reparto generado: ${data ?? filas.length} asignaciones. Revisalo y publicalo a cocina.`,
+      mensaje: `Listo: se repartieron ${data ?? filas.length} trabajos. Revisalo y tocá «Enviar a cocina».`,
     };
-  } catch (e) {
+  } catch {
     return {
       ok: false,
-      mensaje: `No se pudo generar el reparto: ${e instanceof Error ? e.message : "error desconocido"}`,
+      mensaje: "No se pudo hacer el reparto. Revisá que haya internet e intentá de nuevo.",
     };
   }
 }
@@ -108,9 +108,10 @@ export async function cambiarEstadoReparto(
     .eq("fecha", fecha)
     .select("fecha");
 
-  if (error) return { ok: false, mensaje: `No se pudo guardar: ${error.message}` };
+  if (error)
+    return { ok: false, mensaje: "No se pudo guardar. Revisá que haya internet e intentá de nuevo." };
   if ((data ?? []).length === 0) {
-    return { ok: false, mensaje: "Primero generá el reparto de hoy." };
+    return { ok: false, mensaje: "Primero tocá «Hacer el reparto»." };
   }
 
   revalidatePath("/asignar");
@@ -118,7 +119,7 @@ export async function cambiarEstadoReparto(
   return {
     ok: true,
     mensaje: publicar
-      ? "Publicado: las pasteleras ya lo ven en la tablet."
-      : "Reparto en borrador: la tablet deja de mostrarlo.",
+      ? "Enviado: las pasteleras ya lo ven en la tablet de cocina."
+      : "Listo: la tablet de cocina dejó de mostrar el reparto.",
   };
 }

@@ -3,6 +3,8 @@ import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { colorDelDia } from "@/lib/color-dia";
 import { cargarSugeridosDelDia } from "@/lib/sugeridos";
 import { cargarReparto, type DatosReparto } from "@/lib/asignaciones";
+import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
+import { GRUPO_HOY } from "@/lib/grupos";
 import { AsignarCliente } from "./asignar-cliente";
 
 export const dynamic = "force-dynamic";
@@ -13,12 +15,9 @@ export default async function AsignarPage() {
 
   if (!colorDelDia(fecha)) {
     return (
-      <section className="space-y-2">
-        <h1 className="text-xl font-bold">Reparto de producción</h1>
-        <p className="text-sm text-muted-foreground">{formatoLargo(fecha)}</p>
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Hoy es domingo: no hay producción ni reparto.
-        </p>
+      <section className="flex flex-col gap-4">
+        <EncabezadoSeccion grupo={GRUPO_HOY} actual="reparto" />
+        <Aviso tipo="info">Hoy es domingo: no hay producción ni reparto.</Aviso>
       </section>
     );
   }
@@ -50,11 +49,12 @@ export default async function AsignarPage() {
     pendientes = dia.sucursales.length - (cierresRes.data ?? []).length;
   } catch {
     return (
-      <section className="space-y-2">
-        <h1 className="text-xl font-bold">Reparto de producción</h1>
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          No se pudieron cargar los datos. Recargá la página.
-        </p>
+      <section className="flex flex-col gap-4">
+        <EncabezadoSeccion grupo={GRUPO_HOY} actual="reparto" />
+        <Aviso tipo="error">
+          No se pudo cargar el reparto. Revisá que haya internet y recargá la
+          página.
+        </Aviso>
       </section>
     );
   }

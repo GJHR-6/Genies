@@ -39,7 +39,7 @@ export default async function HistorialPage({
   if (!sucursalId) {
     return (
       <section className="space-y-2">
-        <h1 className="text-xl font-bold">Historial</h1>
+        <h1 className="text-2xl font-bold">Historial</h1>
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Tu usuario no tiene sucursal asignada.
         </p>
@@ -76,10 +76,14 @@ export default async function HistorialPage({
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h1 className="text-xl font-bold">Historial</h1>
+        <h1 className="text-2xl font-bold">Historial</h1>
         <p className="text-sm text-muted-foreground">
-          {sucursalNombre} · {formatoLargo(fecha)}
-          {cerrado ? " · Día cerrado" : ""}
+          Lo que se anotó en días anteriores. Elegí la fecha
+          {esAdmin ? " y la tienda" : ""} y tocá Ver.
+        </p>
+        <p className="text-sm font-medium">
+          {sucursalNombre} · <span className="first-letter:uppercase">{formatoLargo(fecha)}</span>
+          {cerrado ? " · Terminado" : ""}
         </p>
       </div>
 
@@ -115,7 +119,7 @@ export default async function HistorialPage({
         )}
         <button
           type="submit"
-          className="h-10 rounded-md bg-[#1F4E79] px-4 text-sm font-medium text-white hover:bg-[#1F4E79]/90"
+          className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           Ver
         </button>

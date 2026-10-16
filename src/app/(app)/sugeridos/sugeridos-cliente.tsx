@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
+import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
+import { GRUPO_HOY } from "@/lib/grupos";
 import type { CeldaSugerido } from "@/lib/sugeridos";
 
 type Producto = {
@@ -135,42 +136,45 @@ export function SugeridosCliente({
   }, [productos]);
 
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">Sugeridos</h1>
-          <p className="text-sm text-muted-foreground">{fechaLegible}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="text-sm font-medium text-[#1F4E79] underline-offset-4 hover:underline"
-          >
-            ← Dashboard
-          </Link>
-          <Link
-            href="/cuadros"
-            className="rounded-md bg-[#1F4E79] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1F4E79]/90"
-          >
-            Generar cuadros →
-          </Link>
-        </div>
+    <section className="flex flex-col gap-4">
+      <EncabezadoSeccion
+        grupo={GRUPO_HOY}
+        actual="sugeridos"
+        detalle={<span className="first-letter:uppercase">{fechaLegible}</span>}
+      />
+
+      <div className="grid gap-2 rounded-2xl border bg-muted/40 p-4 text-sm sm:grid-cols-3">
+        <p>
+          <span className="font-semibold">¿De dónde sale el número?</span>{" "}
+          <span className="text-muted-foreground">
+            Lo que la tienda debe tener (su objetivo) menos lo que ya tiene.
+          </span>
+        </p>
+        <p>
+          <span className="font-semibold">¿Querés otro número?</span>{" "}
+          <span className="text-muted-foreground">
+            Tocalo, escribí el nuevo y presioná Enter. Si lo dejás vacío, vuelve
+            al calculado.
+          </span>
+        </p>
+        <p className="flex flex-col gap-1">
+          <span className="text-muted-foreground">
+            <span className="rounded bg-muted px-1">12</span> gris = calculado ·{" "}
+            <span className="font-semibold text-primary">• 12</span> = cambiado
+            a mano
+          </span>
+          <span className="text-muted-foreground">
+            <span className="italic">12</span> en cursiva = la tienda aún no
+            anota ese producto
+          </span>
+        </p>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Sugerido = objetivo − saldo. Hacé clic en una celda para ajustarlo;{" "}
-        <span className="font-medium text-[#1F4E79]">azul con punto</span> =
-        ajustado a mano, gris = calculado. Dejá la celda vacía para volver al
-        calculado. Cursiva = la tienda aún no captura ese producto (saldo 0).
-      </p>
-
       {errorGuardado && (
-        <p
-          role="status"
-          className="rounded-md bg-[#B3261E]/10 px-3 py-1.5 text-xs font-medium text-[#B3261E]"
-        >
-          No se pudo guardar el ajuste. Revisá la conexión e intentá de nuevo.
-        </p>
+        <Aviso tipo="error">
+          No se pudo guardar el cambio. Revisá que haya internet e intentá de
+          nuevo.
+        </Aviso>
       )}
 
       <div className="overflow-x-auto rounded-lg border">
@@ -248,7 +252,7 @@ function FilasCategoria({
                 <td
                   key={s.id}
                   className="px-3 py-1.5 text-right text-muted-foreground"
-                  title="Sin regla de sugerido"
+                  title="Este producto no tiene objetivo para esta tienda"
                 >
                   —
                 </td>
@@ -295,7 +299,7 @@ function FilasCategoria({
                   }
                   className={`w-full rounded px-2 py-1 text-right tabular-nums hover:bg-muted ${
                     celda.esOverride
-                      ? "font-semibold text-[#1F4E79]"
+                      ? "font-semibold text-primary"
                       : "text-muted-foreground"
                   } ${celda.conCaptura ? "" : "italic"}`}
                   aria-label={`Sugerido de ${p.nombre} en ${s.nombre}: ${celda.sugerido}${celda.esOverride ? " (ajustado)" : ""}`}

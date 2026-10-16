@@ -160,7 +160,7 @@ export function CocinaCliente({ fecha, fechaLegible, datos }: Props) {
       </div>
 
       {mensaje && (
-        <p role="status" className="rounded-md bg-[#B45309]/10 px-4 py-3 text-base font-medium text-[#B45309]">
+        <p role="status" className="rounded-md bg-aviso/10 px-4 py-3 text-base font-medium text-aviso">
           {mensaje}
         </p>
       )}
@@ -190,7 +190,7 @@ export function CocinaCliente({ fecha, fechaLegible, datos }: Props) {
                 type="button"
                 onClick={() => elegir(p)}
                 className={`flex min-h-32 flex-col justify-between rounded-xl border-2 p-5 text-left shadow-sm transition active:scale-[0.98] ${
-                  completo ? "border-[#2E7D32] bg-[#2E7D32]/5" : "border-border bg-card hover:border-primary"
+                  completo ? "border-exito bg-exito/5" : "border-border bg-card hover:border-primary"
                 }`}
               >
                 <div>
@@ -206,7 +206,7 @@ export function CocinaCliente({ fecha, fechaLegible, datos }: Props) {
                   </p>
                   <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full bg-[#2E7D32] transition-all"
+                      className="h-full bg-exito transition-all"
                       style={{
                         width: `${avance.total ? Math.round((avance.hechas / avance.total) * 100) : 0}%`,
                       }}
@@ -275,7 +275,7 @@ function TecladoPin({
           />
         ))}
       </div>
-      <p role="status" className="h-6 text-base font-semibold text-[#B3261E]">
+      <p role="status" className="h-6 text-base font-semibold text-destructive">
         {verificando ? <span className="text-muted-foreground">Verificando…</span> : error}
       </p>
       <div className="grid w-full grid-cols-3 gap-3">
@@ -420,7 +420,7 @@ function TrabajoPastelera({
           </p>
           <div className="mt-1 h-3 overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full bg-[#2E7D32] transition-all"
+              className="h-full bg-exito transition-all"
               style={{ width: `${avance.total ? Math.round((avance.hechas / avance.total) * 100) : 0}%` }}
             />
           </div>
@@ -428,7 +428,7 @@ function TrabajoPastelera({
       </div>
 
       {error && (
-        <p role="status" className="rounded-md bg-[#B3261E]/10 px-4 py-3 text-base font-medium text-[#B3261E]">
+        <p role="status" className="rounded-md bg-destructive/10 px-4 py-3 text-base font-medium text-destructive">
           {error}
         </p>
       )}
@@ -455,18 +455,18 @@ function TrabajoPastelera({
                 <div
                   key={t.id}
                   className={`flex flex-wrap items-center gap-4 rounded-xl border-2 p-4 ${
-                    listo ? "border-[#2E7D32] bg-[#2E7D32]/5" : "bg-card"
+                    listo ? "border-exito bg-exito/5" : "bg-card"
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className={`text-xl font-bold ${listo ? "text-[#2E7D32]" : ""}`}>
+                    <p className={`text-xl font-bold ${listo ? "text-exito" : ""}`}>
                       {p ? nombreProducto(p) : `Producto ${t.producto_id}`}
                     </p>
                     <span
                       className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-sm font-semibold ${
                         t.tipo === "decoracion"
-                          ? "bg-[#E75A93]/15 text-[#9D174D]"
-                          : "bg-[#1F4E79]/10 text-[#1F4E79]"
+                          ? "bg-secondary text-secondary-foreground"
+                          : "bg-primary/10 text-primary"
                       }`}
                     >
                       {t.tipo === "decoracion" ? "Decorar" : "Producir"}
@@ -509,7 +509,7 @@ function TrabajoPastelera({
                     className={`h-14 min-w-36 rounded-xl px-5 text-lg font-bold ${
                       listo
                         ? "border-2 text-muted-foreground active:bg-accent"
-                        : "bg-[#2E7D32] text-white active:bg-[#2E7D32]/80"
+                        : "bg-exito text-primary-foreground active:bg-exito/80"
                     }`}
                   >
                     {listo ? "Deshacer" : "✓ Listo"}

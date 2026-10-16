@@ -81,9 +81,9 @@ function BadgeEstado({ estado }: { estado: EstadoFila | undefined }) {
   if (!estado) return null;
   const estilos: Record<EstadoFila, { texto: string; clase: string }> = {
     guardando: { texto: "Guardando…", clase: "text-muted-foreground" },
-    guardado: { texto: "Guardado ✓", clase: "text-[#2E7D32]" },
-    pendiente: { texto: "Pendiente ⟳", clase: "text-[#B45309]" },
-    error: { texto: "No se pudo guardar", clase: "text-[#B3261E]" },
+    guardado: { texto: "Guardado ✓", clase: "text-exito" },
+    pendiente: { texto: "Guardando…", clase: "text-aviso" },
+    error: { texto: "No se pudo guardar", clase: "text-destructive" },
   };
   const { texto, clase } = estilos[estado];
   return (
@@ -365,9 +365,9 @@ export function CapturaCliente({
       {/* Encabezado fijo: sucursal, fecha, progreso y buscador */}
       <div className="sticky top-0 z-20 -mx-4 border-b bg-background px-4 pb-3 pt-2">
         <div className="flex items-baseline justify-between gap-2">
-          <h1 className="text-lg font-bold leading-tight">Captura del día</h1>
+          <h1 className="text-lg font-bold leading-tight">Inventario de hoy</h1>
           <span className="text-xs tabular-nums text-muted-foreground">
-            {capturados}/{total} productos
+            {capturados} de {total} anotados
           </span>
         </div>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -382,10 +382,10 @@ export function CapturaCliente({
           aria-valuenow={capturados}
           aria-valuemin={0}
           aria-valuemax={total}
-          aria-label="Avance de captura"
+          aria-label="Avance del inventario"
         >
           <div
-            className="h-full rounded-full bg-[#1F4E79] transition-all"
+            className="h-full rounded-full bg-primary transition-all"
             style={{ width: total ? `${(capturados / total) * 100}%` : "0%" }}
           />
         </div>
@@ -397,12 +397,18 @@ export function CapturaCliente({
           aria-label="Buscar producto"
           className="mt-2 h-11"
         />
+        {!cerrado && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Anotá lo que entró, lo que devolviste y los pedidos. Cada número se
+            guarda solo.
+          </p>
+        )}
         {!enLinea && (
           <p
             role="status"
-            className="mt-2 rounded-md bg-[#B45309]/10 px-3 py-1.5 text-xs font-medium text-[#B45309]"
+            className="mt-2 rounded-md bg-aviso/10 px-3 py-1.5 text-xs font-medium text-aviso"
           >
-            Sin conexión — los cambios se guardarán al volver la señal.
+            Sin internet: seguí anotando, se guarda solo cuando vuelva la señal.
           </p>
         )}
         {cerrado && (
@@ -410,7 +416,7 @@ export function CapturaCliente({
             role="status"
             className="mt-2 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground"
           >
-            Día cerrado — solo lectura. La administración puede reabrirlo.
+            Ya terminaste el inventario de hoy. Si hay que corregir algo, pedile a administración que lo vuelva a abrir.
           </p>
         )}
       </div>
@@ -520,10 +526,10 @@ export function CapturaCliente({
       {!cerrado && total > 0 && (
         <div className="pb-6 pt-2">
           <Button
-            className="h-12 w-full bg-[#1F4E79] text-base hover:bg-[#1F4E79]/90"
+            className="h-12 w-full bg-primary text-base hover:bg-primary/90"
             onClick={() => setDialogoCierre(true)}
           >
-            Marcar día completo
+            Terminé el inventario de hoy
           </Button>
         </div>
       )}
@@ -531,18 +537,19 @@ export function CapturaCliente({
       <Dialog open={dialogoCierre} onOpenChange={setDialogoCierre}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>¿Cerrar el día?</DialogTitle>
+            <DialogTitle>¿Terminaste el inventario?</DialogTitle>
             <DialogDescription>
-              Llevás {capturados} de {total} productos con captura.
+              Anotaste {capturados} de {total} productos.
               {sinCapturar > 0
-                ? ` Los ${sinCapturar} productos sin captura quedarán en 0.`
-                : " Todo el catálogo quedó capturado."}{" "}
-              Después del cierre solo la administración puede corregir.
+                ? ` Los ${sinCapturar} que no anotaste quedan en 0.`
+                : " ¡Anotaste todos!"}{" "}
+              Después ya no vas a poder cambiar números; solo administración
+              puede corregir.
             </DialogDescription>
           </DialogHeader>
           {mutacionCierre.isError && (
-            <p className="text-sm text-[#B3261E]">
-              No se pudo cerrar el día. Revisá tu conexión e intentá de nuevo.
+            <p className="text-sm text-destructive">
+              No se pudo guardar. Revisá que haya internet e intentá de nuevo.
             </p>
           )}
           <DialogFooter className="gap-2">
@@ -552,14 +559,14 @@ export function CapturaCliente({
               onClick={() => setDialogoCierre(false)}
               disabled={mutacionCierre.isPending}
             >
-              Seguir capturando
+              Seguir anotando
             </Button>
             <Button
-              className="h-11 bg-[#1F4E79] hover:bg-[#1F4E79]/90"
+              className="h-11 bg-primary hover:bg-primary/90"
               onClick={() => mutacionCierre.mutate()}
               disabled={mutacionCierre.isPending}
             >
-              {mutacionCierre.isPending ? "Cerrando…" : "Cerrar el día"}
+              {mutacionCierre.isPending ? "Guardando…" : "Sí, terminé"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -259,8 +259,8 @@ function FormularioProducto({
           </DialogTitle>
           <DialogDescription>
             {producto
-              ? "Los cambios se ven en la captura y en los cuadros de inmediato."
-              : "Aparece en la captura de todas las tiendas. Después asignale sus objetivos."}
+              ? "Los cambios se ven en el inventario de las tiendas y en los cuadros de inmediato."
+              : "Aparece en el inventario de todas las tiendas. Después ponele sus objetivos en «Objetivos por tienda»."}
           </DialogDescription>
         </DialogHeader>
 
@@ -292,7 +292,7 @@ function FormularioProducto({
           <Campo
             etiqueta="Categoría"
             htmlFor="prod-categoria"
-            ayuda="Agrupa la lista en la captura."
+            ayuda="Agrupa la lista del inventario."
           >
             <Input
               id="prod-categoria"
@@ -369,8 +369,8 @@ function FormularioProducto({
             etiqueta="Activo"
             descripcion={
               datos.activo
-                ? "Se captura y se produce."
-                : "No aparece en la captura ni en los cuadros. Su historial se conserva."
+                ? "Se anota en el inventario y se produce."
+                : "No aparece en el inventario ni en los cuadros. Su historial se conserva."
             }
           />
         </div>

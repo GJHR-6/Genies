@@ -42,7 +42,7 @@ const ROLES: { valor: RolUsuario; etiqueta: string; descripcion: string }[] = [
   {
     valor: "tienda",
     etiqueta: "Tienda",
-    descripcion: "Captura el inventario de su sucursal.",
+    descripcion: "Anota el inventario de su tienda.",
   },
   {
     valor: "principal",

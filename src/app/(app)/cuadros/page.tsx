@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import {
@@ -8,6 +7,8 @@ import {
 } from "@/lib/sugeridos";
 import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
+import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
+import { GRUPO_HOY } from "@/lib/grupos";
 import { BotonImprimir } from "./boton-imprimir";
 
 export const dynamic = "force-dynamic";
@@ -26,13 +27,12 @@ export default async function CuadrosPage() {
   // Domingo: no hay producción, no se generan cuadros.
   if (!color) {
     return (
-      <section className="space-y-2">
-        <h1 className="text-xl font-bold">Cuadros de producción</h1>
-        <p className="text-sm text-muted-foreground">{formatoLargo(fecha)}</p>
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Hoy es domingo: no hay producción. Los cuadros se generan de lunes a
+      <section className="flex flex-col gap-4">
+        <EncabezadoSeccion grupo={GRUPO_HOY} actual="cuadros" />
+        <Aviso tipo="info">
+          Hoy es domingo: no hay producción. Los cuadros salen de lunes a
           sábado.
-        </p>
+        </Aviso>
       </section>
     );
   }
@@ -76,11 +76,12 @@ export default async function CuadrosPage() {
     cerradas = (cierresRes.data ?? []).length;
   } catch {
     return (
-      <section className="space-y-2">
-        <h1 className="text-xl font-bold">Cuadros de producción</h1>
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          No se pudieron cargar los datos. Recargá la página.
-        </p>
+      <section className="flex flex-col gap-4">
+        <EncabezadoSeccion grupo={GRUPO_HOY} actual="cuadros" />
+        <Aviso tipo="error">
+          No se pudieron cargar los cuadros. Revisá que haya internet y recargá
+          la página.
+        </Aviso>
       </section>
     );
   }
@@ -131,47 +132,38 @@ export default async function CuadrosPage() {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="text-xl font-bold">Cuadros de producción</h1>
-          <p className="text-sm text-muted-foreground">{formatoLargo(fecha)}</p>
-          <ChipColorDia fecha={fecha} conEtiqueta className="mt-1" />
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/sugeridos"
-            className="text-sm font-medium text-[#1F4E79] underline-offset-4 hover:underline"
-          >
-            ← Sugeridos
-          </Link>
-          <BotonImprimir />
-          <Link
-            href="/asignar"
-            className="rounded-md bg-[#1F4E79] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1F4E79]/90"
-          >
-            Repartir por pastelera →
-          </Link>
-        </div>
-      </div>
+      <EncabezadoSeccion
+        grupo={GRUPO_HOY}
+        actual="cuadros"
+        detalle={
+          <>
+            <span className="first-letter:uppercase">{formatoLargo(fecha)}</span>
+            <ChipColorDia fecha={fecha} />
+          </>
+        }
+      >
+        <BotonImprimir />
+      </EncabezadoSeccion>
 
       {pendientes > 0 && (
-        <p
-          role="status"
-          className="rounded-md bg-[#B45309]/10 px-3 py-2 text-sm font-medium text-[#B45309] print:hidden"
-        >
+        <Aviso tipo="aviso" className="print:hidden">
           {pendientes === 1
-            ? "1 sucursal aún no cierra el día"
-            : `${pendientes} sucursales aún no cierran el día`}
-          ; sus cantidades usan el objetivo o la captura parcial.
-        </p>
+            ? "1 tienda todavía no termina su inventario"
+            : `${pendientes} tiendas todavía no terminan su inventario`}
+          : sus números pueden cambiar. Si imprimís ahora, revisalos después.
+        </Aviso>
       )}
 
       {cuadros.length === 0 && (
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          No hay productos con reglas de sugerido. Cargá el catálogo y las
-          reglas (hito M2).
-        </p>
+        <Aviso tipo="info">
+          Todavía no hay productos con objetivos. Agregalos en Catálogos →
+          Objetivos por tienda.
+        </Aviso>
       )}
+
+      <p className="text-sm text-muted-foreground print:hidden">
+        Sale una hoja por área. Al imprimir, cada cuadro va en su propia página.
+      </p>
 
       {cuadros.map((cuadro) => (
         <article
@@ -226,7 +218,7 @@ export default async function CuadrosPage() {
                       {p.nombre}
                       {p.tamano ? ` · ${p.tamano}` : ""}
                       {p.lleva_decoracion && (
-                        <span className="ml-2 rounded border border-[#1F4E79] px-1 py-0.5 text-[10px] font-semibold uppercase text-[#1F4E79] print:border-black print:text-black">
+                        <span className="ml-2 rounded border border-primary px-1 py-0.5 text-[10px] font-semibold uppercase text-primary print:border-black print:text-black">
                           Decorar
                         </span>
                       )}
