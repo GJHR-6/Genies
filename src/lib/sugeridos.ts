@@ -29,6 +29,35 @@ export type SugeridosDelDia = {
   celdas: Record<string, CeldaSugerido>;
 };
 
+export type ReglaSugerido = {
+  producto_id: number;
+  sucursal_id: number;
+  dia_semana: number | null;
+  objetivo: number;
+};
+
+const PAGINA_REGLAS = 1000;
+
+/**
+ * Todas las reglas de sugerido, por páginas: PostgREST corta cada respuesta
+ * en 1000 filas y sin paginar los objetivos se perderían sin aviso.
+ */
+export async function cargarReglas(
+  supabase: SupabaseClient<Database>
+): Promise<ReglaSugerido[]> {
+  const filas: ReglaSugerido[] = [];
+  for (let desde = 0; ; desde += PAGINA_REGLAS) {
+    const { data, error } = await supabase
+      .from("reglas_sugerido")
+      .select("producto_id, sucursal_id, dia_semana, objetivo")
+      .order("id")
+      .range(desde, desde + PAGINA_REGLAS - 1);
+    if (error) throw new Error(error.message);
+    filas.push(...data);
+    if (data.length < PAGINA_REGLAS) return filas;
+  }
+}
+
 /** Día de la semana (0=domingo … 6=sábado) de una fecha ISO. */
 export function diaSemana(fechaIso: string): number {
   return new Date(`${fechaIso}T12:00:00Z`).getUTCDay();
@@ -61,9 +90,10 @@ export async function cargarSugeridosDelDia(
         .select("id, nombre")
         .eq("activa", true)
         .order("id"),
-      supabase
-        .from("reglas_sugerido")
-        .select("producto_id, sucursal_id, dia_semana, objetivo"),
+      cargarReglas(supabase).then(
+        (data) => ({ data, error: null }),
+        (e: Error) => ({ data: null, error: e })
+      ),
       supabase
         .from("v_sugeridos")
         .select("producto_id, sucursal_id, saldo, sugerido, es_override")

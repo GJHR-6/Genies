@@ -26,11 +26,11 @@ type ProductoRezagado = {
 const ETIQUETA_ACCION = {
   prioridad: {
     texto: "Prioridad de venta",
-    clase: "bg-[#B45309]/10 text-[#B45309]",
+    clase: "bg-aviso/10 text-aviso",
   },
   regresar: {
     texto: "Regresar a Principal",
-    clase: "bg-[#B91C1C]/10 text-[#B91C1C]",
+    clase: "bg-destructive/10 text-destructive",
   },
 } as const;
 
@@ -143,7 +143,8 @@ export default async function RotacionPage() {
   } catch {
     return (
       <section className="space-y-2">
-        <h1 className="text-xl font-bold">Rotación de producto</h1>
+        <h1 className="text-2xl font-bold">Rotación de producto</h1>
+        <p className="text-sm text-muted-foreground">Cuántos días lleva cada producto en la tienda, para vender primero lo más viejo.</p>
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           No se pudieron cargar los datos. Recargá la página.
         </p>
@@ -236,7 +237,8 @@ export default async function RotacionPage() {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-bold">Rotación de producto</h1>
+        <h1 className="text-2xl font-bold">Rotación de producto</h1>
+        <p className="text-sm text-muted-foreground">Cuántos días lleva cada producto en la tienda, para vender primero lo más viejo.</p>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <span>{formatoLargo(hoy)}</span>
           <ChipColorDia fecha={hoy} conEtiqueta />
@@ -247,9 +249,9 @@ export default async function RotacionPage() {
         <p>
           Cada pastel lleva el color del día en que se produjo. Con{" "}
           <strong>{DIAS_PRIORIDAD} días</strong> en tienda tiene{" "}
-          <strong className="text-[#B45309]">prioridad de venta</strong>; con{" "}
+          <strong className="text-aviso">prioridad de venta</strong>; con{" "}
           <strong>{DIAS_REGRESAR} días o más</strong> se{" "}
-          <strong className="text-[#B91C1C]">
+          <strong className="text-destructive">
             regresa a Principal para cambio
           </strong>
           .
@@ -272,7 +274,7 @@ export default async function RotacionPage() {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg border bg-card p-3">
-          <p className="text-2xl font-bold tabular-nums text-[#B91C1C]">
+          <p className="text-2xl font-bold tabular-nums text-destructive">
             {unidadesRegresar}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -280,7 +282,7 @@ export default async function RotacionPage() {
           </p>
         </div>
         <div className="rounded-lg border bg-card p-3">
-          <p className="text-2xl font-bold tabular-nums text-[#B45309]">
+          <p className="text-2xl font-bold tabular-nums text-aviso">
             {unidadesPrioridad}
           </p>
           <p className="text-xs text-muted-foreground">

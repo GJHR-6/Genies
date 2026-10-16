@@ -21,6 +21,7 @@ export type Database = {
         Row: {
           activa: boolean
           encargadas: string
+          es_decoracion: boolean
           id: number
           nombre: string
           orden: number
@@ -28,6 +29,7 @@ export type Database = {
         Insert: {
           activa?: boolean
           encargadas: string
+          es_decoracion?: boolean
           id?: never
           nombre: string
           orden: number
@@ -35,11 +37,69 @@ export type Database = {
         Update: {
           activa?: boolean
           encargadas?: string
+          es_decoracion?: boolean
           id?: never
           nombre?: string
           orden?: number
         }
         Relationships: []
+      }
+      asignaciones: {
+        Row: {
+          cantidad: number
+          cantidad_hecha: number
+          estado: string
+          fecha: string
+          id: number
+          pastelera_id: number | null
+          producto_id: number
+          tanda: number
+          tipo: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cantidad: number
+          cantidad_hecha?: number
+          estado?: string
+          fecha: string
+          id?: never
+          pastelera_id?: number | null
+          producto_id: number
+          tanda?: number
+          tipo: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cantidad?: number
+          cantidad_hecha?: number
+          estado?: string
+          fecha?: string
+          id?: never
+          pastelera_id?: number | null
+          producto_id?: number
+          tanda?: number
+          tipo?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignaciones_pastelera_id_fkey"
+            columns: ["pastelera_id"]
+            isOneToOne: false
+            referencedRelation: "pasteleras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cierres_dia: {
         Row: {
@@ -156,6 +216,68 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pasteleras: {
+        Row: {
+          activa: boolean
+          area_id: number
+          id: number
+          nombre: string
+          orden: number
+          porcentaje: number
+          requiere_pin: boolean
+        }
+        Insert: {
+          activa?: boolean
+          area_id: number
+          id?: never
+          nombre: string
+          orden?: number
+          porcentaje?: number
+          requiere_pin?: boolean
+        }
+        Update: {
+          activa?: boolean
+          area_id?: number
+          id?: never
+          nombre?: string
+          orden?: number
+          porcentaje?: number
+          requiere_pin?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pasteleras_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "areas_produccion"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planes_dia: {
+        Row: {
+          estado: string
+          fecha: string
+          generado_at: string | null
+          publicado_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          estado?: string
+          fecha: string
+          generado_at?: string | null
+          publicado_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          estado?: string
+          fecha?: string
+          generado_at?: string | null
+          publicado_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       perfiles: {
         Row: {
@@ -397,7 +519,40 @@ export type Database = {
       }
     }
     Functions: {
+      admin_usuarios: {
+        Args: never
+        Returns: {
+          creado: string
+          email: string
+          nombre: string | null
+          rol: Database["public"]["Enums"]["rol_usuario"] | null
+          sucursal_id: number | null
+          ultimo_ingreso: string | null
+          user_id: string
+        }[]
+      }
       es_admin: { Args: never; Returns: boolean }
+      fijar_pin_pastelera: {
+        Args: { p_pastelera: number; p_pin: string }
+        Returns: undefined
+      }
+      reemplazar_asignaciones: {
+        Args: { p_fecha: string; p_filas: Json }
+        Returns: number
+      }
+      registrar_avance: {
+        Args: {
+          p_asignacion: number
+          p_estado?: string
+          p_hecha: number
+          p_pin: string
+        }
+        Returns: Database["public"]["Tables"]["asignaciones"]["Row"]
+      }
+      verificar_pin_pastelera: {
+        Args: { p_pastelera: number; p_pin: string }
+        Returns: boolean
+      }
       rol_actual: {
         Args: never
         Returns: Database["public"]["Enums"]["rol_usuario"]

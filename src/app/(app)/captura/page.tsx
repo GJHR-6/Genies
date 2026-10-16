@@ -11,7 +11,7 @@ export default async function CapturaPage() {
   if (!perfil?.sucursalId) {
     return (
       <section className="space-y-2">
-        <h1 className="text-xl font-bold">Captura del día</h1>
+        <h1 className="text-xl font-bold">Inventario de hoy</h1>
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Tu usuario no tiene sucursal asignada. Contactá a la administración.
         </p>
@@ -67,7 +67,7 @@ export default async function CapturaPage() {
   if (error) {
     return (
       <section className="space-y-2">
-        <h1 className="text-xl font-bold">Captura del día</h1>
+        <h1 className="text-xl font-bold">Inventario de hoy</h1>
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           No se pudieron cargar los datos. Recargá la página; si el problema
           sigue, avisá a la administración.

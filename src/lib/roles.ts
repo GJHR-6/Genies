@@ -4,15 +4,18 @@ export type RolUsuario = Enums<"rol_usuario">;
 
 /** Rutas que exigen rol admin (además del RLS en la base de datos). */
 export const RUTAS_ADMIN = [
+  "/hoy",
   "/dashboard",
   "/sugeridos",
   "/cuadros",
   "/catalogos",
+  "/asignar",
+  "/pasteleras",
 ] as const;
 
 /** Pantalla inicial según el rol del perfil. */
 export function rutaInicio(rol: RolUsuario): string {
-  return rol === "admin" ? "/dashboard" : "/captura";
+  return rol === "admin" ? "/hoy" : "/captura";
 }
 
 export function esRutaAdmin(pathname: string): boolean {
