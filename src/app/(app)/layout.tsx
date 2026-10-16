@@ -16,6 +16,7 @@ const NAV_ADMIN = [
   { href: "/sugeridos", etiqueta: "Sugeridos" },
   { href: "/rotacion", etiqueta: "Rotación" },
   { href: "/historial", etiqueta: "Historial" },
+  { href: "/catalogos", etiqueta: "Catálogos" },
 ];
 
 const NAV_TIENDA = [
