@@ -10,7 +10,7 @@ export default async function PastelerasPage() {
   const [areasRes, pastelerasRes] = await Promise.all([
     supabase
       .from("areas_produccion")
-      .select("id, nombre, orden, es_decoracion, activa")
+      .select("id, nombre, orden, es_decoracion, activa, trabajo_en_equipo")
       .order("orden"),
     supabase.from("pasteleras").select(COLUMNAS_PASTELERA).order("orden").order("id"),
   ]);

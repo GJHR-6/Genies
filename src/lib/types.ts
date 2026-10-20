@@ -25,6 +25,7 @@ export type Database = {
           id: number
           nombre: string
           orden: number
+          trabajo_en_equipo: boolean
         }
         Insert: {
           activa?: boolean
@@ -33,6 +34,7 @@ export type Database = {
           id?: never
           nombre: string
           orden: number
+          trabajo_en_equipo?: boolean
         }
         Update: {
           activa?: boolean
@@ -41,6 +43,7 @@ export type Database = {
           id?: never
           nombre?: string
           orden?: number
+          trabajo_en_equipo?: boolean
         }
         Relationships: []
       }
@@ -545,6 +548,7 @@ export type Database = {
           p_asignacion: number
           p_estado?: string
           p_hecha: number
+          p_pastelera?: number
           p_pin: string
         }
         Returns: Database["public"]["Tables"]["asignaciones"]["Row"]

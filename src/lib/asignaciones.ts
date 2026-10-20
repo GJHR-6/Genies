@@ -30,6 +30,8 @@ export type AreaDia = {
   orden: number;
   es_decoracion: boolean;
   activa: boolean;
+  /** true = el área no se divide: una hoja compartida (p. ej. Kenia y Dany). */
+  trabajo_en_equipo: boolean;
 };
 
 export type ProductoDia = {
@@ -41,6 +43,15 @@ export type ProductoDia = {
   orden_area: number | null;
   lleva_decoracion: boolean;
 };
+
+/**
+ * Lo que el cuadro dice para cada producto (para comparar con el reparto):
+ * hornear (total − sin decorar), decorar (total) y sin decorar en Principal.
+ */
+export type TotalesCuadro = Record<
+  number,
+  { produccion: number; decoracion: number; sinDecorar: number }
+>;
 
 export type PlanDia = {
   estado: "borrador" | "publicado";
@@ -122,7 +133,7 @@ export async function cargarReparto(
         .maybeSingle(),
       supabase
         .from("areas_produccion")
-        .select("id, nombre, orden, es_decoracion, activa")
+        .select("id, nombre, orden, es_decoracion, activa, trabajo_en_equipo")
         .order("orden"),
       supabase
         .from("pasteleras")
@@ -172,6 +183,31 @@ export async function cargarReparto(
     productos: productosRes.data ?? [],
     asignaciones: (asignacionesRes.data ?? []).map(aAsignacion),
   };
+}
+
+/** Ids de las áreas activas que trabajan en equipo. */
+export function idsAreasEnEquipo(
+  areas: { id: number; activa: boolean; trabajo_en_equipo: boolean }[]
+): Set<number> {
+  return new Set(areas.filter((a) => a.activa && a.trabajo_en_equipo).map((a) => a.id));
+}
+
+/**
+ * Nombre de una hoja: en un área en equipo, el de todo el equipo
+ * ("Kenia y Dany"); si no, el de la pastelera.
+ */
+export function nombreHoja(
+  pastelera: { nombre: string; area_id: number },
+  pasteleras: { nombre: string; area_id: number; activa: boolean; orden: number; id: number }[],
+  areasEnEquipo: ReadonlySet<number>
+): string {
+  if (!areasEnEquipo.has(pastelera.area_id)) return pastelera.nombre;
+  const nombres = pasteleras
+    .filter((p) => p.activa && p.area_id === pastelera.area_id)
+    .sort((a, b) => a.orden - b.orden || a.id - b.id)
+    .map((p) => p.nombre);
+  if (nombres.length <= 1) return pastelera.nombre;
+  return `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
 }
 
 /** "VAINILLA · 6X2" */

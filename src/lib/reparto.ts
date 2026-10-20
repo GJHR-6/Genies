@@ -11,6 +11,11 @@
  *  - Todo arranca en la tanda 1; el admin lo parte en tandas 1–4 al editar.
  *  - Decoración: la hacen las pasteleras del área de decoración; si no hay
  *    ninguna activa, las del área del producto.
+ *  - Producción y decoración pueden tener totales distintos: lo que ya está
+ *    sin decorar en Principal no se vuelve a hornear, pero sí se decora.
+ *  - Áreas «en equipo» (p. ej. Kenia y Dany): no se divide; todo queda en
+ *    una sola hoja compartida, a nombre de la primera pastelera del área
+ *    (la titular), y cualquiera del equipo la ve y la marca en la tablet.
  */
 
 export type TipoAsignacion = "produccion" | "decoracion";
@@ -96,15 +101,41 @@ export function repartirEntero(
   return resultado;
 }
 
-/** Pasteleras activas de un área, en su orden. */
+const porOrdenPastelera = (a: PasteleraReparto, b: PasteleraReparto) =>
+  a.orden - b.orden || a.id - b.id;
+
+/**
+ * Titular de un área en equipo: la primera pastelera activa en el orden
+ * del área. Es a nombre de quien queda la hoja compartida.
+ */
+export function titularDeArea<T extends PasteleraReparto>(
+  pasteleras: T[],
+  areaId: number
+): T | null {
+  return (
+    pasteleras
+      .filter((p) => p.activa && p.area_id === areaId)
+      .sort(porOrdenPastelera)[0] ?? null
+  );
+}
+
+/**
+ * Quién reparte un área: en equipo, solo la titular (sin dividir); si no,
+ * las pasteleras activas con porcentaje, en su orden.
+ */
 function pastelerasDeArea(
   pasteleras: PasteleraReparto[],
-  areaId: number | null
+  areaId: number | null,
+  areasEnEquipo: ReadonlySet<number>
 ): PasteleraReparto[] {
   if (areaId === null) return [];
+  if (areasEnEquipo.has(areaId)) {
+    const titular = titularDeArea(pasteleras, areaId);
+    return titular ? [{ ...titular, porcentaje: 100 }] : [];
+  }
   return pasteleras
     .filter((p) => p.activa && p.area_id === areaId && p.porcentaje > 0)
-    .sort((a, b) => a.orden - b.orden || a.id - b.id);
+    .sort(porOrdenPastelera);
 }
 
 function repartirProducto(
@@ -136,31 +167,40 @@ function repartirProducto(
 export function generarReparto(params: {
   fecha: string;
   productos: ProductoReparto[];
-  /** Total del día por producto (suma de sugeridos). */
+  /** Producción del día por producto (sugeridos − sin decorar). */
   totales: Map<number, number>;
+  /** Decoración del día por producto; si falta, se usa `totales`. */
+  totalesDecoracion?: Map<number, number>;
   pasteleras: PasteleraReparto[];
   /** Id del área de decoración, si existe. */
   areaDecoracionId: number | null;
+  /** Áreas que trabajan en equipo (una hoja compartida, sin dividir). */
+  areasEnEquipo?: ReadonlySet<number>;
 }): FilaReparto[] {
   const { fecha, productos, totales, pasteleras, areaDecoracionId } = params;
+  const totalesDecoracion = params.totalesDecoracion ?? totales;
+  const areasEnEquipo = params.areasEnEquipo ?? new Set<number>();
   const dia = diaDelAnio(fecha);
-  const decoradoras = pastelerasDeArea(pasteleras, areaDecoracionId);
+  const decoradoras = pastelerasDeArea(pasteleras, areaDecoracionId, areasEnEquipo);
   const filas: FilaReparto[] = [];
 
   for (const producto of productos) {
     const total = totales.get(producto.id) ?? 0;
-    if (total <= 0) continue;
-    const equipoArea = pastelerasDeArea(pasteleras, producto.area_id);
+    const totalDecoracion = producto.lleva_decoracion
+      ? (totalesDecoracion.get(producto.id) ?? 0)
+      : 0;
+    if (total <= 0 && totalDecoracion <= 0) continue;
+    const equipoArea = pastelerasDeArea(pasteleras, producto.area_id, areasEnEquipo);
     const rotacion = dia + producto.id;
 
     filas.push(
       ...repartirProducto(producto.id, total, "produccion", equipoArea, rotacion)
     );
-    if (producto.lleva_decoracion) {
+    if (totalDecoracion > 0) {
       filas.push(
         ...repartirProducto(
           producto.id,
-          total,
+          totalDecoracion,
           "decoracion",
           decoradoras.length > 0 ? decoradoras : equipoArea,
           rotacion
@@ -171,13 +211,17 @@ export function generarReparto(params: {
   return filas;
 }
 
-/** Suma de porcentajes por área (debe dar 100 para un reparto completo). */
+/**
+ * Suma de porcentajes por área (debe dar 100 para un reparto completo).
+ * Las áreas en equipo no se dividen: no entran en la cuenta.
+ */
 export function sumaPorcentajesPorArea(
-  pasteleras: PasteleraReparto[]
+  pasteleras: PasteleraReparto[],
+  areasEnEquipo: ReadonlySet<number> = new Set()
 ): Map<number, number> {
   const sumas = new Map<number, number>();
   for (const p of pasteleras) {
-    if (!p.activa) continue;
+    if (!p.activa || areasEnEquipo.has(p.area_id)) continue;
     sumas.set(p.area_id, (sumas.get(p.area_id) ?? 0) + p.porcentaje);
   }
   return sumas;

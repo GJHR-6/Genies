@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import {
   cargarSugeridosDelDia,
+  totalesPorProducto,
   type ProductoSugerido,
   type SugeridosDelDia,
 } from "@/lib/sugeridos";
@@ -9,6 +10,9 @@ import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
 import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
 import { GRUPO_HOY } from "@/lib/grupos";
+import Link from "next/link";
+import { Truck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { BotonImprimir } from "./boton-imprimir";
 
 export const dynamic = "force-dynamic";
@@ -130,6 +134,12 @@ export default async function CuadrosPage() {
   const sugeridoDe = (productoId: number, sucursalId: number): number | null =>
     celdas[`${productoId}-${sucursalId}`]?.sugerido ?? null;
 
+  // Total, sin decorar en Principal y lo que falta hornear, por producto.
+  const totales = totalesPorProducto(dia);
+  const totalDe = (id: number) =>
+    totales.get(id) ?? { total: 0, sinDecorar: 0, aProducir: 0, aDecorar: 0 };
+  const haySinDecorar = Object.values(dia.sinDecorar).some((n) => n > 0);
+
   return (
     <section className="flex flex-col gap-4">
       <EncabezadoSeccion
@@ -142,6 +152,12 @@ export default async function CuadrosPage() {
           </>
         }
       >
+        <Button asChild size="lg" variant="outline" className="print:hidden">
+          <Link href="/cuadros/despacho">
+            <Truck />
+            Hojas de despacho
+          </Link>
+        </Button>
         <BotonImprimir />
       </EncabezadoSeccion>
 
@@ -164,6 +180,14 @@ export default async function CuadrosPage() {
       <p className="text-sm text-muted-foreground print:hidden">
         Sale una hoja por área. Al imprimir, cada cuadro va en su propia página.
       </p>
+
+      {!haySinDecorar && cuadros.length > 0 && (
+        <Aviso tipo="info" className="print:hidden">
+          Principal todavía no anotó pasteles sin decorar hoy: se hornea el
+          total. Si hay sin decorar en el congelador o el enfriador, anotalos en
+          el inventario de Principal (columna «Sin decorar»).
+        </Aviso>
+      )}
 
       {cuadros.map((cuadro) => (
         <article
@@ -199,16 +223,21 @@ export default async function CuadrosPage() {
                     {s.nombre}
                   </th>
                 ))}
-                <th className="pl-2 py-1.5 text-right font-semibold">Total</th>
+                <th className="pl-2 py-1.5 text-right font-semibold">
+                  {cuadro.titulo === "Decoración" ? "Decorar" : "Total"}
+                </th>
+                <th className="pl-2 py-1.5 text-right font-semibold">
+                  Sin decorar
+                </th>
+                <th className="pl-2 py-1.5 text-right font-semibold">
+                  Hornear
+                </th>
               </tr>
             </thead>
             <tbody>
               {cuadro.productos.map((p) => {
                 const porSucursal = sucursales.map((s) => sugeridoDe(p.id, s.id));
-                const total = porSucursal.reduce<number>(
-                  (suma, v) => suma + (v ?? 0),
-                  0
-                );
+                const t = totalDe(p.id);
                 return (
                   <tr
                     key={p.id}
@@ -236,7 +265,19 @@ export default async function CuadrosPage() {
                       </td>
                     ))}
                     <td className="pl-2 py-1.5 text-right font-semibold tabular-nums">
-                      {total}
+                      {t.total}
+                    </td>
+                    <td
+                      className={`pl-2 py-1.5 text-right tabular-nums ${
+                        t.sinDecorar === 0
+                          ? "text-muted-foreground print:text-black/50"
+                          : ""
+                      }`}
+                    >
+                      {p.lleva_decoracion ? t.sinDecorar : "—"}
+                    </td>
+                    <td className="pl-2 py-1.5 text-right text-base font-bold tabular-nums">
+                      {t.aProducir}
                     </td>
                   </tr>
                 );
@@ -257,13 +298,17 @@ export default async function CuadrosPage() {
                   );
                 })}
                 <td className="pl-2 py-1.5 text-right tabular-nums">
+                  {cuadro.productos.reduce((suma, p) => suma + totalDe(p.id).total, 0)}
+                </td>
+                <td className="pl-2 py-1.5 text-right tabular-nums">
                   {cuadro.productos.reduce(
-                    (suma, p) =>
-                      suma +
-                      sucursales.reduce(
-                        (st, s) => st + (sugeridoDe(p.id, s.id) ?? 0),
-                        0
-                      ),
+                    (suma, p) => suma + totalDe(p.id).sinDecorar,
+                    0
+                  )}
+                </td>
+                <td className="pl-2 py-1.5 text-right tabular-nums">
+                  {cuadro.productos.reduce(
+                    (suma, p) => suma + totalDe(p.id).aProducir,
                     0
                   )}
                 </td>
@@ -271,9 +316,11 @@ export default async function CuadrosPage() {
             </tfoot>
           </table>
           <p className="mt-2 text-xs text-muted-foreground print:text-black/60">
-            Los productos marcados con “Decorar” llevan decoración. La
-            producción de hoy se marca con color{" "}
-            <strong>{color.nombre.toLowerCase()}</strong>.
+            Los productos marcados con “Decorar” llevan decoración.{" "}
+            <strong>Sin decorar</strong> = lo que Principal anotó hoy como hecho
+            sin decorar; eso se decora primero y no se vuelve a hornear.{" "}
+            <strong>Hornear</strong> = Total − Sin decorar. La producción de hoy
+            se marca con color <strong>{color.nombre.toLowerCase()}</strong>.
           </p>
         </article>
       ))}

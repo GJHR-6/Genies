@@ -10,7 +10,7 @@ export default async function AreasPage() {
     supabase
       .from("areas_produccion")
       .select(
-        "id, nombre, encargadas, orden, activa, es_decoracion, pasteleras(nombre, activa, orden)"
+        "id, nombre, encargadas, orden, activa, es_decoracion, trabajo_en_equipo, pasteleras(nombre, activa, orden)"
       )
       .order("orden"),
     supabase

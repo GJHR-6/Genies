@@ -45,6 +45,8 @@ export const esquemaArea = z.object({
   encargadas: textoRequerido("las encargadas"),
   orden: z.number().int().min(1, "El orden empieza en 1.").max(100),
   activa: z.boolean(),
+  /** Una hoja compartida para todas sus pasteleras (no se divide). */
+  trabajo_en_equipo: z.boolean().optional(),
 });
 export type DatosArea = z.input<typeof esquemaArea>;
 

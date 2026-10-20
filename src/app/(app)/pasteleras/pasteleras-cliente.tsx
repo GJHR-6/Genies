@@ -111,7 +111,8 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
       <p className="text-sm text-muted-foreground">
         En cada área el trabajo se divide entre sus pasteleras según su
         porcentaje. Los porcentajes de las pasteleras activas de un área deben
-        sumar 100 %.
+        sumar 100 %. Las áreas marcadas «En equipo» (en Catálogos → Áreas) no
+        se dividen: sale una sola hoja para todas y el porcentaje no se usa.
       </p>
 
       {error && (
@@ -146,6 +147,11 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
                     )}
                   </h2>
                   <div className="flex items-center gap-2">
+                    {area.trabajo_en_equipo ? (
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-secondary-foreground">
+                        En equipo · una sola hoja
+                      </span>
+                    ) : (
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
                         lista.some((p) => p.activa)
@@ -157,7 +163,8 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
                     >
                       Suma {suma} %
                     </span>
-                    {lista.filter((p) => p.activa).length > 1 && (
+                    )}
+                    {!area.trabajo_en_equipo && lista.filter((p) => p.activa).length > 1 && (
                       <Button
                         size="xs"
                         variant="outline"
