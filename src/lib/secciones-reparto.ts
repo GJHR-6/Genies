@@ -4,7 +4,8 @@ import type {
   PasteleraDia,
   ProductoDia,
 } from "@/lib/asignaciones";
-import type { TipoAsignacion } from "@/lib/reparto";
+import { nombreHoja } from "@/lib/asignaciones";
+import { titularDeArea, type TipoAsignacion } from "@/lib/reparto";
 
 /** Un bloque del reparto (como un cuadro): productos × pasteleras. */
 export type SeccionReparto = {
@@ -14,6 +15,8 @@ export type SeccionReparto = {
   /** null = columna "Sin asignar". */
   columnas: (PasteleraDia | null)[];
   productos: ProductoDia[];
+  /** Área en equipo: nombre del equipo ("Kenia y Dany"); no se divide. */
+  equipo?: string;
 };
 
 /** Clave de celda: producto | pastelera | tipo | tanda. */
@@ -87,6 +90,10 @@ export function construirSecciones(params: {
       .sort(porOrden);
     if (prods.length === 0) continue;
     const ids = new Set(prods.map((p) => p.id));
+    // En equipo, una sola columna: la titular (a nombre de todo el equipo).
+    const titular = area.trabajo_en_equipo
+      ? titularDeArea(pasteleras, area.id)
+      : null;
     secciones.push({
       clave: `area-${area.id}`,
       titulo: area.nombre,
@@ -94,9 +101,14 @@ export function construirSecciones(params: {
       columnas: columnasDe(
         "produccion",
         ids,
-        pasteleras.filter((p) => p.activa && p.area_id === area.id)
+        titular
+          ? [titular]
+          : pasteleras.filter((p) => p.activa && p.area_id === area.id)
       ),
       productos: prods,
+      ...(titular
+        ? { equipo: nombreHoja(titular, pasteleras, new Set([area.id])) }
+        : {}),
     });
   }
 
@@ -145,13 +157,32 @@ export function construirSecciones(params: {
   return secciones;
 }
 
-/** Tareas de una pastelera agrupadas por tanda (para tablet e impresión). */
+/**
+ * De quién son las tareas que ve una pastelera en la tablet: las suyas y,
+ * si su área trabaja en equipo, las de la titular del área.
+ */
+export function idsDelEquipo(
+  pastelera: PasteleraDia,
+  pasteleras: PasteleraDia[],
+  areasEnEquipo: ReadonlySet<number>
+): number[] {
+  if (!areasEnEquipo.has(pastelera.area_id)) return [pastelera.id];
+  const titular = titularDeArea(pasteleras, pastelera.area_id);
+  return titular && titular.id !== pastelera.id
+    ? [pastelera.id, titular.id]
+    : [pastelera.id];
+}
+
+/** Tareas de una pastelera (o equipo) agrupadas por tanda (tablet e impresión). */
 export function tareasPorTanda(
   asignaciones: AsignacionDia[],
-  pasteleraId: number | null
+  pasteleraId: number | null | readonly number[]
 ): { tanda: number; tareas: AsignacionDia[] }[] {
+  const ids: readonly (number | null)[] = Array.isArray(pasteleraId)
+    ? pasteleraId
+    : [pasteleraId as number | null];
   const propias = asignaciones.filter(
-    (a) => a.pastelera_id === pasteleraId && a.cantidad > 0
+    (a) => ids.includes(a.pastelera_id) && a.cantidad > 0
   );
   const tandas = [...new Set(propias.map((a) => a.tanda))].sort((a, b) => a - b);
   return tandas.map((tanda) => ({

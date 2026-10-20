@@ -4,6 +4,8 @@ import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { ChipColorDia } from "@/components/color-dia";
 import {
   cargarReparto,
+  idsAreasEnEquipo,
+  nombreHoja,
   nombreProducto,
   type DatosReparto,
   type PasteleraDia,
@@ -13,7 +15,10 @@ import { BotonImprimir } from "../../cuadros/boton-imprimir";
 
 export const dynamic = "force-dynamic";
 
-/** Una hoja carta por pastelera con su trabajo del día, por tanda. */
+/**
+ * Una hoja carta por pastelera con su trabajo del día, por tanda. Las
+ * áreas en equipo sacan una sola hoja con el nombre de todo el equipo.
+ */
 export default async function ImprimirRepartoPage() {
   const supabase = await createClient();
   const fecha = hoyTegucigalpa();
@@ -30,6 +35,7 @@ export default async function ImprimirRepartoPage() {
   }
 
   const productoPorId = new Map(datos.productos.map((p) => [p.id, p]));
+  const areasEnEquipo = idsAreasEnEquipo(datos.areas);
   const areaPorId = new Map(datos.areas.map((a) => [a.id, a]));
   const ordenProducto = (id: number) => {
     const p = productoPorId.get(id);
@@ -46,7 +52,8 @@ export default async function ImprimirRepartoPage() {
       )
       .map((p) => ({
         pastelera: p,
-        titulo: p.nombre,
+        // En un área en equipo la hoja es de todas: "Kenia y Dany".
+        titulo: nombreHoja(p, datos.pasteleras, areasEnEquipo),
         area: areaPorId.get(p.area_id)?.nombre ?? "",
       })),
   ];

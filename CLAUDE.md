@@ -41,6 +41,13 @@ Respuesta de la encargada: el "1*2*3*4" del Excel es **por tanda**; el reparto e
 - Total a repartir = suma de sugeridos de las sucursales (igual que el Total del cuadro).
 - Hallazgos del Excel (para la dueña): en INVENTARIO DIARIO la columna CM de Century lee los cambios de Chalets; 5 filas de CM de Palenque leen Altara; 226 referencias inconsistentes en total.
 
+## Pedidos de la reunión del 16 oct 2026
+Resumen de la reunión en el Project de claude.ai (`claude/requerimientos-reunion-2026-10-16.md`).
+- **Sin decorar**: `cargarSugeridosDelDia` trae también `sinDecorar` (lo que Principal anotó hoy en `movimientos_diarios.sin_decorar`). `totalesPorProducto` (`src/lib/sugeridos.ts`, con tests) da por producto: total, sin decorar, **hornear = total − sin decorar** y decorar = total. `/cuadros` muestra las columnas Sin decorar y Hornear; el reparto de producción usa Hornear y el de decoración el total.
+- **Áreas en equipo** (migración `0010_areas_en_equipo.sql`, ⚠️ aplicarla en Supabase ANTES de desplegar): `areas_produccion.trabajo_en_equipo` (Producción 1 = Kenia y Dany queda en true). No se divide por %: todo va a la titular (primera activa por orden, `titularDeArea`), la hoja impresa y la columna de /asignar dicen "Kenia y Dany", y en /cocina cualquiera del equipo ve y marca la hoja compartida. `registrar_avance` ahora recibe `p_pastelera` (quién marca; se valida su PIN y que sea del mismo equipo). Interruptor en Catálogos → Áreas.
+- **Hojas de despacho** (`/cuadros/despacho`, botón en Cuadros): hoja completa para empaque (casilla por tienda) y una hoja por tienda con Enviado / No se mandó.
+- Pendiente: libras por batida (la dueña dirá cómo), que las pantallas se parezcan a su hoja (espera el Excel actualizado), control de pendientes no enviados en el sistema.
+
 ## Demo vie 16 oct 2026
 - Datos: `DEMO_PERMITIR=1 npx tsx --env-file=.env.local scripts/datos-demo.ts` (reproducible; reescribe inventario y cierres de los 6 días de producción anteriores + hoy en TODAS las sucursales, borra el reparto de hoy; hoy Palenque queda "contando"). Guion en `docs/guion-demo.md`. Rango 2026-10-09→16 ya incluido en `limpiar-datos-demo.sql`.
 - Con datos de hoy en Cypress, los E2E se niegan a correr (guarda): limpiar antes o esperar al día siguiente.

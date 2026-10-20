@@ -32,6 +32,7 @@ type Area = {
   orden: number;
   activa: boolean;
   es_decoracion: boolean;
+  trabajo_en_equipo: boolean;
   pasteleras: { nombre: string; activa: boolean; orden: number }[];
 };
 
@@ -144,6 +145,11 @@ export function AreasCliente({
                       Decoración
                     </span>
                   )}
+                  {a.trabajo_en_equipo && !a.es_decoracion && (
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                      En equipo
+                    </span>
+                  )}
                   {!a.activa && <EstadoActivo activo={false} />}
                   <Button
                     variant="outline"
@@ -210,6 +216,7 @@ function Formulario({
   const [encargadas, setEncargadas] = useState(area?.encargadas ?? "");
   const [orden, setOrden] = useState(String(area?.orden ?? siguienteOrden));
   const [activa, setActiva] = useState(area?.activa ?? true);
+  const [enEquipo, setEnEquipo] = useState(area?.trabajo_en_equipo ?? false);
   const { enviando, error, setError, ejecutar } = useAccion();
 
   function guardar(e: React.FormEvent) {
@@ -227,6 +234,7 @@ function Formulario({
           encargadas,
           orden: n,
           activa,
+          trabajo_en_equipo: enEquipo,
         }),
       alCerrar,
     );
@@ -289,6 +297,14 @@ function Formulario({
           etiqueta="Activa"
           descripcion="Un área inactiva no imprime cuadro."
         />
+        {!area?.es_decoracion && (
+          <Interruptor
+            activo={enEquipo}
+            onCambio={setEnEquipo}
+            etiqueta="Trabajan en equipo"
+            descripcion="No se divide por porcentaje: sale una sola hoja con el nombre de todas (ej. «Kenia y Dany») y ellas se reparten el trabajo."
+          />
+        )}
         <AvisoError mensaje={error} />
         <DialogFooter>
           <Button type="button" variant="outline" size="lg" onClick={alCerrar}>
