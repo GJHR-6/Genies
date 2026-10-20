@@ -27,6 +27,10 @@ export const esquemaProducto = z.object({
   departamento_id: idOpcional,
   area_id: idOpcional,
   orden_area: z.number().int().min(0).max(32000).nullable(),
+  /** Posición en la lista (orden del Excel); manda en todas las pantallas. */
+  orden: z.number().int().min(0).max(32000).nullable().optional(),
+  /** Producto eventual / de temporada. */
+  temporada: z.boolean().optional(),
   lleva_decoracion: z.boolean(),
   activo: z.boolean(),
 });

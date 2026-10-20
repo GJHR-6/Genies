@@ -36,11 +36,18 @@ type MovimientoInicial = {
   ingreso: number;
   devolucion: number;
   pedido: number;
+  cambio: number;
   decorado: number;
   sin_decorar: number;
 };
 
-type Campo = "ingreso" | "devolucion" | "pedido" | "decorado" | "sin_decorar";
+type Campo =
+  | "ingreso"
+  | "devolucion"
+  | "pedido"
+  | "cambio"
+  | "decorado"
+  | "sin_decorar";
 type ValoresFila = Record<Campo, string>;
 type EstadoFila = "guardando" | "guardado" | "pendiente" | "error";
 
@@ -48,6 +55,7 @@ const FILA_VACIA: ValoresFila = {
   ingreso: "",
   devolucion: "",
   pedido: "",
+  cambio: "",
   decorado: "",
   sin_decorar: "",
 };
@@ -56,6 +64,7 @@ const CAMPOS: Campo[] = [
   "ingreso",
   "devolucion",
   "pedido",
+  "cambio",
   "decorado",
   "sin_decorar",
 ];
@@ -125,6 +134,7 @@ export function CapturaCliente({
         ingreso: m.ingreso ? String(m.ingreso) : "",
         devolucion: m.devolucion ? String(m.devolucion) : "",
         pedido: m.pedido ? String(m.pedido) : "",
+        cambio: m.cambio ? String(m.cambio) : "",
         decorado: m.decorado ? String(m.decorado) : "",
         sin_decorar: m.sin_decorar ? String(m.sin_decorar) : "",
       };
@@ -163,6 +173,7 @@ export function CapturaCliente({
           m.ingreso,
           m.devolucion,
           m.pedido,
+          m.cambio,
           m.decorado,
           m.sin_decorar,
         ]),
@@ -243,6 +254,7 @@ export function CapturaCliente({
         ingreso: aEntero(v.ingreso),
         devolucion: aEntero(v.devolucion),
         pedido: aEntero(v.pedido),
+        cambio: aEntero(v.cambio),
         decorado: aEntero(v.decorado),
         sin_decorar: aEntero(v.sin_decorar),
         updated_at: new Date().toISOString(),
@@ -471,13 +483,20 @@ export function CapturaCliente({
                   </div>
                   <BadgeEstado estado={estados[producto.id]} />
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
+                <div
+                  className={`mt-2 grid gap-2 ${
+                    esPrincipal ? "grid-cols-3" : "grid-cols-2 min-[400px]:grid-cols-4"
+                  }`}
+                >
                   {(
                     [
                       ["ingreso", "Ingreso"],
                       ["devolucion", "Devolución"],
                       ["pedido", "Pedido"],
-                    ] as const
+                      // Cambio: lo que la tienda manda a Principal para
+                      // cambiar (columna CM de la hoja completa).
+                      ...(esPrincipal ? [] : [["cambio", "Cambio"]]),
+                    ] as const as readonly (readonly [Campo, string])[]
                   ).map(([campo, etiqueta]) => (
                     <label key={campo} className="flex flex-col gap-1">
                       <span className="text-xs text-muted-foreground">

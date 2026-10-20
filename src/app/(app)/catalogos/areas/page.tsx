@@ -17,7 +17,8 @@ export default async function AreasPage() {
       .from("productos")
       .select("id, nombre, tamano, area_id")
       .eq("activo", true)
-      .order("orden_area")
+      .order("orden", { nullsFirst: false })
+      .order("categoria")
       .order("nombre"),
   ]);
 

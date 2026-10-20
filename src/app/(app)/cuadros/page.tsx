@@ -13,6 +13,7 @@ import { GRUPO_HOY } from "@/lib/grupos";
 import Link from "next/link";
 import { Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { compararProductos } from "@/lib/orden-productos";
 import { BotonImprimir } from "./boton-imprimir";
 
 export const dynamic = "force-dynamic";
@@ -98,8 +99,9 @@ export default async function CuadrosPage() {
   const conRegla = productos.filter((p) =>
     sucursales.some((s) => celdas[`${p.id}-${s.id}`] !== undefined)
   );
+  // Dentro de cada cuadro, el orden del Excel (igual en todas las hojas).
   const porOrdenArea = (a: ProductoSugerido, b: ProductoSugerido) =>
-    (a.orden_area ?? 0) - (b.orden_area ?? 0);
+    compararProductos(a, b);
   const cuadros: Cuadro[] = areas
     .map((a) => ({
       titulo: a.nombre,
@@ -113,12 +115,7 @@ export default async function CuadrosPage() {
   const idsPorArea = new Map(areas.map((a, i) => [a.id, i]));
   const decoracion = conRegla
     .filter((p) => p.lleva_decoracion)
-    .sort(
-      (a, b) =>
-        (idsPorArea.get(a.area_id ?? -1) ?? areas.length) -
-          (idsPorArea.get(b.area_id ?? -1) ?? areas.length) ||
-        porOrdenArea(a, b)
-    );
+    .sort(porOrdenArea);
   if (decoracion.length > 0) {
     cuadros.push({ titulo: "Decoración", encargadas: null, productos: decoracion });
   }

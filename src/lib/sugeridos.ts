@@ -17,6 +17,8 @@ export type ProductoSugerido = {
   departamento_id: number | null;
   area_id: number | null;
   orden_area: number | null;
+  /** Posición en el Excel (manda el orden en todas las pantallas). */
+  orden: number | null;
   lleva_decoracion: boolean;
 };
 
@@ -32,6 +34,14 @@ export type SugeridosDelDia = {
    * (producto → unidades). Ya están hechos: solo falta decorarlos.
    */
   sinDecorar: Record<number, number>;
+  /** Decorados que Principal anotó hoy (producto → unidades). */
+  decorado: Record<number, number>;
+  /** Cambios de hoy por tienda: clave `${productoId}-${sucursalId}`. */
+  cambios: Record<string, number>;
+  /** Saldo de Principal hoy (producto → unidades), si ya lo anotó. */
+  saldoPrincipal: Record<number, number>;
+  /** Id de la sucursal Principal (no sale como columna de tienda). */
+  principalId: number | null;
 };
 
 export type TotalProducto = {
@@ -117,14 +127,15 @@ export async function cargarSugeridosDelDia(
 ): Promise<SugeridosDelDia> {
   const dow = diaSemana(fecha);
 
-  const [productosRes, sucursalesRes, reglasRes, sugeridosRes, sinDecorarRes] =
+  const [productosRes, sucursalesRes, reglasRes, sugeridosRes, principalRes, cambiosRes] =
     await Promise.all([
       supabase
         .from("productos")
         .select(
-          "id, nombre, tamano, categoria, departamento_id, area_id, orden_area, lleva_decoracion"
+          "id, nombre, tamano, categoria, departamento_id, area_id, orden_area, orden, lleva_decoracion"
         )
         .eq("activo", true)
+        .order("orden", { nullsFirst: false })
         .order("categoria")
         .order("nombre")
         .order("tamano"),
@@ -143,10 +154,16 @@ export async function cargarSugeridosDelDia(
         .eq("fecha", fecha),
       supabase
         .from("movimientos_diarios")
-        .select("producto_id, sin_decorar, sucursales!inner(es_principal)")
+        .select(
+          "producto_id, saldo_inicial, ingreso, devolucion, saldo_final, decorado, sin_decorar, sucursales!inner(es_principal)"
+        )
         .eq("fecha", fecha)
-        .eq("sucursales.es_principal", true)
-        .gt("sin_decorar", 0),
+        .eq("sucursales.es_principal", true),
+      supabase
+        .from("movimientos_diarios")
+        .select("producto_id, sucursal_id, cambio")
+        .eq("fecha", fecha)
+        .gt("cambio", 0),
     ]);
 
   const error =
@@ -154,7 +171,8 @@ export async function cargarSugeridosDelDia(
     sucursalesRes.error ??
     reglasRes.error ??
     sugeridosRes.error ??
-    sinDecorarRes.error;
+    principalRes.error ??
+    cambiosRes.error;
   if (error) throw new Error(error.message);
 
   const objetivos = new Map<string, number>();
@@ -182,9 +200,20 @@ export async function cargarSugeridosDelDia(
     id,
     nombre,
   }));
+  const principalId =
+    (sucursalesRes.data ?? []).find((s) => s.es_principal)?.id ?? null;
   const sinDecorar: Record<number, number> = {};
-  for (const m of sinDecorarRes.data ?? []) {
-    sinDecorar[m.producto_id] = (sinDecorar[m.producto_id] ?? 0) + m.sin_decorar;
+  const decorado: Record<number, number> = {};
+  const saldoPrincipal: Record<number, number> = {};
+  for (const m of principalRes.data ?? []) {
+    if (m.sin_decorar > 0) sinDecorar[m.producto_id] = m.sin_decorar;
+    if (m.decorado > 0) decorado[m.producto_id] = m.decorado;
+    saldoPrincipal[m.producto_id] =
+      m.saldo_final ?? m.saldo_inicial + m.ingreso - m.devolucion;
+  }
+  const cambios: Record<string, number> = {};
+  for (const m of cambiosRes.data ?? []) {
+    cambios[`${m.producto_id}-${m.sucursal_id}`] = m.cambio;
   }
   const celdas: Record<string, CeldaSugerido> = {};
   for (const p of productos) {
@@ -203,5 +232,5 @@ export async function cargarSugeridosDelDia(
     }
   }
 
-  return { productos, sucursales, celdas, sinDecorar };
+  return { productos, sucursales, celdas, sinDecorar, decorado, cambios, saldoPrincipal, principalId };
 }

@@ -30,13 +30,14 @@ export default async function CapturaPage() {
         .from("productos")
         .select("id, nombre, categoria, tamano, lleva_decoracion")
         .eq("activo", true)
+        .order("orden", { nullsFirst: false })
         .order("categoria")
         .order("nombre")
         .order("tamano"),
       supabase
         .from("movimientos_diarios")
         .select(
-          "producto_id, saldo_inicial, ingreso, devolucion, pedido, decorado, sin_decorar"
+          "producto_id, saldo_inicial, ingreso, devolucion, pedido, cambio, decorado, sin_decorar"
         )
         .eq("fecha", fecha)
         .eq("sucursal_id", sucursalId),

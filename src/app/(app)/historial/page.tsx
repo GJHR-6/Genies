@@ -1,3 +1,4 @@
+import { compararProductos } from "@/lib/orden-productos";
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
@@ -51,7 +52,7 @@ export default async function HistorialPage({
     supabase
       .from("v_movimientos")
       .select(
-        "producto_id, saldo_inicial, ingreso, devolucion, pedido, vendido, saldo_final, productos(nombre, tamano, categoria)"
+        "producto_id, saldo_inicial, ingreso, devolucion, pedido, vendido, saldo_final, productos(nombre, tamano, categoria, orden)"
       )
       .eq("fecha", fecha)
       .eq("sucursal_id", sucursalId),
@@ -63,10 +64,11 @@ export default async function HistorialPage({
       .maybeSingle(),
   ]);
 
+  // Mismo orden que el Excel (productos.orden).
   const movimientos = (movimientosRes.data ?? []).sort((a, b) =>
-    `${a.productos?.categoria ?? ""}${a.productos?.nombre ?? ""}`.localeCompare(
-      `${b.productos?.categoria ?? ""}${b.productos?.nombre ?? ""}`,
-      "es"
+    compararProductos(
+      a.productos ?? { nombre: "" },
+      b.productos ?? { nombre: "" }
     )
   );
   const sucursalNombre =

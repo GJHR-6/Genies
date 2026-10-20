@@ -17,6 +17,8 @@ export default async function ReglasPage({
       .from("productos")
       .select("id, nombre, tamano, categoria")
       .eq("activo", true)
+      .order("orden", { nullsFirst: false })
+      .order("categoria")
       .order("nombre")
       .order("tamano"),
     supabase

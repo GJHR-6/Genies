@@ -5,6 +5,7 @@ import type {
   ProductoDia,
 } from "@/lib/asignaciones";
 import { nombreHoja } from "@/lib/asignaciones";
+import { compararProductos } from "@/lib/orden-productos";
 import { titularDeArea, type TipoAsignacion } from "@/lib/reparto";
 
 /** Un bloque del reparto (como un cuadro): productos × pasteleras. */
@@ -29,10 +30,8 @@ export function claveCelda(
   return `${productoId}|${pasteleraId ?? "x"}|${tipo}|${tanda}`;
 }
 
-const porOrden = (a: ProductoDia, b: ProductoDia) =>
-  (a.orden_area ?? 9999) - (b.orden_area ?? 9999) ||
-  a.nombre.localeCompare(b.nombre) ||
-  (a.tamano ?? "").localeCompare(b.tamano ?? "");
+// Mismo orden que el Excel en todas las secciones.
+const porOrden = compararProductos;
 
 /**
  * Arma las secciones del reparto en el orden de los cuadros: una por área
@@ -115,11 +114,7 @@ export function construirSecciones(params: {
   const decoracion = [...decoIds]
     .map((id) => productoPorId.get(id))
     .filter((p): p is ProductoDia => !!p)
-    .sort(
-      (a, b) =>
-        (areaPorId.get(a.area_id ?? -1)?.orden ?? 999) -
-          (areaPorId.get(b.area_id ?? -1)?.orden ?? 999) || porOrden(a, b)
-    );
+    .sort(porOrden);
   if (decoracion.length > 0) {
     const areaDeco = areas.find((a) => a.es_decoracion);
     secciones.push({
@@ -176,7 +171,9 @@ export function idsDelEquipo(
 /** Tareas de una pastelera (o equipo) agrupadas por tanda (tablet e impresión). */
 export function tareasPorTanda(
   asignaciones: AsignacionDia[],
-  pasteleraId: number | null | readonly number[]
+  pasteleraId: number | null | readonly number[],
+  /** Posición del producto (orden del Excel); sin esto, por id. */
+  posicion?: (productoId: number) => number
 ): { tanda: number; tareas: AsignacionDia[] }[] {
   const ids: readonly (number | null)[] = Array.isArray(pasteleraId)
     ? pasteleraId
@@ -192,7 +189,8 @@ export function tareasPorTanda(
       .sort(
         (a, b) =>
           (a.tipo === b.tipo ? 0 : a.tipo === "produccion" ? -1 : 1) ||
-          a.producto_id - b.producto_id
+          (posicion?.(a.producto_id) ?? a.producto_id) -
+            (posicion?.(b.producto_id) ?? b.producto_id)
       ),
   }));
 }
