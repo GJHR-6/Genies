@@ -48,6 +48,14 @@ Resumen de la reunión en el Project de claude.ai (`claude/requerimientos-reunio
 - **Hojas de despacho** (`/cuadros/despacho`, botón en Cuadros): hoja completa para empaque (casilla por tienda) y una hoja por tienda con Enviado / No se mandó.
 - Pendiente: libras por batida (la dueña dirá cómo), que las pantallas se parezcan a su hoja (espera el Excel actualizado), control de pendientes no enviados en el sistema.
 
+## Excel nuevo de la dueña (20 oct 2026)
+`PRINCIPAL Auto inventario diario.xlsx` actualizado (en Descargas del usuario).
+- **Orden único** (`productos.orden` = fila de INVENTARIO DIARIO × 10, migración 0011 aplicada; valores en 0012): manda en inventario, sugeridos, cuadros (dentro de cada área), decoración, reparto, hojas por pastelera, cocina, despacho, catálogos e historial. Comparador en `src/lib/orden-productos.ts`; `orden_area` ya no ordena nada. Rotación sigue ordenada por urgencia (a propósito).
+- **Cambio** (`movimientos_diarios.cambio`, 0011 aplicada): campo nuevo en el inventario de las tiendas (no Principal). En el Excel es la columna CAMBIO de cada tienda y sale como "CM".
+- **Hoja completa** (`/cuadros/despacho`, primera hoja): réplica de INVENTARIO DIARIO — secciones, DECO / SIN DECO / INV/TOTAL de Principal (los productos sin decoración ponen su saldo en DECO), por tienda lo que se manda (sugerido) y CM, y **SALDO = INV/TOTAL + ΣCM − Σ mandar** (lógica en `src/lib/hoja-completa.ts`, con tests).
+- **Temporada** (`productos.temporada`): interruptor y filtro en Catálogos → Productos; el campo "Posición en la lista" edita `orden`.
+- **Catálogo** (`supabase/migrations/0012_catalogo_excel_oct.sql`, generado por `scripts/catalogo-excel-oct.ts`): 7 renombres por id, 7 desactivados, 6 nuevos (sin área) con 36 objetivos y el orden. Verificado en solo lectura: cada producto existente casa con exactamente una fila.
+
 ## Demo vie 16 oct 2026
 - Datos: `DEMO_PERMITIR=1 npx tsx --env-file=.env.local scripts/datos-demo.ts` (reproducible; reescribe inventario y cierres de los 6 días de producción anteriores + hoy en TODAS las sucursales, borra el reparto de hoy; hoy Palenque queda "contando"). Guion en `docs/guion-demo.md`. Rango 2026-10-09→16 ya incluido en `limpiar-datos-demo.sql`.
 - Con datos de hoy en Cypress, los E2E se niegan a correr (guarda): limpiar antes o esperar al día siguiente.

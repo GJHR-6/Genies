@@ -413,8 +413,8 @@ function TrabajoPastelera({
     (a) => a.pastelera_id !== null && idsEquipo.includes(a.pastelera_id) && a.cantidad > 0
   );
   const avance = resumirAvance(propias);
-  const grupos = tareasPorTanda(asignaciones, idsEquipo);
-  const orden = (id: number) => productoPorId.get(id)?.orden_area ?? 9999;
+  const orden = (id: number) => productoPorId.get(id)?.orden ?? 99999;
+  const grupos = tareasPorTanda(asignaciones, idsEquipo, orden);
 
   return (
     <section className="flex flex-col gap-4">

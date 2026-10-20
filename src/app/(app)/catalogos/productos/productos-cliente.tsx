@@ -35,16 +35,19 @@ type Producto = {
   departamento_id: number | null;
   area_id: number | null;
   orden_area: number | null;
+  orden: number | null;
+  temporada: boolean;
   lleva_decoracion: boolean;
   activo: boolean;
 };
 type Opcion = { id: number; nombre: string };
 
-type Filtro = "activos" | "inactivos" | "todos";
+type Filtro = "activos" | "inactivos" | "temporada" | "todos";
 
 const FILTROS: { valor: Filtro; etiqueta: string }[] = [
   { valor: "activos", etiqueta: "Activos" },
   { valor: "inactivos", etiqueta: "Inactivos" },
+  { valor: "temporada", etiqueta: "Temporada" },
   { valor: "todos", etiqueta: "Todos" },
 ];
 
@@ -76,6 +79,7 @@ export function ProductosCliente({
     return productos.filter((p) => {
       if (filtro === "activos" && !p.activo) return false;
       if (filtro === "inactivos" && p.activo) return false;
+      if (filtro === "temporada" && !p.temporada) return false;
       if (departamento && String(p.departamento_id) !== departamento)
         return false;
       if (!q) return true;
@@ -184,6 +188,11 @@ export function ProductosCliente({
                         Decorar
                       </span>
                     )}
+                    {p.temporada && (
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">
+                        Temporada
+                      </span>
+                    )}
                     {!p.activo && <EstadoActivo activo={false} />}
                   </div>
                 </div>
@@ -230,6 +239,8 @@ function FormularioProducto({
     departamento_id: producto?.departamento_id ?? null,
     area_id: producto?.area_id ?? null,
     orden_area: producto?.orden_area?.toString() ?? "",
+    orden: producto?.orden?.toString() ?? "",
+    temporada: producto?.temporada ?? false,
     lleva_decoracion: producto?.lleva_decoracion ?? false,
     activo: producto?.activo ?? true,
   });
@@ -246,6 +257,7 @@ function FormularioProducto({
       ...(producto ? { id: producto.id } : {}),
       ...datos,
       orden_area: numeroONull(datos.orden_area),
+      orden: numeroONull(datos.orden),
     };
     ejecutar(() => guardarProducto(payload), alCerrar);
   }
@@ -340,16 +352,16 @@ function FormularioProducto({
             </Selector>
           </Campo>
           <Campo
-            etiqueta="Orden en el cuadro"
+            etiqueta="Posición en la lista"
             htmlFor="prod-orden"
-            ayuda="Número menor = más arriba. Opcional."
+            ayuda="La fila del Excel: número menor = más arriba. Manda el orden en el inventario, los cuadros y todas las hojas. Para meter uno entre dos, usá un número intermedio."
           >
             <Input
               id="prod-orden"
               inputMode="numeric"
-              value={datos.orden_area}
+              value={datos.orden}
               onChange={(e) =>
-                cambiar("orden_area", e.target.value.replace(/\D/g, "").slice(0, 5))
+                cambiar("orden", e.target.value.replace(/\D/g, "").slice(0, 5))
               }
               className="h-10"
             />
@@ -362,6 +374,12 @@ function FormularioProducto({
             onCambio={(v) => cambiar("lleva_decoracion", v)}
             etiqueta="Lleva decoración"
             descripcion="Sale también en el cuadro de Decoración."
+          />
+          <Interruptor
+            activo={datos.temporada}
+            onCambio={(v) => cambiar("temporada", v)}
+            etiqueta="De temporada"
+            descripcion="Producto eventual (ej. de una fecha especial). Activalo o desactivalo cuando empiece o termine la temporada; su historial se conserva."
           />
           <Interruptor
             activo={datos.activo}

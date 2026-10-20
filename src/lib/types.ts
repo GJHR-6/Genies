@@ -156,6 +156,7 @@ export type Database = {
       }
       movimientos_diarios: {
         Row: {
+          cambio: number
           decorado: number
           devolucion: number
           fecha: string
@@ -172,6 +173,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          cambio?: number
           decorado?: number
           devolucion?: number
           fecha: string
@@ -188,6 +190,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          cambio?: number
           decorado?: number
           devolucion?: number
           fecha?: string
@@ -320,8 +323,10 @@ export type Database = {
           id: number
           lleva_decoracion: boolean
           nombre: string
+          orden: number | null
           orden_area: number | null
           tamano: string | null
+          temporada: boolean
         }
         Insert: {
           activo?: boolean
@@ -331,8 +336,10 @@ export type Database = {
           id?: never
           lleva_decoracion?: boolean
           nombre: string
+          orden?: number | null
           orden_area?: number | null
           tamano?: string | null
+          temporada?: boolean
         }
         Update: {
           activo?: boolean
@@ -342,8 +349,10 @@ export type Database = {
           id?: never
           lleva_decoracion?: boolean
           nombre?: string
+          orden?: number | null
           orden_area?: number | null
           tamano?: string | null
+          temporada?: boolean
         }
         Relationships: [
           {

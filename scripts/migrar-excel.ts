@@ -23,8 +23,8 @@ import { fileURLToPath } from "node:url";
 
 // --- Configuración -----------------------------------------------------------
 
-const HOJA_INVENTARIO = "INVENTARIO DIARIO";
-const HOJA_SUGERIDOS = "SUGERIDOS  PARA CAMBIAR";
+export const HOJA_INVENTARIO = "INVENTARIO DIARIO";
+export const HOJA_SUGERIDOS = "SUGERIDOS  PARA CAMBIAR";
 
 /** Secciones del Excel en orden; cada una se vuelve un departamento. */
 const SECCIONES = [
@@ -51,7 +51,7 @@ const SECCIONES = [
 const SECCIONES_DECORACION = new Set(["VAINILLA", "CHOCOLATE", "MIXTO", "PASTELES VARIOS"]);
 
 /** Columnas de la hoja de sugeridos (índice 0 = PRODUCTO) → sucursal en la BD. */
-const COLUMNAS_SUCURSAL: ReadonlyArray<{ col: number; sucursal: string }> = [
+export const COLUMNAS_SUCURSAL: ReadonlyArray<{ col: number; sucursal: string }> = [
   { col: 1, sucursal: "Cypress" },
   { col: 2, sucursal: "Chalets" },
   { col: 3, sucursal: "Century" },
@@ -68,7 +68,7 @@ const FIN_DE_SEMANA = [6, 0];
 
 // --- Tipos -------------------------------------------------------------------
 
-type Celda = string | number | null;
+export type Celda = string | number | null;
 
 interface Producto {
   clave: string; // sección + nombre normalizado + ocurrencia (para casar ambas hojas)
@@ -85,7 +85,7 @@ interface Regla {
   objetivo: number;
 }
 
-interface Advertencia {
+export interface Advertencia {
   hoja: string;
   fila: number; // 1-based como en Excel
   detalle: string;
@@ -107,7 +107,7 @@ const sqlTextoONulo = (s: string | null): string => (s === null ? "null" : sqlTe
 
 // --- Parseo de filas de producto (misma lógica para ambas hojas) -------------
 
-interface FilaParseada {
+export interface FilaParseada {
   seccion: string;
   nombre: string;
   tamano: string | null;
@@ -118,7 +118,7 @@ interface FilaParseada {
  * Recorre la columna A y produce la lista de productos con su sección.
  * Las filas de sección son encabezados (sus valores son sumas), no productos.
  */
-function parsearFilas(celdasA: Celda[], hoja: string, advertencias: Advertencia[]): FilaParseada[] {
+export function parsearFilas(celdasA: Celda[], hoja: string, advertencias: Advertencia[]): FilaParseada[] {
   const filas: FilaParseada[] = [];
   const ocurrencias = new Map<string, number>();
   let seccion: string | null = null;

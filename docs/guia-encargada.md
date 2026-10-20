@@ -17,6 +17,7 @@
    - **Ingreso** — lo que llegó de producción hoy.
    - **Devolución** — lo que devolvés (dañado, vencido).
    - **Pedido** — lo que pedís para mañana.
+   - **Cambio** — lo que mandás a Principal para cambiar (en la hoja completa sale como CM).
    - *(Solo Principal: **Decorado / Sin decorar**.)*
 3. **No hay botón de guardar** — el sistema guarda solo al pasar al
    siguiente campo. Fijate en la esquina de cada producto:

@@ -37,10 +37,8 @@ export default async function ImprimirRepartoPage() {
   const productoPorId = new Map(datos.productos.map((p) => [p.id, p]));
   const areasEnEquipo = idsAreasEnEquipo(datos.areas);
   const areaPorId = new Map(datos.areas.map((a) => [a.id, a]));
-  const ordenProducto = (id: number) => {
-    const p = productoPorId.get(id);
-    return (areaPorId.get(p?.area_id ?? -1)?.orden ?? 99) * 10000 + (p?.orden_area ?? 9999);
-  };
+  // Orden del Excel (productos.orden), igual que en todas las hojas.
+  const ordenProducto = (id: number) => productoPorId.get(id)?.orden ?? 99999;
 
   const hojas: { pastelera: PasteleraDia | null; titulo: string; area: string }[] = [
     ...datos.pasteleras
@@ -91,7 +89,7 @@ export default async function ImprimirRepartoPage() {
       )}
 
       {hojas.map((hoja) => {
-        const grupos = tareasPorTanda(datos.asignaciones, hoja.pastelera?.id ?? null);
+        const grupos = tareasPorTanda(datos.asignaciones, hoja.pastelera?.id ?? null, ordenProducto);
         return (
           <article
             key={hoja.pastelera?.id ?? "x"}
