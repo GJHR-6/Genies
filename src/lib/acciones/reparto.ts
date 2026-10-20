@@ -4,9 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { hoyTegucigalpa } from "@/lib/fechas";
-import { cargarSugeridosDelDia } from "@/lib/sugeridos";
+import { cargarSugeridosDelDia, totalesPorProducto } from "@/lib/sugeridos";
 import { generarReparto } from "@/lib/reparto";
-import { COLUMNAS_PASTELERA, aPastelera } from "@/lib/asignaciones";
+import {
+  COLUMNAS_PASTELERA,
+  aPastelera,
+  idsAreasEnEquipo,
+} from "@/lib/asignaciones";
 import { colorDelDia } from "@/lib/color-dia";
 
 export type ResultadoAccion =
@@ -22,8 +26,8 @@ async function exigirAdmin(): Promise<ResultadoAccion | null> {
 }
 
 /**
- * Genera el reparto de hoy desde los sugeridos (mismo total que el
- * cuadro) y los porcentajes fijos de cada pastelera. Reemplaza el reparto
+ * Genera el reparto de hoy desde los sugeridos (mismos números que el
+ * cuadro: «A producir» y «Decorar») y los porcentajes fijos de cada pastelera. Reemplaza el reparto
  * anterior y lo deja en borrador.
  */
 export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
@@ -40,19 +44,21 @@ export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
     const [dia, pastelerasRes, areasRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase.from("pasteleras").select(COLUMNAS_PASTELERA),
-      supabase.from("areas_produccion").select("id, es_decoracion, activa"),
+      supabase
+        .from("areas_produccion")
+        .select("id, es_decoracion, activa, trabajo_en_equipo"),
     ]);
     if (pastelerasRes.error) throw new Error(pastelerasRes.error.message);
     if (areasRes.error) throw new Error(areasRes.error.message);
 
-    // Total por producto = suma de sugeridos de todas las sucursales.
+    // Producción = suma de sugeridos menos lo que ya está sin decorar en
+    // Principal; decoración = suma de sugeridos (igual que el cuadro).
+    const totalesDia = totalesPorProducto(dia);
     const totales = new Map<number, number>();
-    for (const p of dia.productos) {
-      let total = 0;
-      for (const s of dia.sucursales) {
-        total += dia.celdas[`${p.id}-${s.id}`]?.sugerido ?? 0;
-      }
-      if (total > 0) totales.set(p.id, total);
+    const totalesDecoracion = new Map<number, number>();
+    for (const [id, t] of totalesDia) {
+      if (t.aProducir > 0) totales.set(id, t.aProducir);
+      if (t.aDecorar > 0) totalesDecoracion.set(id, t.aDecorar);
     }
 
     const areaDecoracion =
@@ -62,8 +68,10 @@ export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
       fecha,
       productos: dia.productos,
       totales,
+      totalesDecoracion,
       pasteleras: (pastelerasRes.data ?? []).map(aPastelera),
       areaDecoracionId: areaDecoracion?.id ?? null,
+      areasEnEquipo: idsAreasEnEquipo(areasRes.data ?? []),
     });
 
     const { data, error } = await supabase.rpc("reemplazar_asignaciones", {

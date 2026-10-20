@@ -23,11 +23,13 @@ import {
   TANDAS,
   aAsignacion,
   horaCorta,
+  idsAreasEnEquipo,
   nombreProducto,
   type AsignacionDia,
   type DatosReparto,
   type PasteleraDia,
   type PlanDia,
+  type TotalesCuadro,
 } from "@/lib/asignaciones";
 import {
   claveCelda,
@@ -45,7 +47,7 @@ type Props = {
   fecha: string;
   fechaLegible: string;
   datos: DatosReparto;
-  totalesCuadro: Record<number, number>;
+  totalesCuadro: TotalesCuadro;
   sucursalesPendientes: number;
 };
 
@@ -144,12 +146,13 @@ export function AsignarCliente({
     [datos, asignaciones]
   );
 
+  const areasEnEquipo = useMemo(() => idsAreasEnEquipo(datos.areas), [datos.areas]);
   const sumas = useMemo(
-    () => sumaPorcentajesPorArea(datos.pasteleras),
-    [datos.pasteleras]
+    () => sumaPorcentajesPorArea(datos.pasteleras, areasEnEquipo),
+    [datos.pasteleras, areasEnEquipo]
   );
   const areasDescuadradas = datos.areas.filter((a) => {
-    if (!a.activa) return false;
+    if (!a.activa || areasEnEquipo.has(a.id)) return false;
     const suma = sumas.get(a.id);
     if (suma === undefined) return !a.es_decoracion;
     return Math.abs(suma - 100) > 0.01;
@@ -448,20 +451,24 @@ function TablaSeccion({
     pasteleraId: number | null,
     tanda: number
   ) => void;
-  totalesCuadro: Record<number, number>;
+  totalesCuadro: TotalesCuadro;
 }) {
   const nombreColumna = (p: PasteleraDia | null) =>
-    p ? `${p.nombre}${p.activa ? "" : " (inactiva)"}` : "Sin asignar";
+    p
+      ? `${seccion.equipo ?? p.nombre}${p.activa ? "" : " (inactiva)"}`
+      : "Sin asignar";
 
   return (
     <article className="rounded-lg border bg-card">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b px-3 py-2">
         <h2 className="font-bold">{seccion.titulo}</h2>
         <p className="text-xs text-muted-foreground">
-          {seccion.columnas
-            .filter((c): c is PasteleraDia => c !== null)
-            .map((c) => `${c.nombre} ${c.porcentaje} %`)
-            .join(" · ") || "Sin pasteleras configuradas"}
+          {seccion.equipo
+            ? `En equipo: ${seccion.equipo} (una sola hoja, sin dividir)`
+            : seccion.columnas
+                .filter((c): c is PasteleraDia => c !== null)
+                .map((c) => `${c.nombre} ${c.porcentaje} %`)
+                .join(" · ") || "Sin pasteleras configuradas"}
         </p>
       </header>
       <div className="overflow-x-auto">
@@ -471,7 +478,15 @@ function TablaSeccion({
               <th rowSpan={2} className="sticky left-0 z-10 bg-card px-3 py-1.5 text-left font-semibold">
                 Producto
               </th>
-              <th rowSpan={2} className="px-2 py-1.5 text-right font-semibold" title="Total del cuadro (suma de sugeridos)">
+              <th
+                rowSpan={2}
+                className="px-2 py-1.5 text-right font-semibold"
+                title={
+                  seccion.tipo === "decoracion"
+                    ? "Total a decorar del cuadro (suma de sugeridos)"
+                    : "A hornear según el cuadro (suma de sugeridos − sin decorar)"
+                }
+              >
                 Cuadro
               </th>
               <th rowSpan={2} className="px-2 py-1.5 text-right font-semibold">
@@ -510,15 +525,33 @@ function TablaSeccion({
                       ?.cantidad ?? 0;
                 }
               }
-              const cuadro = totalesCuadro[p.id] ?? 0;
+              const delCuadro = totalesCuadro[p.id];
+              const cuadro =
+                (seccion.tipo === "decoracion"
+                  ? delCuadro?.decoracion
+                  : delCuadro?.produccion) ?? 0;
+              const sinDecorar =
+                seccion.tipo === "produccion" ? (delCuadro?.sinDecorar ?? 0) : 0;
               const descuadre = asignado !== cuadro;
               return (
                 <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/20">
                   <td className="sticky left-0 z-10 bg-card px-3 py-1 font-medium">
                     {nombreProducto(p)}
                   </td>
-                  <td className="px-2 py-1 text-right tabular-nums text-muted-foreground">
+                  <td
+                    className="px-2 py-1 text-right tabular-nums text-muted-foreground"
+                    title={
+                      sinDecorar > 0
+                        ? `Ya hay ${sinDecorar} sin decorar en Principal: no se hornean de nuevo`
+                        : undefined
+                    }
+                  >
                     {cuadro}
+                    {sinDecorar > 0 && (
+                      <div className="text-[10px] leading-tight">
+                        −{sinDecorar} sin decorar
+                      </div>
+                    )}
                   </td>
                   <td
                     className={`px-2 py-1 text-right font-semibold tabular-nums ${

@@ -5,6 +5,7 @@ import {
   repartirEntero,
   resumirAvance,
   sumaPorcentajesPorArea,
+  titularDeArea,
   type PasteleraReparto,
 } from "./reparto";
 
@@ -164,7 +165,67 @@ describe("generarReparto", () => {
   });
 });
 
+describe("generarReparto: sin decorar y áreas en equipo", () => {
+  it("lo sin decorar no se hornea de nuevo, pero sí se decora", () => {
+    const filas = generarReparto({
+      fecha: "2026-10-15",
+      productos: [{ id: 10, area_id: 2, lleva_decoracion: true }],
+      totales: new Map([[10, 4]]), // 10 a mandar − 6 sin decorar
+      totalesDecoracion: new Map([[10, 10]]),
+      pasteleras,
+      areaDecoracionId: null,
+    });
+    expect(filas).toEqual([
+      { producto_id: 10, pastelera_id: 3, tipo: "produccion", tanda: 1, cantidad: 4 },
+      { producto_id: 10, pastelera_id: 3, tipo: "decoracion", tanda: 1, cantidad: 10 },
+    ]);
+  });
+
+  it("si todo está sin decorar, solo sale la decoración", () => {
+    const filas = generarReparto({
+      fecha: "2026-10-15",
+      productos: [{ id: 10, area_id: 2, lleva_decoracion: true }],
+      totales: new Map(),
+      totalesDecoracion: new Map([[10, 5]]),
+      pasteleras,
+      areaDecoracionId: null,
+    });
+    expect(filas.map((f) => [f.tipo, f.cantidad])).toEqual([["decoracion", 5]]);
+  });
+
+  it("área en equipo: no se divide, todo a la titular", () => {
+    const filas = generarReparto({
+      fecha: "2026-10-15",
+      productos: [{ id: 10, area_id: 1, lleva_decoracion: true }],
+      totales: new Map([[10, 11]]),
+      pasteleras,
+      areaDecoracionId: null,
+      areasEnEquipo: new Set([1]),
+    });
+    expect(filas).toEqual([
+      { producto_id: 10, pastelera_id: 1, tipo: "produccion", tanda: 1, cantidad: 11 },
+      { producto_id: 10, pastelera_id: 1, tipo: "decoracion", tanda: 1, cantidad: 11 },
+    ]);
+  });
+
+  it("titular: primera activa por orden, aunque tenga 0 %", () => {
+    const equipo: PasteleraReparto[] = [
+      { id: 5, area_id: 1, porcentaje: 0, orden: 2, activa: true },
+      { id: 4, area_id: 1, porcentaje: 0, orden: 1, activa: false },
+      { id: 6, area_id: 1, porcentaje: 0, orden: 3, activa: true },
+    ];
+    expect(titularDeArea(equipo, 1)?.id).toBe(5);
+    expect(titularDeArea(equipo, 2)).toBeNull();
+  });
+});
+
 describe("sumaPorcentajesPorArea y resumirAvance", () => {
+  it("no cuenta las áreas en equipo", () => {
+    const s = sumaPorcentajesPorArea(pasteleras, new Set([1]));
+    expect(s.has(1)).toBe(false);
+    expect(s.get(2)).toBe(100);
+  });
+
   it("suma solo activas", () => {
     const s = sumaPorcentajesPorArea(pasteleras);
     expect(s.get(1)).toBe(100);

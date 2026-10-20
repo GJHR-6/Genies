@@ -7,13 +7,15 @@ import { ChipColorDia } from "@/components/color-dia";
 import {
   COLUMNAS_ASIGNACION,
   aAsignacion,
+  idsAreasEnEquipo,
+  nombreHoja,
   nombreProducto,
   type AsignacionDia,
   type DatosReparto,
   type PasteleraDia,
   type PlanDia,
 } from "@/lib/asignaciones";
-import { tareasPorTanda } from "@/lib/secciones-reparto";
+import { idsDelEquipo, tareasPorTanda } from "@/lib/secciones-reparto";
 import { resumirAvance } from "@/lib/reparto";
 
 const INACTIVIDAD_MS = 3 * 60_000;
@@ -141,8 +143,18 @@ export function CocinaCliente({ fecha, fechaLegible, datos }: Props) {
   }
 
   const areaPorId = new Map(datos.areas.map((a) => [a.id, a]));
+  // En un área en equipo, todas ven (y marcan) la hoja compartida.
+  const areasEnEquipo = idsAreasEnEquipo(datos.areas);
+  const deEquipo = (p: PasteleraDia) =>
+    data.asignaciones.filter(
+      (a) =>
+        a.pastelera_id !== null &&
+        idsDelEquipo(p, datos.pasteleras, areasEnEquipo).includes(a.pastelera_id) &&
+        a.cantidad > 0
+    );
   const conTrabajo = datos.pasteleras
-    .filter((p) => data.asignaciones.some((a) => a.pastelera_id === p.id && a.cantidad > 0))
+    .filter((p) => p.activa || data.asignaciones.some((a) => a.pastelera_id === p.id))
+    .filter((p) => deEquipo(p).length > 0)
     .sort(
       (a, b) =>
         (areaPorId.get(a.area_id)?.orden ?? 99) - (areaPorId.get(b.area_id)?.orden ?? 99) ||
@@ -180,9 +192,10 @@ export function CocinaCliente({ fecha, fechaLegible, datos }: Props) {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {conTrabajo.map((p) => {
-            const avance = resumirAvance(
-              data.asignaciones.filter((a) => a.pastelera_id === p.id && a.cantidad > 0)
-            );
+            const avance = resumirAvance(deEquipo(p));
+            const equipo = areasEnEquipo.has(p.area_id)
+              ? nombreHoja(p, datos.pasteleras, areasEnEquipo)
+              : null;
             const completo = avance.tareas > 0 && avance.listas === avance.tareas;
             return (
               <button
@@ -197,6 +210,7 @@ export function CocinaCliente({ fecha, fechaLegible, datos }: Props) {
                   <p className="text-2xl font-bold">{p.nombre}</p>
                   <p className="text-sm text-muted-foreground">
                     {areaPorId.get(p.area_id)?.nombre}
+                    {equipo && equipo !== p.nombre ? ` · hoja de ${equipo}` : ""}
                     {p.requiere_pin ? " · con PIN" : ""}
                   </p>
                 </div>
@@ -348,6 +362,7 @@ function TrabajoPastelera({
         p_asignacion: vars.id,
         p_pin: sesion.pin,
         p_hecha: vars.hecha,
+        p_pastelera: sesion.pastelera.id,
         ...(vars.estado ? { p_estado: vars.estado } : {}),
       });
       if (err) throw new Error(err.message);
@@ -388,11 +403,17 @@ function TrabajoPastelera({
     },
   });
 
+  // Las suyas y, si trabaja en equipo, las de la hoja compartida.
+  const idsEquipo = idsDelEquipo(
+    sesion.pastelera,
+    datos.pasteleras,
+    idsAreasEnEquipo(datos.areas)
+  );
   const propias = asignaciones.filter(
-    (a) => a.pastelera_id === sesion.pastelera.id && a.cantidad > 0
+    (a) => a.pastelera_id !== null && idsEquipo.includes(a.pastelera_id) && a.cantidad > 0
   );
   const avance = resumirAvance(propias);
-  const grupos = tareasPorTanda(asignaciones, sesion.pastelera.id);
+  const grupos = tareasPorTanda(asignaciones, idsEquipo);
   const orden = (id: number) => productoPorId.get(id)?.orden_area ?? 9999;
 
   return (
@@ -401,7 +422,15 @@ function TrabajoPastelera({
         <div>
           <h1 className="text-2xl font-bold">{sesion.pastelera.nombre}</h1>
           <p className="text-sm text-muted-foreground">
-            {area?.nombre} · {fechaLegible}
+            {area?.nombre}
+            {area?.trabajo_en_equipo
+              ? ` · hoja compartida de ${nombreHoja(
+                  sesion.pastelera,
+                  datos.pasteleras,
+                  idsAreasEnEquipo(datos.areas)
+                )}`
+              : ""}{" "}
+            · {fechaLegible}
           </p>
         </div>
         <div className="flex items-center gap-3">

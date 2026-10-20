@@ -27,7 +27,50 @@ export type SugeridosDelDia = {
   sucursales: SucursalDia[];
   /** Clave `${productoId}-${sucursalId}`; sin entrada = sin regla de sugerido. */
   celdas: Record<string, CeldaSugerido>;
+  /**
+   * Pasteles sin decorar que Principal anotó hoy en su inventario
+   * (producto → unidades). Ya están hechos: solo falta decorarlos.
+   */
+  sinDecorar: Record<number, number>;
 };
+
+export type TotalProducto = {
+  /** Suma de sugeridos de todas las sucursales (lo que hay que mandar). */
+  total: number;
+  /** Sin decorar en Principal (solo productos que llevan decoración). */
+  sinDecorar: number;
+  /** Lo que falta hornear: total − sin decorar (nunca negativo). */
+  aProducir: number;
+  /** Lo que hay que decorar: el total, si el producto lleva decoración. */
+  aDecorar: number;
+};
+
+/**
+ * Totales del día por producto. Para los que llevan decoración, lo que ya
+ * está sin decorar en Principal se descuenta de la producción (se decora
+ * primero eso y se hornea solo la diferencia); la decoración es el total.
+ */
+export function totalesPorProducto(
+  dia: Pick<SugeridosDelDia, "productos" | "sucursales" | "celdas" | "sinDecorar">
+): Map<number, TotalProducto> {
+  const resultado = new Map<number, TotalProducto>();
+  for (const p of dia.productos) {
+    let total = 0;
+    for (const s of dia.sucursales) {
+      total += dia.celdas[`${p.id}-${s.id}`]?.sugerido ?? 0;
+    }
+    const sinDecorar = p.lleva_decoracion
+      ? Math.max(dia.sinDecorar[p.id] ?? 0, 0)
+      : 0;
+    resultado.set(p.id, {
+      total,
+      sinDecorar,
+      aProducir: Math.max(total - sinDecorar, 0),
+      aDecorar: p.lleva_decoracion ? total : 0,
+    });
+  }
+  return resultado;
+}
 
 export type ReglaSugerido = {
   producto_id: number;
@@ -74,7 +117,7 @@ export async function cargarSugeridosDelDia(
 ): Promise<SugeridosDelDia> {
   const dow = diaSemana(fecha);
 
-  const [productosRes, sucursalesRes, reglasRes, sugeridosRes] =
+  const [productosRes, sucursalesRes, reglasRes, sugeridosRes, sinDecorarRes] =
     await Promise.all([
       supabase
         .from("productos")
@@ -87,7 +130,7 @@ export async function cargarSugeridosDelDia(
         .order("tamano"),
       supabase
         .from("sucursales")
-        .select("id, nombre")
+        .select("id, nombre, es_principal")
         .eq("activa", true)
         .order("id"),
       cargarReglas(supabase).then(
@@ -98,13 +141,20 @@ export async function cargarSugeridosDelDia(
         .from("v_sugeridos")
         .select("producto_id, sucursal_id, saldo, sugerido, es_override")
         .eq("fecha", fecha),
+      supabase
+        .from("movimientos_diarios")
+        .select("producto_id, sin_decorar, sucursales!inner(es_principal)")
+        .eq("fecha", fecha)
+        .eq("sucursales.es_principal", true)
+        .gt("sin_decorar", 0),
     ]);
 
   const error =
     productosRes.error ??
     sucursalesRes.error ??
     reglasRes.error ??
-    sugeridosRes.error;
+    sugeridosRes.error ??
+    sinDecorarRes.error;
   if (error) throw new Error(error.message);
 
   const objetivos = new Map<string, number>();
@@ -128,7 +178,14 @@ export async function cargarSugeridosDelDia(
   );
 
   const productos = productosRes.data ?? [];
-  const sucursales = sucursalesRes.data ?? [];
+  const sucursales = (sucursalesRes.data ?? []).map(({ id, nombre }) => ({
+    id,
+    nombre,
+  }));
+  const sinDecorar: Record<number, number> = {};
+  for (const m of sinDecorarRes.data ?? []) {
+    sinDecorar[m.producto_id] = (sinDecorar[m.producto_id] ?? 0) + m.sin_decorar;
+  }
   const celdas: Record<string, CeldaSugerido> = {};
   for (const p of productos) {
     for (const s of sucursales) {
@@ -146,5 +203,5 @@ export async function cargarSugeridosDelDia(
     }
   }
 
-  return { productos, sucursales, celdas };
+  return { productos, sucursales, celdas, sinDecorar };
 }

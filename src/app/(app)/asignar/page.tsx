@@ -1,8 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { colorDelDia } from "@/lib/color-dia";
-import { cargarSugeridosDelDia } from "@/lib/sugeridos";
-import { cargarReparto, type DatosReparto } from "@/lib/asignaciones";
+import { cargarSugeridosDelDia, totalesPorProducto } from "@/lib/sugeridos";
+import {
+  cargarReparto,
+  type DatosReparto,
+  type TotalesCuadro,
+} from "@/lib/asignaciones";
 import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
 import { GRUPO_HOY } from "@/lib/grupos";
 import { AsignarCliente } from "./asignar-cliente";
@@ -23,7 +27,7 @@ export default async function AsignarPage() {
   }
 
   let datos: DatosReparto;
-  let totalesCuadro: Record<number, number> = {};
+  let totalesCuadro: TotalesCuadro = {};
   let pendientes = 0;
   try {
     const [reparto, dia, cierresRes] = await Promise.all([
@@ -38,12 +42,9 @@ export default async function AsignarPage() {
     if (cierresRes.error) throw new Error(cierresRes.error.message);
     datos = reparto;
     totalesCuadro = Object.fromEntries(
-      dia.productos.map((p) => [
-        p.id,
-        dia.sucursales.reduce(
-          (suma, s) => suma + (dia.celdas[`${p.id}-${s.id}`]?.sugerido ?? 0),
-          0
-        ),
+      [...totalesPorProducto(dia)].map(([id, t]) => [
+        id,
+        { produccion: t.aProducir, decoracion: t.aDecorar, sinDecorar: t.sinDecorar },
       ])
     );
     pendientes = dia.sucursales.length - (cierresRes.data ?? []).length;
