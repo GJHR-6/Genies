@@ -10,6 +10,7 @@ import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
 import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
 import { GRUPO_HOY } from "@/lib/grupos";
+import { Fragment } from "react";
 import Link from "next/link";
 import { Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,13 @@ export default async function CuadrosPage() {
   // Dentro de cada cuadro, el orden del Excel (igual en todas las hojas).
   const porOrdenArea = (a: ProductoSugerido, b: ProductoSugerido) =>
     compararProductos(a, b);
+  // Primero el cuadro completo: todos los productos en el orden del Excel,
+  // con sus secciones, como la hoja de la dueña. Después, uno por área.
+  const completo: Cuadro = {
+    titulo: "Completo",
+    encargadas: null,
+    productos: [...productos].sort(compararProductos),
+  };
   const cuadros: Cuadro[] = areas
     .map((a) => ({
       titulo: a.nombre,
@@ -116,6 +124,7 @@ export default async function CuadrosPage() {
   const decoracion = conRegla
     .filter((p) => p.lleva_decoracion)
     .sort(porOrdenArea);
+  cuadros.unshift(completo);
   if (decoracion.length > 0) {
     cuadros.push({ titulo: "Decoración", encargadas: null, productos: decoracion });
   }
@@ -167,7 +176,7 @@ export default async function CuadrosPage() {
         </Aviso>
       )}
 
-      {cuadros.length === 0 && (
+      {conRegla.length === 0 && (
         <Aviso tipo="info">
           Todavía no hay productos con objetivos. Agregalos en Catálogos →
           Objetivos por tienda.
@@ -175,7 +184,8 @@ export default async function CuadrosPage() {
       )}
 
       <p className="text-sm text-muted-foreground print:hidden">
-        Sale una hoja por área. Al imprimir, cada cuadro va en su propia página.
+        Primero sale el cuadro completo (en el orden del Excel) y después una
+        hoja por área. Al imprimir, cada cuadro va en su propia página.
       </p>
 
       {!haySinDecorar && cuadros.length > 0 && (
@@ -193,7 +203,9 @@ export default async function CuadrosPage() {
         >
           <header className="mb-3 flex items-baseline justify-between gap-2 border-b pb-2 print:border-black">
             <h2 className="text-lg font-bold">
-              {cuadro.titulo === "Decoración"
+              {cuadro === completo
+                ? "Cuadro completo (orden del Excel)"
+                : cuadro.titulo === "Decoración"
                 ? "Cuadro de decoración"
                 : `Cuadro de producción — ${cuadro.titulo}`}
               {cuadro.encargadas && (
@@ -232,12 +244,27 @@ export default async function CuadrosPage() {
               </tr>
             </thead>
             <tbody>
-              {cuadro.productos.map((p) => {
+              {cuadro.productos.map((p, i) => {
                 const porSucursal = sucursales.map((s) => sugeridoDe(p.id, s.id));
                 const t = totalDe(p.id);
+                // Título de sección (VAINILLA, CHOCOLATE…) cuando cambia,
+                // como en el Excel.
+                const seccion = p.categoria ?? "OTROS";
+                const nuevaSeccion =
+                  i === 0 || (cuadro.productos[i - 1].categoria ?? "OTROS") !== seccion;
                 return (
+                  <Fragment key={p.id}>
+                  {nuevaSeccion && (
+                    <tr className="border-b border-border bg-muted/50 print:border-black/60 print:bg-black/10">
+                      <td
+                        colSpan={sucursales.length + 4}
+                        className="py-0.5 pr-2 text-xs font-bold uppercase tracking-wide"
+                      >
+                        {seccion}
+                      </td>
+                    </tr>
+                  )}
                   <tr
-                    key={p.id}
                     className="border-b border-border/60 last:border-b-0 print:border-black/40"
                   >
                     <td className="py-1.5 pr-2 font-medium">
@@ -277,6 +304,7 @@ export default async function CuadrosPage() {
                       {t.aProducir}
                     </td>
                   </tr>
+                  </Fragment>
                 );
               })}
             </tbody>

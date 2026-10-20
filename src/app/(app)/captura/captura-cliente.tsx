@@ -69,6 +69,8 @@ const CAMPOS: Campo[] = [
   "sin_decorar",
 ];
 
+const CLAVE_ORDEN = "genies:orden-inventario";
+
 function aEntero(valor: string): number {
   const n = parseInt(valor, 10);
   return Number.isFinite(n) && n >= 0 ? n : 0;
@@ -354,6 +356,26 @@ export function CapturaCliente({
     },
   });
 
+  // Orden de la lista: el del Excel (por sección) o A–Z. Cada tablet o
+  // teléfono recuerda su elección (solo comodidad: si falla, queda Excel).
+  const [ordenAZ, setOrdenAZ] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOrdenAZ(localStorage.getItem(CLAVE_ORDEN) === "az");
+    } catch {
+      /* sin almacenamiento: orden del Excel */
+    }
+  }, []);
+  const cambiarOrden = (az: boolean) => {
+    setOrdenAZ(az);
+    try {
+      localStorage.setItem(CLAVE_ORDEN, az ? "az" : "excel");
+    } catch {
+      /* sin almacenamiento: vale solo para esta visita */
+    }
+  };
+
   const grupos = useMemo(() => {
     // Cada palabra debe aparecer en nombre, tamaño o categoría:
     // "choco 10" encuentra "CHOCOLATE · 10X2".
@@ -367,6 +389,15 @@ export function CapturaCliente({
             return palabras.every((w) => texto.includes(w));
           })
         : productos;
+    if (ordenAZ) {
+      const etiqueta = (p: Producto) => `${p.nombre} ${p.tamano ?? ""}`;
+      const ordenados = [...visibles].sort((a, b) =>
+        etiqueta(a).localeCompare(etiqueta(b), "es", { numeric: true })
+      );
+      return ordenados.length > 0
+        ? ([["De la A a la Z", ordenados]] as [string, Producto[]][])
+        : [];
+    }
     const porCategoria = new Map<string, Producto[]>();
     for (const p of visibles) {
       const cat = p.categoria ?? "Sin categoría";
@@ -375,7 +406,7 @@ export function CapturaCliente({
       else porCategoria.set(cat, [p]);
     }
     return [...porCategoria.entries()];
-  }, [productos, busqueda]);
+  }, [productos, busqueda, ordenAZ]);
 
   const total = productos.length;
   const capturados = guardadas.size;
@@ -418,6 +449,35 @@ export function CapturaCliente({
           aria-label="Buscar producto"
           className="mt-2 h-11"
         />
+        <div
+          role="group"
+          aria-label="Orden de la lista"
+          className="mt-2 flex items-center gap-2 text-xs"
+        >
+          <span className="text-muted-foreground">Ordenar:</span>
+          <div className="flex gap-1 rounded-full bg-muted p-1">
+            {(
+              [
+                [false, "Como el Excel"],
+                [true, "A–Z"],
+              ] as const
+            ).map(([az, etiqueta]) => (
+              <button
+                key={etiqueta}
+                type="button"
+                aria-pressed={ordenAZ === az}
+                onClick={() => cambiarOrden(az)}
+                className={`min-h-8 rounded-full px-3 font-medium ${
+                  ordenAZ === az
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+        </div>
         {!cerrado && (
           <p className="mt-1.5 text-xs text-muted-foreground">
             Anotá lo que entró, lo que devolviste y los pedidos. Cada número se
