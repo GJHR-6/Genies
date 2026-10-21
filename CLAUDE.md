@@ -46,7 +46,7 @@ Resumen de la reunión en el Project de claude.ai (`claude/requerimientos-reunio
 - **Sin decorar**: `cargarSugeridosDelDia` trae también `sinDecorar` (lo que Principal anotó hoy en `movimientos_diarios.sin_decorar`). `totalesPorProducto` (`src/lib/sugeridos.ts`, con tests) da por producto: total, sin decorar, **hornear = total − sin decorar** y decorar = total. `/cuadros` muestra las columnas Sin decorar y Hornear; el reparto de producción usa Hornear y el de decoración el total.
 - **Áreas en equipo** (migración `0010_areas_en_equipo.sql`, ⚠️ aplicarla en Supabase ANTES de desplegar): `areas_produccion.trabajo_en_equipo` (Producción 1 = Kenia y Dany queda en true). No se divide por %: todo va a la titular (primera activa por orden, `titularDeArea`), la hoja impresa y la columna de /asignar dicen "Kenia y Dany", y en /cocina cualquiera del equipo ve y marca la hoja compartida. `registrar_avance` ahora recibe `p_pastelera` (quién marca; se valida su PIN y que sea del mismo equipo). Interruptor en Catálogos → Áreas.
 - **Hojas de despacho** (`/cuadros/despacho`, botón en Cuadros): hoja completa para empaque (casilla por tienda) y una hoja por tienda con Enviado / No se mandó.
-- Pendiente: libras por batida (la dueña dirá cómo), que las pantallas se parezcan a su hoja (espera el Excel actualizado), control de pendientes no enviados en el sistema.
+- Pendiente: control de pendientes no enviados en el sistema.
 
 ## Excel nuevo de la dueña (20 oct 2026)
 `PRINCIPAL Auto inventario diario.xlsx` actualizado (en Descargas del usuario).
@@ -57,6 +57,15 @@ Resumen de la reunión en el Project de claude.ai (`claude/requerimientos-reunio
 - **Inventario A–Z**: botón "Como el Excel / A–Z" en `/captura`; la elección se guarda por dispositivo en localStorage (`genies:orden-inventario`).
 - **Temporada** (`productos.temporada`): interruptor y filtro en Catálogos → Productos; el campo "Posición en la lista" edita `orden`.
 - **Catálogo** (`supabase/migrations/0012_catalogo_excel_oct.sql`, generado por `scripts/catalogo-excel-oct.ts`): 7 renombres por id, 7 desactivados, 6 nuevos (sin área) con 36 objetivos y el orden. Aplicada por el usuario el 20 oct y verificada (132 activos, todos con orden, sin repetidos).
+
+## Batidas, libras y colores (21 oct 2026)
+Migración `0013_libras_colores.sql` (⚠️ aplicarla en Supabase ANTES de desplegar: `/cuadros/despacho`, `/asignar` y Catálogos leen las columnas nuevas).
+- **Batidas = tandas** (T1–T4). En el Excel, DEC y PROD dicen cuánto se decora / hornea en cada batida separado por `*` ("39*2"). Lógica en `src/lib/batidas.ts` (con tests).
+- **Libras**: `productos.libras` = libras de masa por unidad (vacío = no se controla). Se suman por masa (= `categoria`) y por tanda con lo que se hornea; **máximo 100 lb por batida** (`MAX_LIBRAS_BATIDA`). Se ven en `/asignar` (panel "Libras por batida", en rojo lo que se pasa) y en la fila de cada sección de la hoja completa. Se cargan en Catálogos → Productos ("Libras por unidad"); falta que la dueña diga las libras de cada tamaño (solo se sabe 1.75 lb para uno).
+- **Hoja completa** (`/cuadros/despacho`): después de SALDO, DEC y PROD por batida (del reparto) y Sugerido (suma de sugeridos = total del cuadro).
+- **Hoja por tienda**: columna Saldo (lo que la tienda tenía en su inventario de hoy) y los colores de la tienda.
+- **Colores por tienda** (`sucursales.colores_decoracion`, texto libre): Catálogos → Tiendas y colores; salen en la hoja completa (leyenda) y en la hoja de cada tienda.
+- Por confirmar con la dueña: si a las tiendas los pasteles salen decorados y sin decorar (separar en la hoja por tienda), qué es la columna ESTANT y qué suman las filas de sección del Excel (172, 202, 238…).
 
 ## Demo vie 16 oct 2026
 - Datos: `DEMO_PERMITIR=1 npx tsx --env-file=.env.local scripts/datos-demo.ts` (reproducible; reescribe inventario y cierres de los 6 días de producción anteriores + hoy en TODAS las sucursales, borra el reparto de hoy; hoy Palenque queda "contando"). Guion en `docs/guion-demo.md`. Rango 2026-10-09→16 ya incluido en `limpiar-datos-demo.sql`.

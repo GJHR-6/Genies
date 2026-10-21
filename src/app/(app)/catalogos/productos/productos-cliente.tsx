@@ -37,6 +37,7 @@ type Producto = {
   orden_area: number | null;
   orden: number | null;
   temporada: boolean;
+  libras: number | string | null;
   lleva_decoracion: boolean;
   activo: boolean;
 };
@@ -193,6 +194,11 @@ export function ProductosCliente({
                         Temporada
                       </span>
                     )}
+                    {p.libras != null && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums text-muted-foreground">
+                        {Number(p.libras)} lb
+                      </span>
+                    )}
                     {!p.activo && <EstadoActivo activo={false} />}
                   </div>
                 </div>
@@ -241,6 +247,7 @@ function FormularioProducto({
     orden_area: producto?.orden_area?.toString() ?? "",
     orden: producto?.orden?.toString() ?? "",
     temporada: producto?.temporada ?? false,
+    libras: producto?.libras != null ? String(Number(producto.libras)) : "",
     lleva_decoracion: producto?.lleva_decoracion ?? false,
     activo: producto?.activo ?? true,
   });
@@ -258,6 +265,7 @@ function FormularioProducto({
       ...datos,
       orden_area: numeroONull(datos.orden_area),
       orden: numeroONull(datos.orden),
+      libras: datos.libras.trim() === "" ? null : Number(datos.libras.replace(",", ".")),
     };
     ejecutar(() => guardarProducto(payload), alCerrar);
   }
@@ -362,6 +370,21 @@ function FormularioProducto({
               value={datos.orden}
               onChange={(e) =>
                 cambiar("orden", e.target.value.replace(/\D/g, "").slice(0, 5))
+              }
+              className="h-10"
+            />
+          </Campo>
+          <Campo
+            etiqueta="Libras por unidad"
+            htmlFor="prod-libras"
+            ayuda="Solo para los pasteles que se controlan por batidas (vainilla, chocolate, mixto…). Ej.: 1.75. Vacío = no se cuenta en las libras de la batida (máximo 100 lb)."
+          >
+            <Input
+              id="prod-libras"
+              inputMode="decimal"
+              value={datos.libras}
+              onChange={(e) =>
+                cambiar("libras", e.target.value.replace(/[^\d.,]/g, "").slice(0, 6))
               }
               className="h-10"
             />

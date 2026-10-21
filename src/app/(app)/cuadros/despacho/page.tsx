@@ -4,9 +4,18 @@ import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import {
   cargarSugeridosDelDia,
+  totalesPorProducto,
   type ProductoSugerido,
   type SugeridosDelDia,
 } from "@/lib/sugeridos";
+import {
+  formatoLibras,
+  formatoTandas,
+  librasPorBatida,
+  MAX_LIBRAS_BATIDA,
+  tandasPorProducto,
+  type BatidasMasa,
+} from "@/lib/batidas";
 import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
 import { Aviso } from "@/components/encabezado-seccion";
@@ -22,8 +31,13 @@ export const dynamic = "force-dynamic";
  *     da a la muchacha que empaca): DECO, SIN DECO e INV/TOTAL de
  *     Principal, lo que se manda y el CM (cambio) de cada tienda, y el
  *     SALDO de CM que la dueña pidió agregar (20 oct 2026).
- *  2. Una hoja por tienda: lo que le toca, para tachar lo enviado y anotar
- *     lo que quedó pendiente (la tienda lo vuelve a pedir en la tarde).
+ *     A la derecha, como en el Excel (21 oct 2026): DEC y PROD por batida
+ *     ("39*2" = 39 en la primera y 2 en la segunda, salen del reparto) y
+ *     el Sugerido; en la fila de cada masa, las libras por batida (máximo
+ *     100 lb).
+ *  2. Una hoja por tienda: lo que le toca, su saldo y los colores con que
+ *     se decoran sus pasteles, para tachar lo enviado y anotar lo que
+ *     quedó pendiente (la tienda lo vuelve a pedir en la tarde).
  */
 export default async function DespachoPage() {
   const supabase = await createClient();
@@ -39,8 +53,45 @@ export default async function DespachoPage() {
   }
 
   let dia: SugeridosDelDia;
+  let asignaciones: {
+    producto_id: number;
+    tipo: "produccion" | "decoracion";
+    tanda: number;
+    cantidad: number;
+  }[];
+  let libras: Record<number, number | null>;
+  let colores: Record<number, string>;
   try {
-    dia = await cargarSugeridosDelDia(supabase, fecha);
+    const [d, asignacionesRes, librasRes, coloresRes] = await Promise.all([
+      cargarSugeridosDelDia(supabase, fecha),
+      supabase
+        .from("asignaciones")
+        .select("producto_id, tipo, tanda, cantidad")
+        .eq("fecha", fecha),
+      supabase.from("productos").select("id, libras").eq("activo", true),
+      supabase
+        .from("sucursales")
+        .select("id, colores_decoracion")
+        .eq("activa", true),
+    ]);
+    const error = asignacionesRes.error ?? librasRes.error ?? coloresRes.error;
+    if (error) throw new Error(error.message);
+    dia = d;
+    asignaciones = (asignacionesRes.data ?? []).map((a) => ({
+      ...a,
+      tipo: a.tipo === "decoracion" ? "decoracion" : "produccion",
+    }));
+    libras = Object.fromEntries(
+      (librasRes.data ?? []).map((p) => [
+        p.id,
+        p.libras === null ? null : Number(p.libras),
+      ])
+    );
+    colores = Object.fromEntries(
+      (coloresRes.data ?? [])
+        .filter((s) => s.colores_decoracion?.trim())
+        .map((s) => [s.id, s.colores_decoracion!.trim()])
+    );
   } catch {
     return (
       <section className="flex flex-col gap-4">
@@ -65,16 +116,32 @@ export default async function DespachoPage() {
   // En la hoja completa Principal no es columna: es el INV/TOTAL.
   const tiendas = sucursales.filter((s) => s.id !== dia.principalId);
 
+  // DEC / PROD por batida (del reparto), Sugerido y libras por masa.
+  const totales = totalesPorProducto(dia);
+  const dec = tandasPorProducto(asignaciones, "decoracion");
+  const prod = tandasPorProducto(asignaciones, "produccion");
+  const batidas = new Map<string, BatidasMasa>(
+    librasPorBatida(
+      asignaciones,
+      todos.map((p) => ({ ...p, libras: libras[p.id] ?? null }))
+    ).map((b) => [b.masa, b])
+  );
+  const conColores = sucursales.filter((s) => colores[s.id]);
+
   // Filas de la hoja completa con encabezado de sección, como el Excel.
   type Renglon =
-    | { tipo: "seccion"; nombre: string }
+    | { tipo: "seccion"; nombre: string; batidas: BatidasMasa | undefined }
     | { tipo: "producto"; producto: ProductoSugerido; fila: FilaHojaCompleta };
   const renglones: Renglon[] = [];
   let seccionActual: string | null = null;
   for (const p of todos) {
     const seccion = p.categoria ?? "OTROS";
     if (seccion !== seccionActual) {
-      renglones.push({ tipo: "seccion", nombre: seccion });
+      renglones.push({
+        tipo: "seccion",
+        nombre: seccion,
+        batidas: batidas.get(seccion),
+      });
       seccionActual = seccion;
     }
     renglones.push({
@@ -107,10 +174,11 @@ export default async function DespachoPage() {
             <EncabezadoHoja
               titulo="Inventario diario — hoja completa"
               fecha={fecha}
-              nota="Por tienda: lo que se manda y CM (cambio). SALDO = INV/TOTAL + CM − lo que se manda; en rojo, lo que falta."
+              nota={`Por tienda: lo que se manda y CM (cambio). SALDO = INV/TOTAL + CM − lo que se manda; en rojo, lo que falta. DEC y PROD: cuánto se decora y se hornea en cada batida (39*2 = 39 en la primera y 2 en la segunda). En la fila de cada masa, las libras por batida (máximo ${MAX_LIBRAS_BATIDA} lb).`}
             />
+            {conColores.length > 0 && <ColoresTiendas sucursales={conColores} colores={colores} />}
             <div className="overflow-x-auto print:overflow-visible">
-              <table className="w-full min-w-[720px] border-collapse text-[12px] print:min-w-0 print:text-[9.5px]">
+              <table className="w-full min-w-[900px] border-collapse text-[12px] print:min-w-0 print:text-[9.5px]">
                 <thead>
                   <tr className="border-b-2 border-border print:border-black">
                     <th className="py-1 pr-2 text-left font-semibold">PRODUCTO</th>
@@ -129,7 +197,18 @@ export default async function DespachoPage() {
                         </th>
                       </Fragment>
                     ))}
-                    <th className="px-1 py-1 text-center font-semibold">SALDO</th>
+                    <th className="border-r px-1 py-1 text-center font-semibold print:border-black">
+                      SALDO
+                    </th>
+                    <th className="px-1 py-1 text-center font-semibold">
+                      DEC
+                      <div className="text-[9px] font-normal">1*2*3*4</div>
+                    </th>
+                    <th className="px-1 py-1 text-center font-semibold">
+                      PROD
+                      <div className="text-[9px] font-normal">1*2*3*4</div>
+                    </th>
+                    <th className="px-1 py-1 text-center font-semibold">Sugerido</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -144,6 +223,22 @@ export default async function DespachoPage() {
                           className="py-0.5 pr-2 font-bold uppercase"
                         >
                           {r.nombre}
+                        </td>
+                        <td
+                          colSpan={3}
+                          className={`px-1 py-0.5 text-center font-semibold tabular-nums ${
+                            r.batidas?.excedidas.length
+                              ? "text-destructive print:text-black print:underline"
+                              : ""
+                          }`}
+                          title={
+                            r.batidas?.excedidas.length
+                              ? `Se pasa de ${MAX_LIBRAS_BATIDA} lb en la batida ${r.batidas.excedidas.join(", ")}`
+                              : undefined
+                          }
+                        >
+                          {r.batidas ? formatoLibras(r.batidas.libras) : ""}
+                          {r.batidas?.excedidas.length ? " ⚠" : ""}
                         </td>
                       </tr>
                     ) : (
@@ -172,11 +267,20 @@ export default async function DespachoPage() {
                           </Fragment>
                         ))}
                         <td
-                          className={`px-1 py-0.5 text-center font-bold tabular-nums ${
+                          className={`border-r px-1 py-0.5 text-center font-bold tabular-nums print:border-black ${
                             r.fila.saldo < 0 ? "text-destructive print:text-black" : ""
                           }`}
                         >
                           {r.fila.saldo === 0 ? "" : r.fila.saldo}
+                        </td>
+                        <td className="px-1 py-0.5 text-center tabular-nums">
+                          {formatoTandas(dec.get(r.producto.id) ?? [])}
+                        </td>
+                        <td className="px-1 py-0.5 text-center tabular-nums">
+                          {formatoTandas(prod.get(r.producto.id) ?? [])}
+                        </td>
+                        <td className="px-1 py-0.5 text-center font-semibold tabular-nums">
+                          {num(totales.get(r.producto.id)?.total ?? null)}
                         </td>
                       </tr>
                     )
@@ -199,12 +303,19 @@ export default async function DespachoPage() {
                 <EncabezadoHoja
                   titulo={`Despacho — ${s.nombre}`}
                   fecha={fecha}
-                  nota="Tachá lo que se mandó. Lo que no se mandó queda pendiente: la tienda lo vuelve a pedir en la tarde (no se manda doble)."
+                  nota="Tachá lo que se mandó. Lo que no se mandó queda pendiente: la tienda lo vuelve a pedir en la tarde (no se manda doble). Saldo = lo que la tienda tenía en su inventario de hoy."
                 />
+                {colores[s.id] && (
+                  <p className="mb-3 rounded-md border px-3 py-2 text-sm print:border-black">
+                    <span className="font-semibold">Colores de los pasteles:</span>{" "}
+                    {colores[s.id]}
+                  </p>
+                )}
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b-2 border-border print:border-black">
                       <th className="py-1 pr-2 text-left font-semibold">Producto</th>
+                      <th className="px-2 py-1 text-right font-semibold">Saldo</th>
                       <th className="px-2 py-1 text-right font-semibold">Mandar</th>
                       <th className="w-20 px-2 py-1 text-center font-semibold">Enviado</th>
                       <th className="w-24 px-2 py-1 text-center font-semibold">
@@ -219,6 +330,9 @@ export default async function DespachoPage() {
                         className="border-b border-border/60 print:border-black/40"
                       >
                         <td className="py-1.5 pr-2 font-medium">{nombre(p)}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">
+                          {celdas[`${p.id}-${s.id}`]?.saldo ?? "—"}
+                        </td>
                         <td className="px-2 py-1.5 text-right text-base font-bold tabular-nums">
                           {pedido(p.id, s.id)}
                         </td>
@@ -230,6 +344,7 @@ export default async function DespachoPage() {
                   <tfoot>
                     <tr className="border-t-2 border-border font-semibold print:border-black">
                       <td className="py-1.5 pr-2">Total</td>
+                      <td />
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         {suyos.reduce((t, p) => t + pedido(p.id, s.id), 0)}
                       </td>
@@ -244,6 +359,28 @@ export default async function DespachoPage() {
         </>
       )}
     </section>
+  );
+}
+
+/** Leyenda de colores de decoración por tienda (Catálogos → Tiendas). */
+function ColoresTiendas({
+  sucursales,
+  colores,
+}: {
+  sucursales: { id: number; nombre: string }[];
+  colores: Record<number, string>;
+}) {
+  return (
+    <div className="mb-3 rounded-md border px-3 py-2 text-xs print:border-black print:text-[9.5px]">
+      <p className="font-semibold">Colores de los pasteles por tienda</p>
+      <ul className="mt-1 grid gap-x-6 gap-y-0.5 sm:grid-cols-2 print:grid-cols-2">
+        {sucursales.map((s) => (
+          <li key={s.id}>
+            <span className="font-semibold uppercase">{s.nombre}:</span> {colores[s.id]}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

@@ -10,7 +10,7 @@ export default async function ProductosPage() {
     supabase
       .from("productos")
       .select(
-        "id, nombre, tamano, categoria, departamento_id, area_id, orden_area, orden, temporada, lleva_decoracion, activo"
+        "id, nombre, tamano, categoria, departamento_id, area_id, orden_area, orden, temporada, libras, lleva_decoracion, activo"
       )
       .order("orden", { nullsFirst: false })
       .order("categoria")

@@ -31,10 +31,28 @@ export const esquemaProducto = z.object({
   orden: z.number().int().min(0).max(32000).nullable().optional(),
   /** Producto eventual / de temporada. */
   temporada: z.boolean().optional(),
+  /** Libras de masa por unidad (batidas); null = no se controla por libras. */
+  libras: z
+    .number()
+    .positive("Las libras tienen que ser más que 0.")
+    .max(100, "Una unidad no puede llevar más de 100 lb.")
+    .nullable()
+    .optional(),
   lleva_decoracion: z.boolean(),
   activo: z.boolean(),
 });
 export type DatosProducto = z.input<typeof esquemaProducto>;
+
+export const esquemaColoresTienda = z.object({
+  id: z.number().int().positive(),
+  colores_decoracion: z
+    .string()
+    .trim()
+    .max(300, "El texto es demasiado largo (máximo 300 letras).")
+    .transform((v) => (v === "" ? null : v))
+    .nullable(),
+});
+export type DatosColoresTienda = z.input<typeof esquemaColoresTienda>;
 
 export const esquemaDepartamento = z.object({
   id: z.number().int().positive().optional(),

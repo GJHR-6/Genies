@@ -322,6 +322,7 @@ export type Database = {
           departamento_id: number | null
           id: number
           lleva_decoracion: boolean
+          libras: number | null
           nombre: string
           orden: number | null
           orden_area: number | null
@@ -335,6 +336,7 @@ export type Database = {
           departamento_id?: number | null
           id?: never
           lleva_decoracion?: boolean
+          libras?: number | null
           nombre: string
           orden?: number | null
           orden_area?: number | null
@@ -348,6 +350,7 @@ export type Database = {
           departamento_id?: number | null
           id?: never
           lleva_decoracion?: boolean
+          libras?: number | null
           nombre?: string
           orden?: number | null
           orden_area?: number | null
@@ -413,18 +416,21 @@ export type Database = {
       sucursales: {
         Row: {
           activa: boolean
+          colores_decoracion: string | null
           es_principal: boolean
           id: number
           nombre: string
         }
         Insert: {
           activa?: boolean
+          colores_decoracion?: string | null
           es_principal?: boolean
           id?: never
           nombre: string
         }
         Update: {
           activa?: boolean
+          colores_decoracion?: string | null
           es_principal?: boolean
           id?: never
           nombre?: string

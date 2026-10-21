@@ -38,6 +38,11 @@ import {
 } from "@/lib/secciones-reparto";
 import { resumirAvance, sumaPorcentajesPorArea } from "@/lib/reparto";
 import {
+  librasPorBatida,
+  MAX_LIBRAS_BATIDA,
+  type BatidasMasa,
+} from "@/lib/batidas";
+import {
   cambiarEstadoReparto,
   generarRepartoDelDia,
   type ResultadoAccion,
@@ -134,6 +139,16 @@ export function AsignarCliente({
     }
     return mapa;
   }, [asignaciones]);
+
+  // Libras por batida de cada masa con lo que hay en las casillas.
+  const batidas = useMemo(
+    () =>
+      librasPorBatida(
+        asignaciones,
+        datos.productos.map((p) => ({ ...p, libras: p.libras ?? null }))
+      ),
+    [asignaciones, datos.productos]
+  );
 
   const secciones = useMemo(
     () =>
@@ -383,6 +398,7 @@ export function AsignarCliente({
               muestra ⚠, lo repartido no coincide con el total del cuadro.
             </p>
           </div>
+          {batidas.length > 0 && <PanelBatidas batidas={batidas} />}
           {secciones.map((seccion) => (
             <TablaSeccion
               key={seccion.clave}
@@ -430,6 +446,66 @@ export function AsignarCliente({
         </DialogContent>
       </Dialog>
     </section>
+  );
+}
+
+/** Libras de cada batida (tanda) por masa; en rojo, las que pasan de 100 lb. */
+function PanelBatidas({ batidas }: { batidas: BatidasMasa[] }) {
+  const excedidas = batidas.filter((b) => b.excedidas.length > 0);
+  return (
+    <article className="rounded-lg border bg-card">
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b px-3 py-2">
+        <h2 className="font-bold">Libras por batida</h2>
+        <p className="text-xs text-muted-foreground">
+          Lo que se hornea en cada tanda × las libras de cada tamaño. Máximo{" "}
+          {MAX_LIBRAS_BATIDA} lb por batida.
+        </p>
+      </header>
+      {excedidas.length > 0 && (
+        <p className="border-b px-3 py-2 text-sm font-medium text-destructive">
+          Se pasa de {MAX_LIBRAS_BATIDA} lb:{" "}
+          {excedidas
+            .map((b) => `${b.masa} en ${b.excedidas.map((t) => `T${t}`).join(", ")}`)
+            .join(" · ")}
+          . Pasá parte a otra tanda.
+        </p>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[420px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40">
+              <th className="px-3 py-1.5 text-left font-semibold">Masa</th>
+              {[1, 2, 3, 4].map((t) => (
+                <th key={t} className="px-2 py-1.5 text-right font-semibold">
+                  T{t}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {batidas.map((b) => (
+              <tr key={b.masa} className="border-b last:border-b-0">
+                <td className="px-3 py-1 font-medium">{b.masa}</td>
+                {b.libras.map((l, i) => {
+                  const pasa = b.excedidas.includes(i + 1);
+                  return (
+                    <td
+                      key={i}
+                      className={`px-2 py-1 text-right tabular-nums ${
+                        pasa ? "font-bold text-destructive" : l === 0 ? "text-muted-foreground" : ""
+                      }`}
+                    >
+                      {l === 0 ? "—" : `${Math.round(l * 10) / 10} lb`}
+                      {pasa ? " ⚠" : ""}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </article>
   );
 }
 

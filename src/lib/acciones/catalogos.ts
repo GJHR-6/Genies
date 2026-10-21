@@ -10,10 +10,12 @@ import {
   esquemaDepartamento,
   esquemaNuevoUsuario,
   esquemaPerfil,
+  esquemaColoresTienda,
   esquemaProducto,
   esquemaReglas,
   primerError,
   type DatosArea,
+  type DatosColoresTienda,
   type DatosDepartamento,
   type DatosNuevoUsuario,
   type DatosPerfil,
@@ -65,6 +67,26 @@ export async function guardarProducto(datos: DatosProducto): Promise<Resultado> 
   if (error) return { ok: false, error: mensajeBD(error) };
 
   revalidatePath("/catalogos", "layout");
+  return { ok: true };
+}
+
+/** Colores de decoración de una tienda (sale en las hojas de despacho). */
+export async function guardarColoresTienda(
+  datos: DatosColoresTienda
+): Promise<Resultado> {
+  if (!(await exigirAdmin())) return SIN_PERMISO;
+  const v = esquemaColoresTienda.safeParse(datos);
+  if (!v.success) return { ok: false, error: primerError(v.error) };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("sucursales")
+    .update({ colores_decoracion: v.data.colores_decoracion })
+    .eq("id", v.data.id);
+  if (error) return { ok: false, error: mensajeBD(error) };
+
+  revalidatePath("/catalogos", "layout");
+  revalidatePath("/cuadros/despacho");
   return { ok: true };
 }
 

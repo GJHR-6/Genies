@@ -43,6 +43,8 @@ export type ProductoDia = {
   orden_area: number | null;
   orden: number | null;
   lleva_decoracion: boolean;
+  /** Libras de masa por unidad (solo los controlados por batidas). */
+  libras?: number | null;
 };
 
 /**
@@ -144,7 +146,7 @@ export async function cargarReparto(
       supabase
         .from("productos")
         .select(
-          "id, nombre, tamano, categoria, area_id, orden_area, orden, lleva_decoracion"
+          "id, nombre, tamano, categoria, area_id, orden_area, orden, lleva_decoracion, libras"
         )
         .eq("activo", true)
         .order("orden", { nullsFirst: false })
@@ -182,7 +184,10 @@ export async function cargarReparto(
     plan,
     areas: areasRes.data ?? [],
     pasteleras: (pastelerasRes.data ?? []).map(aPastelera),
-    productos: productosRes.data ?? [],
+    productos: (productosRes.data ?? []).map((p) => ({
+      ...p,
+      libras: p.libras === null ? null : Number(p.libras),
+    })),
     asignaciones: (asignacionesRes.data ?? []).map(aAsignacion),
   };
 }
