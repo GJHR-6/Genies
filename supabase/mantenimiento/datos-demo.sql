@@ -58,13 +58,18 @@ begin
   perform setseed(0.20261021);
 
   -- Pares tienda × producto con objetivo (productos activos).
+  -- (alias "rg", no "r": r es la variable del loop)
   create temp table demo_pares on commit drop as
-    select distinct r.sucursal_id, r.producto_id,
+    select par.sucursal_id, par.producto_id,
            random() < 0.12 as lento,
            null::int as saldo
-    from reglas_sugerido r
-    join productos p on p.id = r.producto_id and p.activo
-    join sucursales s on s.id = r.sucursal_id and s.activa;
+    from (
+      select distinct rg.sucursal_id, rg.producto_id
+      from reglas_sugerido rg
+      join productos p on p.id = rg.producto_id and p.activo
+      join sucursales s on s.id = rg.sucursal_id and s.activa
+    ) par
+    order by par.sucursal_id, par.producto_id;
 
   foreach v_f in array v_fechas loop
     for r in
