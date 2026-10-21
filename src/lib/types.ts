@@ -416,21 +416,18 @@ export type Database = {
       sucursales: {
         Row: {
           activa: boolean
-          colores_decoracion: string | null
           es_principal: boolean
           id: number
           nombre: string
         }
         Insert: {
           activa?: boolean
-          colores_decoracion?: string | null
           es_principal?: boolean
           id?: never
           nombre: string
         }
         Update: {
           activa?: boolean
-          colores_decoracion?: string | null
           es_principal?: boolean
           id?: never
           nombre?: string

@@ -43,17 +43,6 @@ export const esquemaProducto = z.object({
 });
 export type DatosProducto = z.input<typeof esquemaProducto>;
 
-export const esquemaColoresTienda = z.object({
-  id: z.number().int().positive(),
-  colores_decoracion: z
-    .string()
-    .trim()
-    .max(300, "El texto es demasiado largo (máximo 300 letras).")
-    .transform((v) => (v === "" ? null : v))
-    .nullable(),
-});
-export type DatosColoresTienda = z.input<typeof esquemaColoresTienda>;
-
 export const esquemaDepartamento = z.object({
   id: z.number().int().positive().optional(),
   nombre: textoRequerido("el nombre"),

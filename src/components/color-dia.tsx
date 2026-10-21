@@ -39,3 +39,49 @@ export function ChipColorDia({
     </span>
   );
 }
+
+const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+
+/**
+ * Aviso grande del color de hoy, para que la tienda lo vea apenas entra
+ * (21 oct 2026): con este color van marcados los pasteles de hoy.
+ */
+export function AvisoColorDia({
+  fecha,
+  className = "",
+}: {
+  fecha: string;
+  className?: string;
+}) {
+  const color = colorDelDia(fecha);
+  if (!color) return null;
+  const dia = DIAS[new Date(`${fecha}T12:00:00Z`).getUTCDay()];
+
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-xl px-4 py-3 shadow-sm ${className}`}
+      style={{
+        backgroundColor: color.fondo,
+        color: color.texto,
+        printColorAdjust: "exact",
+        WebkitPrintColorAdjust: "exact",
+      }}
+      role="status"
+    >
+      <span
+        aria-hidden
+        className="size-9 shrink-0 rounded-full border-2"
+        style={{ borderColor: color.texto }}
+      />
+      <div className="leading-tight">
+        <p className="text-xs font-medium uppercase tracking-wide opacity-90">
+          Color de hoy · {dia}
+        </p>
+        <p className="text-2xl font-extrabold uppercase">{color.nombre}</p>
+        <p className="text-xs opacity-90">
+          Los pasteles de hoy van marcados en {color.nombre.toLowerCase()}.
+        </p>
+      </div>
+    </div>
+  );
+}

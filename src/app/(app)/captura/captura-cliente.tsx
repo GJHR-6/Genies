@@ -10,7 +10,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { TablesInsert } from "@/lib/types";
-import { ChipColorDia } from "@/components/color-dia";
+import { AvisoColorDia, ChipColorDia } from "@/components/color-dia";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -414,6 +414,9 @@ export function CapturaCliente({
 
   return (
     <section className="flex flex-col gap-3">
+      {/* Color de hoy, grande, para que la tienda lo vea apenas entra. */}
+      <AvisoColorDia fecha={fecha} />
+
       {/* Encabezado fijo: sucursal, fecha, progreso y buscador */}
       <div className="sticky top-0 z-20 -mx-4 border-b bg-background px-4 pb-3 pt-2">
         <div className="flex items-baseline justify-between gap-2">

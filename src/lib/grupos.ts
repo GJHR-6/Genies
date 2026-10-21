@@ -4,7 +4,6 @@ import {
   ClipboardList,
   HandHeart,
   Layers,
-  Palette,
   Printer,
   Split,
   Store,
@@ -102,14 +101,6 @@ export const GRUPO_CATALOGOS = {
       descripcion: "Las secciones en que se agrupan los productos.",
       icono: Layers,
       color: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
-    },
-    {
-      clave: "tiendas",
-      href: "/catalogos/tiendas",
-      titulo: "Tiendas y colores",
-      descripcion: "Los colores con que se decoran los pasteles de cada tienda (salen en las hojas de despacho).",
-      icono: Palette,
-      color: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
     },
     {
       clave: "usuarios",

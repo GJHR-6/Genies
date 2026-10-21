@@ -58,14 +58,14 @@ Resumen de la reunión en el Project de claude.ai (`claude/requerimientos-reunio
 - **Temporada** (`productos.temporada`): interruptor y filtro en Catálogos → Productos; el campo "Posición en la lista" edita `orden`.
 - **Catálogo** (`supabase/migrations/0012_catalogo_excel_oct.sql`, generado por `scripts/catalogo-excel-oct.ts`): 7 renombres por id, 7 desactivados, 6 nuevos (sin área) con 36 objetivos y el orden. Aplicada por el usuario el 20 oct y verificada (132 activos, todos con orden, sin repetidos).
 
-## Batidas, libras y colores (21 oct 2026)
-Migración `0013_libras_colores.sql` (⚠️ aplicarla en Supabase ANTES de desplegar: `/cuadros/despacho`, `/asignar` y Catálogos leen las columnas nuevas).
+## Batidas, libras y color del día (21 oct 2026)
+Migración `0013_libras_batidas.sql` (⚠️ aplicarla en Supabase ANTES de desplegar: `/cuadros/despacho`, `/asignar` y Catálogos leen las columnas nuevas).
 - **Batidas = tandas** (T1–T4). En el Excel, DEC y PROD dicen cuánto se decora / hornea en cada batida separado por `*` ("39*2"). Lógica en `src/lib/batidas.ts` (con tests).
 - **Libras**: `productos.libras` = libras de masa por unidad (vacío = no se controla). Se suman por masa (= `categoria`) y por tanda con lo que se hornea; **máximo 100 lb por batida** (`MAX_LIBRAS_BATIDA`). Se ven en `/asignar` (panel "Libras por batida", en rojo lo que se pasa) y en la fila de cada sección de la hoja completa. Se cargan en Catálogos → Productos ("Libras por unidad"); falta que la dueña diga las libras de cada tamaño (solo se sabe 1.75 lb para uno).
 - **Hoja completa** (`/cuadros/despacho`): después de SALDO, DEC y PROD por batida (del reparto) y Sugerido (suma de sugeridos = total del cuadro).
-- **Hoja por tienda**: columna Saldo (lo que la tienda tenía en su inventario de hoy) y los colores de la tienda.
-- **Colores por tienda** (`sucursales.colores_decoracion`, texto libre): Catálogos → Tiendas y colores; salen en la hoja completa (leyenda) y en la hoja de cada tienda.
-- Por confirmar con la dueña: si a las tiendas los pasteles salen decorados y sin decorar (separar en la hoja por tienda), qué es la columna ESTANT y qué suman las filas de sección del Excel (172, 202, 238…).
+- **Hoja por tienda**: columna Saldo (lo que la tienda tenía en su inventario de hoy). Decorado / sin decorar es solo de Principal (no se separa en las tiendas).
+- **Color del día en la tienda**: `<AvisoColorDia>` (`src/components/color-dia.tsx`), aviso grande arriba del inventario de hoy (`/captura`), para que la tienda vea al entrar con qué color van los pasteles de hoy. Los colores siguen saliendo de `src/lib/color-dia.ts` (iguales para todas las tiendas).
+- Por confirmar con la dueña: qué es la columna ESTANT y qué suman las filas de sección del Excel (172, 202, 238…).
 
 ## Demo vie 16 oct 2026
 - Datos: `DEMO_PERMITIR=1 npx tsx --env-file=.env.local scripts/datos-demo.ts` (reproducible; reescribe inventario y cierres de los 6 días de producción anteriores + hoy en TODAS las sucursales, borra el reparto de hoy; hoy Palenque queda "contando"). Guion en `docs/guion-demo.md`. Rango 2026-10-09→16 ya incluido en `limpiar-datos-demo.sql`.

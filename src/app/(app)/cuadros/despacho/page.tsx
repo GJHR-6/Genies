@@ -35,9 +35,9 @@ export const dynamic = "force-dynamic";
  *     ("39*2" = 39 en la primera y 2 en la segunda, salen del reparto) y
  *     el Sugerido; en la fila de cada masa, las libras por batida (máximo
  *     100 lb).
- *  2. Una hoja por tienda: lo que le toca, su saldo y los colores con que
- *     se decoran sus pasteles, para tachar lo enviado y anotar lo que
- *     quedó pendiente (la tienda lo vuelve a pedir en la tarde).
+ *  2. Una hoja por tienda: lo que le toca y su saldo, para tachar lo
+ *     enviado y anotar lo que quedó pendiente (la tienda lo vuelve a
+ *     pedir en la tarde).
  */
 export default async function DespachoPage() {
   const supabase = await createClient();
@@ -60,21 +60,16 @@ export default async function DespachoPage() {
     cantidad: number;
   }[];
   let libras: Record<number, number | null>;
-  let colores: Record<number, string>;
   try {
-    const [d, asignacionesRes, librasRes, coloresRes] = await Promise.all([
+    const [d, asignacionesRes, librasRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase
         .from("asignaciones")
         .select("producto_id, tipo, tanda, cantidad")
         .eq("fecha", fecha),
       supabase.from("productos").select("id, libras").eq("activo", true),
-      supabase
-        .from("sucursales")
-        .select("id, colores_decoracion")
-        .eq("activa", true),
     ]);
-    const error = asignacionesRes.error ?? librasRes.error ?? coloresRes.error;
+    const error = asignacionesRes.error ?? librasRes.error;
     if (error) throw new Error(error.message);
     dia = d;
     asignaciones = (asignacionesRes.data ?? []).map((a) => ({
@@ -86,11 +81,6 @@ export default async function DespachoPage() {
         p.id,
         p.libras === null ? null : Number(p.libras),
       ])
-    );
-    colores = Object.fromEntries(
-      (coloresRes.data ?? [])
-        .filter((s) => s.colores_decoracion?.trim())
-        .map((s) => [s.id, s.colores_decoracion!.trim()])
     );
   } catch {
     return (
@@ -126,7 +116,6 @@ export default async function DespachoPage() {
       todos.map((p) => ({ ...p, libras: libras[p.id] ?? null }))
     ).map((b) => [b.masa, b])
   );
-  const conColores = sucursales.filter((s) => colores[s.id]);
 
   // Filas de la hoja completa con encabezado de sección, como el Excel.
   type Renglon =
@@ -176,7 +165,6 @@ export default async function DespachoPage() {
               fecha={fecha}
               nota={`Por tienda: lo que se manda y CM (cambio). SALDO = INV/TOTAL + CM − lo que se manda; en rojo, lo que falta. DEC y PROD: cuánto se decora y se hornea en cada batida (39*2 = 39 en la primera y 2 en la segunda). En la fila de cada masa, las libras por batida (máximo ${MAX_LIBRAS_BATIDA} lb).`}
             />
-            {conColores.length > 0 && <ColoresTiendas sucursales={conColores} colores={colores} />}
             <div className="overflow-x-auto print:overflow-visible">
               <table className="w-full min-w-[900px] border-collapse text-[12px] print:min-w-0 print:text-[9.5px]">
                 <thead>
@@ -305,12 +293,6 @@ export default async function DespachoPage() {
                   fecha={fecha}
                   nota="Tachá lo que se mandó. Lo que no se mandó queda pendiente: la tienda lo vuelve a pedir en la tarde (no se manda doble). Saldo = lo que la tienda tenía en su inventario de hoy."
                 />
-                {colores[s.id] && (
-                  <p className="mb-3 rounded-md border px-3 py-2 text-sm print:border-black">
-                    <span className="font-semibold">Colores de los pasteles:</span>{" "}
-                    {colores[s.id]}
-                  </p>
-                )}
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b-2 border-border print:border-black">
@@ -359,28 +341,6 @@ export default async function DespachoPage() {
         </>
       )}
     </section>
-  );
-}
-
-/** Leyenda de colores de decoración por tienda (Catálogos → Tiendas). */
-function ColoresTiendas({
-  sucursales,
-  colores,
-}: {
-  sucursales: { id: number; nombre: string }[];
-  colores: Record<number, string>;
-}) {
-  return (
-    <div className="mb-3 rounded-md border px-3 py-2 text-xs print:border-black print:text-[9.5px]">
-      <p className="font-semibold">Colores de los pasteles por tienda</p>
-      <ul className="mt-1 grid gap-x-6 gap-y-0.5 sm:grid-cols-2 print:grid-cols-2">
-        {sucursales.map((s) => (
-          <li key={s.id}>
-            <span className="font-semibold uppercase">{s.nombre}:</span> {colores[s.id]}
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 
