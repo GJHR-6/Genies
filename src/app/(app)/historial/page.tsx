@@ -25,7 +25,7 @@ export default async function HistorialPage({
   const supabase = await createClient();
   const { data: sucursales } = await supabase
     .from("sucursales")
-    .select("id, nombre")
+    .select("id, nombre, es_principal")
     .eq("activa", true)
     .order("id");
 
@@ -48,12 +48,18 @@ export default async function HistorialPage({
     );
   }
 
-  const [movimientosRes, cierreRes] = await Promise.all([
+  const [movimientosRes, extrasRes, cierreRes] = await Promise.all([
     supabase
       .from("v_movimientos")
       .select(
         "producto_id, saldo_inicial, ingreso, devolucion, pedido, vendido, saldo_final, productos(nombre, tamano, categoria, orden)"
       )
+      .eq("fecha", fecha)
+      .eq("sucursal_id", sucursalId),
+    // Cambio y Sin decorar no están en v_movimientos: se leen de la tabla.
+    supabase
+      .from("movimientos_diarios")
+      .select("producto_id, cambio, sin_decorar")
       .eq("fecha", fecha)
       .eq("sucursal_id", sucursalId),
     supabase
@@ -71,8 +77,13 @@ export default async function HistorialPage({
       b.productos ?? { nombre: "" }
     )
   );
-  const sucursalNombre =
-    sucursales?.find((s) => s.id === sucursalId)?.nombre ?? "";
+  const extras = new Map(
+    (extrasRes.data ?? []).map((e) => [e.producto_id, e])
+  );
+  const sucursal = sucursales?.find((s) => s.id === sucursalId);
+  const sucursalNombre = sucursal?.nombre ?? "";
+  // Principal anota Sin decorar; las tiendas anotan Cambio (CM del Excel).
+  const esPrincipal = sucursal?.es_principal ?? false;
   const cerrado = cierreRes.data?.estado === "cerrado";
 
   return (
@@ -133,13 +144,18 @@ export default async function HistorialPage({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-right">
                 <th className="px-3 py-2 text-left font-semibold">Producto</th>
                 <th className="px-3 py-2 font-semibold">Saldo inicial</th>
                 <th className="px-3 py-2 font-semibold">Ingreso</th>
                 <th className="px-3 py-2 font-semibold">Devolución</th>
+                {esPrincipal ? (
+                  <th className="px-3 py-2 font-semibold">Sin decorar</th>
+                ) : (
+                  <th className="px-3 py-2 font-semibold">Cambio</th>
+                )}
                 <th className="px-3 py-2 font-semibold">Vendido</th>
                 <th className="px-3 py-2 font-semibold">Pedido</th>
                 <th className="px-3 py-2 font-semibold">Saldo final</th>
@@ -158,6 +174,13 @@ export default async function HistorialPage({
                   <td className="px-3 py-1.5">{m.saldo_inicial}</td>
                   <td className="px-3 py-1.5">{m.ingreso}</td>
                   <td className="px-3 py-1.5">{m.devolucion}</td>
+                  <td className="px-3 py-1.5">
+                    {m.producto_id != null
+                      ? (esPrincipal
+                          ? extras.get(m.producto_id)?.sin_decorar
+                          : extras.get(m.producto_id)?.cambio) ?? 0
+                      : 0}
+                  </td>
                   <td className="px-3 py-1.5">{m.vendido}</td>
                   <td className="px-3 py-1.5">{m.pedido}</td>
                   <td className="px-3 py-1.5">{m.saldo_final ?? "—"}</td>

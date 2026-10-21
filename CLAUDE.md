@@ -51,7 +51,7 @@ Resumen de la reunión en el Project de claude.ai (`claude/requerimientos-reunio
 ## Excel nuevo de la dueña (20 oct 2026)
 `PRINCIPAL Auto inventario diario.xlsx` actualizado (en Descargas del usuario).
 - **Orden único** (`productos.orden` = fila de INVENTARIO DIARIO × 10, migración 0011 aplicada; valores en 0012): manda en inventario, sugeridos, cuadros (dentro de cada área), decoración, reparto, hojas por pastelera, cocina, despacho, catálogos e historial. Comparador en `src/lib/orden-productos.ts`; `orden_area` ya no ordena nada. Rotación sigue ordenada por urgencia (a propósito).
-- **Cambio** (`movimientos_diarios.cambio`, 0011 aplicada): campo nuevo en el inventario de las tiendas (no Principal). En el Excel es la columna CAMBIO de cada tienda y sale como "CM".
+- **Cambio** (`movimientos_diarios.cambio`, 0011 aplicada): campo nuevo en el inventario de las tiendas (no Principal). En el Excel es la columna CAMBIO de cada tienda y sale como "CM". `/historial` lo muestra en las tiendas (en Principal muestra Sin decorar); se lee de `movimientos_diarios` porque `v_movimientos` no lo trae.
 - **Hoja completa** (`/cuadros/despacho`, primera hoja): réplica de INVENTARIO DIARIO — secciones, DECO / SIN DECO / INV/TOTAL de Principal (los productos sin decoración ponen su saldo en DECO), por tienda lo que se manda (sugerido) y CM, y **SALDO = INV/TOTAL + ΣCM − Σ mandar** (lógica en `src/lib/hoja-completa.ts`, con tests).
 - **Cuadro completo** (primero en `/cuadros`): todos los productos activos en el orden del Excel con filas de sección; los cuadros por área también llevan filas de sección.
 - **Inventario A–Z**: botón "Como el Excel / A–Z" en `/captura`; la elección se guarda por dispositivo en localStorage (`genies:orden-inventario`).
