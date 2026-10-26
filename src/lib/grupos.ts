@@ -32,7 +32,7 @@ export const GRUPO_HOY = {
       clave: "sugeridos",
       href: "/sugeridos",
       titulo: "Sugeridos",
-      descripcion: "Cuánto hay que producir para cada tienda. Podés cambiar cualquier número.",
+      descripcion: "Como la hoja del Excel: lo que hay en Principal, cuánto va a cada tienda y el saldo. Podés cambiar cualquier número.",
       icono: ClipboardList,
       color: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
       paso: 2,

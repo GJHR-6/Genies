@@ -10,7 +10,8 @@
 --   · 2026-07-30 → 2026-08-05   (demo áreas, mié 6 ago)
 --   · 2026-08-13 → 2026-08-20   (bloque extra no documentado en CLAUDE.md)
 --   · 2026-10-09 → 2026-10-16   (demo del vie 16 oct: scripts/datos-demo.ts)
---   · 2026-10-15 y 2026-10-16   (reparto de prueba y el de la demo)
+--   · 2026-10-17 → 2026-10-21   (datos demo en SQL del 21 oct)
+--   · 2026-10-15 → 2026-10-21   (repartos de prueba y de las demos)
 --
 -- Está acotado a esos rangos exactos: si el piloto ya empezó a capturar en
 -- otras fechas, esos datos NO se borran. Transacción atómica con conteo
@@ -20,7 +21,7 @@
 begin;
 
 -- predicado de "día demo" reutilizado en ambos deletes
--- (fechas fuera de estos 3 bloques se conservan)
+-- (fechas fuera de estos bloques se conservan)
 do $$
 declare
   demo_mov int;
@@ -31,19 +32,19 @@ begin
    where fecha between '2026-07-06' and '2026-07-21'
       or fecha between '2026-07-30' and '2026-08-05'
       or fecha between '2026-08-13' and '2026-08-20'
-      or fecha between '2026-10-09' and '2026-10-16';
+      or fecha between '2026-10-09' and '2026-10-21';
 
   select count(*) into demo_cie from cierres_dia
    where fecha between '2026-07-06' and '2026-07-21'
       or fecha between '2026-07-30' and '2026-08-05'
       or fecha between '2026-08-13' and '2026-08-20'
-      or fecha between '2026-10-09' and '2026-10-16';
+      or fecha between '2026-10-09' and '2026-10-21';
 
   select count(*) into resto_mov from movimientos_diarios
    where not (fecha between '2026-07-06' and '2026-07-21'
       or fecha between '2026-07-30' and '2026-08-05'
       or fecha between '2026-08-13' and '2026-08-20'
-      or fecha between '2026-10-09' and '2026-10-16');
+      or fecha between '2026-10-09' and '2026-10-21');
 
   raise notice 'A borrar  -> movimientos: %, cierres: %', demo_mov, demo_cie;
   raise notice 'Se conserva (fuera de rangos demo) -> movimientos: %', resto_mov;
@@ -53,24 +54,24 @@ delete from movimientos_diarios
  where fecha between '2026-07-06' and '2026-07-21'
     or fecha between '2026-07-30' and '2026-08-05'
     or fecha between '2026-08-13' and '2026-08-20'
-      or fecha between '2026-10-09' and '2026-10-16';
+      or fecha between '2026-10-09' and '2026-10-21';
 
 delete from cierres_dia
  where fecha between '2026-07-06' and '2026-07-21'
     or fecha between '2026-07-30' and '2026-08-05'
     or fecha between '2026-08-13' and '2026-08-20'
-      or fecha between '2026-10-09' and '2026-10-16';
+      or fecha between '2026-10-09' and '2026-10-21';
 
 -- Reparto por pastelera (migración 0008): solo los días de prueba/demo.
 do $$
 begin
   raise notice 'A borrar  -> asignaciones: %, planes: %',
-    (select count(*) from asignaciones where fecha between '2026-10-15' and '2026-10-16'),
-    (select count(*) from planes_dia   where fecha between '2026-10-15' and '2026-10-16');
+    (select count(*) from asignaciones where fecha between '2026-10-15' and '2026-10-21'),
+    (select count(*) from planes_dia   where fecha between '2026-10-15' and '2026-10-21');
 end $$;
 
-delete from asignaciones where fecha between '2026-10-15' and '2026-10-16';
-delete from planes_dia   where fecha between '2026-10-15' and '2026-10-16';
+delete from asignaciones where fecha between '2026-10-15' and '2026-10-21';
+delete from planes_dia   where fecha between '2026-10-15' and '2026-10-21';
 
 -- Verificación: debe quedar 0 en los rangos demo.
 do $$
@@ -80,7 +81,7 @@ begin
    where fecha between '2026-07-06' and '2026-07-21'
       or fecha between '2026-07-30' and '2026-08-05'
       or fecha between '2026-08-13' and '2026-08-20'
-      or fecha between '2026-10-09' and '2026-10-16';
+      or fecha between '2026-10-09' and '2026-10-21';
   if quedan <> 0 then
     raise exception 'Aún quedan % movimientos demo tras el delete', quedan;
   end if;
