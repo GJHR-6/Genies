@@ -2,7 +2,7 @@
 
 Prueban la app como la usa la gente: navegador real, login por la pantalla,
 clics y textos visibles. Hay dos tamaños: **celular 360 px** (encargada) y
-**escritorio** (administración y tablet de cocina).
+**escritorio** (administración).
 
 ## ⚠️ Corren contra la base de PRODUCCIÓN
 
@@ -39,5 +39,5 @@ No hay otra base. Para que sea seguro:
 |---|---|
 | `inventario.movil.e2e.ts` | Encargada en celular: anotar, guardado solo, sin internet, buscador, terminar el día, permisos |
 | `hoy.e2e.ts` | Portada Hoy, pantallas en cualquier orden, cerrar/abrir el día de una tienda, cambiar un sugerido, cuadros |
-| `reparto.e2e.ts` | Hacer el reparto → enviar a cocina → pastelera marca listo en la tablet → admin ve el avance |
+| `reparto.e2e.ts` | Hacer el reparto → hojas por pastelera → Hoy dice "listo para imprimir" |
 | `catalogos.e2e.ts` | Portada de catálogos, crear/editar producto y departamento, objetivos, crear una cuenta que entra, permisos de Principal |

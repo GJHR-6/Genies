@@ -1,4 +1,14 @@
-import { CircleCheck, Info, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import {
+  CircleCheck,
+  ClipboardList,
+  Info,
+  Store,
+  TableProperties,
+  TriangleAlert,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
@@ -18,7 +28,7 @@ export default async function HoyPage() {
   const fecha = hoyTegucigalpa();
   const color = colorDelDia(fecha);
 
-  const [sucursales, cierres, ajustes, plan, asignaciones] = await Promise.all([
+  const [sucursales, cierres, ajustes, plan] = await Promise.all([
     supabase
       .from("sucursales")
       .select("id", { count: "exact", head: true })
@@ -29,34 +39,20 @@ export default async function HoyPage() {
       .select("id", { count: "exact", head: true })
       .eq("fecha", fecha)
       .not("sugerido_override", "is", null),
-    supabase.from("planes_dia").select("estado").eq("fecha", fecha).maybeSingle(),
-    supabase
-      .from("asignaciones")
-      .select("cantidad, cantidad_hecha")
-      .eq("fecha", fecha)
-      .not("pastelera_id", "is", null),
+    supabase.from("planes_dia").select("generado_at").eq("fecha", fecha).maybeSingle(),
   ]);
 
   const tiendasTotal = sucursales.count ?? 0;
   const tiendasCerradas = (cierres.data ?? []).filter(
     (c) => c.estado === "cerrado"
   ).length;
-  const reparto =
-    plan.data === null ? null : plan.data.estado === "publicado" ? "publicado" : "borrador";
-  let unidadesHechas = 0;
-  let unidadesTotal = 0;
-  for (const a of asignaciones.data ?? []) {
-    unidadesTotal += a.cantidad;
-    unidadesHechas += Math.min(a.cantidad_hecha, a.cantidad);
-  }
+  const repartoHecho = plan.data !== null;
 
   const paso = pasoDelDia({
     esDomingo: !color,
     tiendasTotal,
     tiendasCerradas,
-    reparto,
-    unidadesHechas,
-    unidadesTotal,
+    repartoHecho,
   });
 
   const todasCerradas = tiendasCerradas >= tiendasTotal && tiendasTotal > 0;
@@ -79,17 +75,9 @@ export default async function HoyPage() {
         ? { texto: "Listos para imprimir", tono: "exito" }
         : { texto: "Se pueden ver; aún faltan tiendas", tono: "aviso" }
       : { texto: "Domingo: sin cuadros" },
-    reparto:
-      reparto === null
-        ? { texto: "Todavía no se hace" }
-        : reparto === "borrador"
-          ? { texto: "Falta enviar a cocina", tono: "aviso" }
-          : unidadesTotal > 0 && unidadesHechas >= unidadesTotal
-            ? { texto: "Cocina terminó", tono: "exito" }
-            : {
-                texto: `En cocina: ${unidadesHechas} de ${unidadesTotal}`,
-                tono: "exito",
-              },
+    reparto: repartoHecho
+      ? { texto: "Hecho: listo para imprimir", tono: "exito" }
+      : { texto: "Todavía no se hace" },
   };
 
   const IconoPaso =
@@ -140,6 +128,75 @@ export default async function HoyPage() {
           destacada={paso.destacada}
         />
       </div>
+
+      {color && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            Hojas para imprimir · iguales al Excel, cada una en su página
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {HOJAS.map((h) => (
+              <BotonHoja
+                key={h.href}
+                {...h}
+                pendiente={h.href === "/asignar/imprimir" && !repartoHecho}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </section>
+  );
+}
+
+const HOJAS: { href: string; titulo: string; para: string; icono: LucideIcon }[] = [
+  {
+    href: "/cuadros/despacho?hoja=completa",
+    titulo: "Hoja completa",
+    para: "Inventario diario como en el Excel, con DEC, PROD y libras por batida.",
+    icono: TableProperties,
+  },
+  {
+    href: "/cuadros",
+    titulo: "Cuadros de producción",
+    para: "Una hoja por área, con lo que hay que hornear y decorar.",
+    icono: ClipboardList,
+  },
+  {
+    href: "/asignar/imprimir",
+    titulo: "Hoja de cada pastelera",
+    para: "Lo que le toca a cada una, por batida, con casillas para marcar.",
+    icono: Users,
+  },
+  {
+    href: "/cuadros/despacho?hoja=tiendas",
+    titulo: "Hoja de cada tienda",
+    para: "Lo que se le manda a cada tienda, para tachar al empacar.",
+    icono: Store,
+  },
+];
+
+function BotonHoja({
+  href,
+  titulo,
+  para,
+  icono: Icono,
+  pendiente,
+}: (typeof HOJAS)[number] & { pendiente: boolean }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-4 rounded-2xl border bg-card p-4 shadow-xs transition-colors hover:border-primary/40 hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+        <Icono className="size-6" />
+      </span>
+      <span className="flex flex-col">
+        <span className="font-semibold">{titulo}</span>
+        <span className="text-sm text-muted-foreground">
+          {pendiente ? "Primero hacé el reparto." : para}
+        </span>
+      </span>
+    </Link>
   );
 }

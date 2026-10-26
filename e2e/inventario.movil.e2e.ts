@@ -111,6 +111,4 @@ test("la tienda no puede abrir pantallas de administración", async ({ page }) =
     await page.goto(ruta);
     await expect(page).toHaveURL(/\/captura$/);
   }
-  await page.goto("/cocina");
-  await expect(page.getByText("La pantalla de cocina se usa en la tablet de Principal.")).toBeVisible();
 });

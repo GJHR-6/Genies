@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ClipboardPen,
-  CookingPot,
   History,
   House,
   RotateCcw,
@@ -41,7 +40,6 @@ const MENU: Record<RolUsuario, Item[]> = {
   ],
   principal: [
     { href: "/captura", etiqueta: "Inventario", icono: ClipboardPen },
-    { href: "/cocina", etiqueta: "Cocina", icono: CookingPot },
     { href: "/rotacion", etiqueta: "Rotación", icono: RotateCcw },
     { href: "/historial", etiqueta: "Historial", icono: History },
   ],

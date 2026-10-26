@@ -7,14 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   COLUMNAS_PASTELERA,
   aPastelera,
   type AreaDia,
@@ -31,7 +23,6 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
   const [pasteleras, setPasteleras] = useState(pastelerasIniciales);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-  const [pinDe, setPinDe] = useState<PasteleraDia | null>(null);
 
   const actualizar = useMutation({
     mutationFn: async (vars: { id: number; cambios: Cambios }) => {
@@ -184,7 +175,6 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
                       pastelera={p}
                       areas={areas}
                       guardar={(cambios) => actualizar.mutate({ id: p.id, cambios })}
-                      onPin={() => setPinDe(p)}
                     />
                   ))}
                   {lista.length === 0 && (
@@ -203,15 +193,6 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
           })}
       </div>
 
-      <DialogoPin
-        pastelera={pinDe}
-        onCerrar={() => setPinDe(null)}
-        onGuardado={(id, requiere) => {
-          setPasteleras((prev) => prev.map((x) => (x.id === id ? { ...x, requiere_pin: requiere } : x)));
-          setOk(requiere ? "PIN guardado." : "PIN quitado.");
-          setError(null);
-        }}
-      />
     </section>
   );
 }
@@ -220,12 +201,10 @@ function FilaPastelera({
   pastelera,
   areas,
   guardar,
-  onPin,
 }: {
   pastelera: PasteleraDia;
   areas: AreaDia[];
   guardar: (c: Cambios) => void;
-  onPin: () => void;
 }) {
   const [nombre, setNombre] = useState(pastelera.nombre);
   const [porcentaje, setPorcentaje] = useState(String(pastelera.porcentaje));
@@ -284,9 +263,6 @@ function FilaPastelera({
         />
         Activa
       </label>
-      <Button size="sm" variant="outline" onClick={onPin} className="ml-auto">
-        {pastelera.requiere_pin ? "Cambiar PIN" : "Poner PIN"}
-      </Button>
     </li>
   );
 }
@@ -328,82 +304,3 @@ function FormAgregar({
   );
 }
 
-function DialogoPin({
-  pastelera,
-  onCerrar,
-  onGuardado,
-}: {
-  pastelera: PasteleraDia | null;
-  onCerrar: () => void;
-  onGuardado: (id: number, requiere: boolean) => void;
-}) {
-  const supabase = useMemo(() => createClient(), []);
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [guardando, setGuardando] = useState(false);
-
-  const guardar = async (valor: string) => {
-    if (!pastelera) return;
-    setGuardando(true);
-    const { error: err } = await supabase.rpc("fijar_pin_pastelera", {
-      p_pastelera: pastelera.id,
-      p_pin: valor,
-    });
-    setGuardando(false);
-    if (err) {
-      setError(err.message.includes("4 dígitos") ? "El PIN debe tener 4 números." : "No se pudo guardar.");
-      return;
-    }
-    onGuardado(pastelera.id, valor !== "");
-    setPin("");
-    setError(null);
-    onCerrar();
-  };
-
-  return (
-    <Dialog
-      open={pastelera !== null}
-      onOpenChange={(abierto) => {
-        if (!abierto) {
-          setPin("");
-          setError(null);
-          onCerrar();
-        }
-      }}
-    >
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>PIN de {pastelera?.nombre}</DialogTitle>
-          <DialogDescription>
-            4 números que la pastelera escribe en la tablet de cocina para ver
-            y marcar su trabajo. Sin PIN, cualquiera puede entrar con su nombre.
-          </DialogDescription>
-        </DialogHeader>
-        <Input
-          inputMode="numeric"
-          autoComplete="off"
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-          placeholder="••••"
-          className="h-12 text-center text-2xl tracking-[0.5em]"
-          aria-label="Nuevo PIN"
-        />
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <DialogFooter className="gap-2">
-          {pastelera?.requiere_pin && (
-            <Button variant="outline" disabled={guardando} onClick={() => void guardar("")}>
-              Quitar PIN
-            </Button>
-          )}
-          <Button
-            className="bg-primary hover:bg-primary/90"
-            disabled={guardando || pin.length !== 4}
-            onClick={() => void guardar(pin)}
-          >
-            {guardando ? "Guardando…" : "Guardar PIN"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}

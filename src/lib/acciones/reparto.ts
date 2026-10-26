@@ -28,7 +28,7 @@ async function exigirAdmin(): Promise<ResultadoAccion | null> {
 /**
  * Genera el reparto de hoy desde los sugeridos (mismos números que el
  * cuadro: «A producir» y «Decorar») y los porcentajes fijos de cada pastelera. Reemplaza el reparto
- * anterior y lo deja en borrador.
+ * anterior.
  */
 export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
   const sinPermiso = await exigirAdmin();
@@ -83,7 +83,7 @@ export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
     revalidatePath("/asignar");
     return {
       ok: true,
-      mensaje: `Listo: se repartieron ${data ?? filas.length} trabajos. Revisalo y tocá «Enviar a cocina».`,
+      mensaje: `Listo: se repartieron ${data ?? filas.length} trabajos. Revisalo y tocá «Imprimir hojas».`,
     };
   } catch {
     return {
@@ -91,43 +91,4 @@ export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
       mensaje: "No se pudo hacer el reparto. Revisá que haya internet e intentá de nuevo.",
     };
   }
-}
-
-/** Publica el reparto de hoy a la tablet de cocina, o lo regresa a borrador. */
-export async function cambiarEstadoReparto(
-  publicar: boolean
-): Promise<ResultadoAccion> {
-  const sinPermiso = await exigirAdmin();
-  if (sinPermiso) return sinPermiso;
-
-  const fecha = hoyTegucigalpa();
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data, error } = await supabase
-    .from("planes_dia")
-    .update({
-      estado: publicar ? "publicado" : "borrador",
-      publicado_at: publicar ? new Date().toISOString() : null,
-      updated_by: user?.id ?? null,
-    })
-    .eq("fecha", fecha)
-    .select("fecha");
-
-  if (error)
-    return { ok: false, mensaje: "No se pudo guardar. Revisá que haya internet e intentá de nuevo." };
-  if ((data ?? []).length === 0) {
-    return { ok: false, mensaje: "Primero tocá «Hacer el reparto»." };
-  }
-
-  revalidatePath("/asignar");
-  revalidatePath("/cocina");
-  return {
-    ok: true,
-    mensaje: publicar
-      ? "Enviado: las pasteleras ya lo ven en la tablet de cocina."
-      : "Listo: la tablet de cocina dejó de mostrar el reparto.",
-  };
 }

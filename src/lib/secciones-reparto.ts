@@ -168,7 +168,7 @@ export function idsDelEquipo(
     : [pastelera.id];
 }
 
-/** Tareas de una pastelera (o equipo) agrupadas por tanda (tablet e impresión). */
+/** Tareas de una pastelera (o equipo) agrupadas por tanda (hoja impresa). */
 export function tareasPorTanda(
   asignaciones: AsignacionDia[],
   pasteleraId: number | null | readonly number[],

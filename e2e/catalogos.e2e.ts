@@ -154,6 +154,6 @@ test("principal no entra a catálogos ni a la portada del admin", async ({ brows
   }
   await expect(
     p.getByRole("navigation", { name: "Menú principal" }).getByRole("link")
-  ).toHaveText(["Inventario", "Cocina", "Rotación", "Historial"]);
+  ).toHaveText(["Inventario", "Rotación", "Historial"]);
   await ctx.close();
 });

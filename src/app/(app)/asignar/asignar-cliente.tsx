@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { ChipColorDia } from "@/components/color-dia";
-import { Printer, Send, Undo2, WandSparkles } from "lucide-react";
+import { Printer, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
 import { GRUPO_HOY } from "@/lib/grupos";
@@ -36,14 +36,13 @@ import {
   construirSecciones,
   type SeccionReparto,
 } from "@/lib/secciones-reparto";
-import { resumirAvance, sumaPorcentajesPorArea } from "@/lib/reparto";
+import { sumaPorcentajesPorArea } from "@/lib/reparto";
 import {
   librasPorBatida,
   MAX_LIBRAS_BATIDA,
   type BatidasMasa,
 } from "@/lib/batidas";
 import {
-  cambiarEstadoReparto,
   generarRepartoDelDia,
   type ResultadoAccion,
 } from "@/lib/acciones/reparto";
@@ -107,29 +106,6 @@ export function AsignarCliente({
     refetchInterval: 60_000,
   });
 
-  // Tiempo real: el avance de la cocina aparece al instante.
-  useEffect(() => {
-    const invalidar = () => {
-      void queryClient.invalidateQueries({ queryKey: ["reparto", fecha] });
-    };
-    const canal = supabase
-      .channel(`reparto-${fecha}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "asignaciones", filter: `fecha=eq.${fecha}` },
-        invalidar
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "planes_dia", filter: `fecha=eq.${fecha}` },
-        invalidar
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(canal);
-    };
-  }, [supabase, queryClient, fecha]);
-
   const { plan, asignaciones } = data;
 
   const porCelda = useMemo(() => {
@@ -173,8 +149,6 @@ export function AsignarCliente({
     return Math.abs(suma - 100) > 0.01;
   });
   const sinAsignar = asignaciones.filter((a) => a.pastelera_id === null);
-  const conAvance = asignaciones.some((a) => a.cantidad_hecha > 0);
-  const avance = resumirAvance(asignaciones.filter((a) => a.pastelera_id !== null));
 
   const guardarCelda = useMutation({
     mutationFn: async (vars: {
@@ -261,12 +235,10 @@ export function AsignarCliente({
 
   const estadoPlan = !plan
     ? { texto: "Todavía no se hace", clase: "bg-muted text-muted-foreground" }
-    : plan.estado === "publicado"
-      ? {
-          texto: `Enviado a cocina${plan.publicado_at ? ` · ${horaCorta(plan.publicado_at)}` : ""}`,
-          clase: "bg-exito/10 text-exito",
-        }
-      : { texto: "Sin enviar a cocina", clase: "bg-aviso/10 text-aviso" };
+    : {
+        texto: `Hecho${plan.generado_at ? ` a las ${horaCorta(plan.generado_at)}` : ""}`,
+        clase: "bg-exito/10 text-exito",
+      };
 
   return (
     <section className="flex flex-col gap-4">
@@ -296,37 +268,13 @@ export function AsignarCliente({
           <WandSparkles />
           {asignaciones.length > 0 ? "Hacer de nuevo" : "Hacer el reparto"}
         </Button>
-        {plan && (
-          <Link
-            href="/asignar/imprimir"
-            className="inline-flex h-10 items-center gap-2 rounded-md border bg-background px-4 text-sm font-medium shadow-xs hover:bg-accent"
-          >
-            <Printer className="size-4" />
-            Imprimir hojas
-          </Link>
-        )}
-        {plan?.estado === "publicado" ? (
-          <Button
-            variant="outline"
-            size="lg"
-            disabled={pendiente}
-            onClick={() => ejecutar(() => cambiarEstadoReparto(false))}
-          >
-            <Undo2 />
-            Quitar de la cocina
+        {asignaciones.length > 0 && (
+          <Button asChild size="lg">
+            <Link href="/asignar/imprimir">
+              <Printer />
+              Imprimir hojas
+            </Link>
           </Button>
-        ) : (
-          plan &&
-          asignaciones.length > 0 && (
-            <Button
-              size="lg"
-              disabled={pendiente}
-              onClick={() => ejecutar(() => cambiarEstadoReparto(true))}
-            >
-              <Send />
-              Enviar a cocina
-            </Button>
-          )
         )}
       </EncabezadoSeccion>
 
@@ -369,33 +317,22 @@ export function AsignarCliente({
         </div>
       ) : (
         <>
-          <div className="rounded-lg border bg-card p-3 text-sm">
-            <span className="font-semibold">Cómo va la cocina:</span>{" "}
-            <span className="tabular-nums">
-              {avance.hechas} de {avance.total} unidades hechas ·{" "}
-              {avance.listas} de {avance.tareas} productos listos
-            </span>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-exito transition-all"
-                style={{
-                  width: `${avance.total ? Math.round((avance.hechas / avance.total) * 100) : 0}%`,
-                }}
-              />
-            </div>
-          </div>
           <div className="rounded-2xl border bg-muted/40 p-4 text-sm text-muted-foreground">
             <p>
               <span className="font-semibold text-foreground">Cómo leer la tabla:</span>{" "}
               cada pastelera tiene 4 casillas, una por tanda (T1 = primera
               tanda, T2 = segunda…). Todo empieza en la primera tanda; si
               querés que haga una parte más tarde, pasá ese número a otra
-              casilla. Debajo de cada casilla se ve lo que ella ya marcó como
-              hecho.
+              casilla. Los cambios se guardan solos.
             </p>
             <p className="mt-1">
               Si la columna <span className="font-semibold">Asignado</span>{" "}
               muestra ⚠, lo repartido no coincide con el total del cuadro.
+            </p>
+            <p className="mt-1">
+              Cuando esté bien, tocá{" "}
+              <span className="font-semibold text-foreground">Imprimir hojas</span>{" "}
+              y entregale a cada pastelera la suya.
             </p>
           </div>
           {batidas.length > 0 && <PanelBatidas batidas={batidas} />}
@@ -419,14 +356,8 @@ export function AsignarCliente({
             <DialogTitle>¿Hacer el reparto de nuevo?</DialogTitle>
             <DialogDescription>
               Se vuelve a repartir todo con los números actuales del cuadro. Los
-              cambios que hiciste a mano se pierden y la cocina deja de verlo
-              hasta que lo vuelvas a enviar.
-              {conAvance && (
-                <span className="mt-2 block font-semibold text-destructive">
-                  Ojo: algunas pasteleras ya marcaron trabajo hecho y se va a
-                  borrar.
-                </span>
-              )}
+              cambios que hiciste a mano se pierden. Si ya imprimiste las
+              hojas, imprimilas de nuevo.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -664,19 +595,6 @@ function TablaSeccion({
                             }`}
                             aria-label={`${nombreProducto(p)} · ${nombreColumna(c)} · tanda ${t}`}
                           />
-                          {asig && asig.cantidad > 0 && (
-                            <div
-                              className={`text-[10px] leading-tight tabular-nums ${
-                                asig.estado === "listo"
-                                  ? "font-semibold text-exito"
-                                  : asig.estado === "en_proceso"
-                                    ? "text-aviso"
-                                    : "text-muted-foreground"
-                              }`}
-                            >
-                              {asig.estado === "listo" ? "✓ listo" : `${asig.cantidad_hecha}/${asig.cantidad}`}
-                            </div>
-                          )}
                         </td>
                       );
                     })

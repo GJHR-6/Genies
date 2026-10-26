@@ -4,10 +4,8 @@ export type EstadoDelDia = {
   esDomingo: boolean;
   tiendasTotal: number;
   tiendasCerradas: number;
-  /** null = todavía no se generó el reparto de hoy. */
-  reparto: "borrador" | "publicado" | null;
-  unidadesHechas: number;
-  unidadesTotal: number;
+  /** Ya se hizo el reparto de hoy (las hojas por pastelera). */
+  repartoHecho: boolean;
 };
 
 export type PasoDelDia = {
@@ -46,34 +44,22 @@ export function pasoDelDia(e: EstadoDelDia): PasoDelDia {
     };
   }
 
-  if (e.reparto === null) {
+  if (!e.repartoHecho) {
     return {
       destacada: "sugeridos",
       titulo: "Todas las tiendas terminaron",
       mensaje:
-        "Revisá los sugeridos, imprimí los cuadros y después repartí el trabajo entre las pasteleras.",
+        "Revisá los sugeridos, imprimí la hoja completa y los cuadros, y después hacé el reparto entre las pasteleras.",
       tono: "exito",
     };
   }
 
-  if (e.reparto === "borrador") {
-    return {
-      destacada: "reparto",
-      titulo: "El reparto está listo pero no se ha enviado",
-      mensaje:
-        "Revisalo y tocá «Enviar a cocina» para que las pasteleras lo vean en la tablet.",
-      tono: "aviso",
-    };
-  }
-
-  const terminado = e.unidadesTotal > 0 && e.unidadesHechas >= e.unidadesTotal;
   return {
-    destacada: terminado ? null : "reparto",
-    titulo: terminado ? "¡La producción de hoy está terminada!" : "La cocina está trabajando",
-    mensaje: terminado
-      ? "Todas las pasteleras marcaron su trabajo como listo."
-      : `Llevan ${e.unidadesHechas} de ${e.unidadesTotal} unidades. El avance se actualiza solo.`,
-    tono: terminado ? "exito" : "info",
+    destacada: null,
+    titulo: "Todo listo para imprimir",
+    mensaje:
+      "Imprimí las hojas que falten y entregáselas a cocina y a empaque. Si cambiás un sugerido, volvé a hacer el reparto antes de imprimir.",
+    tono: "exito",
   };
 }
 

@@ -65,11 +65,10 @@ export default async function ImprimirRepartoPage() {
         <div>
           <h1 className="text-xl font-bold">Hojas por pastelera</h1>
           <p className="text-sm text-muted-foreground">{formatoLargo(fecha)}</p>
-          {datos.plan?.estado !== "publicado" && (
-            <p className="mt-1 text-sm font-medium text-aviso">
-              Todavía no se envió a cocina: los números pueden cambiar.
-            </p>
-          )}
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cada pastelera sale en su propia página. Si cambiás el reparto,
+            imprimí de nuevo.
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <Link
@@ -78,13 +77,16 @@ export default async function ImprimirRepartoPage() {
           >
             ← Reparto
           </Link>
-          <BotonImprimir />
+          <BotonImprimir texto="Imprimir hojas" />
         </div>
       </div>
 
       {hojas.length === 0 && (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          No hay reparto generado para hoy.
+          Todavía no hay reparto para hoy.{" "}
+          <Link href="/asignar" className="font-semibold text-primary underline">
+            Hacer el reparto
+          </Link>
         </p>
       )}
 
