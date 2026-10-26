@@ -16,7 +16,8 @@ import { Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { compararProductos } from "@/lib/orden-productos";
 import { BotonImprimir } from "./boton-imprimir";
-import { HojaCuadro } from "./hoja-cuadro";
+import { tandasPorProducto } from "@/lib/batidas";
+import { HojaCuadro, type DatosBatidas } from "./hoja-cuadro";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +48,9 @@ export default async function CuadrosPage() {
   let dia: SugeridosDelDia;
   let areas: { id: number; nombre: string; encargadas: string }[];
   let cerradas = 0;
+  let batidas: DatosBatidas;
   try {
-    const [diaCargado, areasRes, cierresRes] = await Promise.all([
+    const [diaCargado, areasRes, cierresRes, asignacionesRes, librasRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase
         .from("areas_produccion")
@@ -61,10 +63,31 @@ export default async function CuadrosPage() {
         .select("estado")
         .eq("fecha", fecha)
         .eq("estado", "cerrado"),
+      supabase
+        .from("asignaciones")
+        .select("producto_id, tipo, tanda, cantidad")
+        .eq("fecha", fecha),
+      supabase.from("productos").select("id, libras").eq("activo", true),
     ]);
     if (areasRes.error) throw new Error(areasRes.error.message);
     if (cierresRes.error) throw new Error(cierresRes.error.message);
+    if (asignacionesRes.error) throw new Error(asignacionesRes.error.message);
+    if (librasRes.error) throw new Error(librasRes.error.message);
     dia = diaCargado;
+    // DEC / PROD por batida (del reparto) y libras, para el cuadro completo.
+    const asignaciones = (asignacionesRes.data ?? []).map((a) => ({
+      ...a,
+      tipo: a.tipo === "decoracion" ? ("decoracion" as const) : ("produccion" as const),
+    }));
+    batidas = {
+      dec: Object.fromEntries(tandasPorProducto(asignaciones, "decoracion")),
+      prod: Object.fromEntries(tandasPorProducto(asignaciones, "produccion")),
+      libras: Object.fromEntries(
+        (librasRes.data ?? [])
+          .filter((p) => p.libras !== null && Number(p.libras) > 0)
+          .map((p) => [p.id, Number(p.libras)])
+      ),
+    };
     // Encargadas = pasteleras activas del área (si no hay, el texto original).
     areas = areasRes.data.map((a) => {
       const activas = [...(a.pasteleras ?? [])]
@@ -209,6 +232,7 @@ export default async function CuadrosPage() {
               saldo: dia.saldoPrincipal,
               cambios: dia.cambios,
             }}
+            batidas={batidas}
           />
         </article>
       )}

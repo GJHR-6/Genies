@@ -14,6 +14,7 @@ import {
   sumarFilas,
   type FilaHojaCompleta,
 } from "@/lib/hoja-completa";
+import { MAX_LIBRAS_BATIDA, NUM_TANDAS, formatoTandas } from "@/lib/batidas";
 import { cn } from "@/lib/utils";
 
 type Sucursal = { id: number; nombre: string };
@@ -27,6 +28,33 @@ export type DatosPrincipal = {
   cambios: Record<string, number>;
 };
 
+/**
+ * Lo del reparto de hoy: cuánto se decora y se hornea en cada batida
+ * (tanda T1–T4) por producto, y las libras de masa por unidad.
+ */
+export type DatosBatidas = {
+  dec: Record<number, number[]>;
+  prod: Record<number, number[]>;
+  libras: Record<number, number>;
+};
+
+const TANDAS = Array.from({ length: NUM_TANDAS }, (_, i) => i);
+
+/** Libras de cada batida de un producto: lo que se hornea × libras por unidad. */
+function librasProducto(batidas: DatosBatidas, productoId: number): number[] | null {
+  const lb = batidas.libras[productoId];
+  if (!lb) return null;
+  const prod = batidas.prod[productoId] ?? [];
+  return TANDAS.map((i) => Math.round((prod[i] ?? 0) * lb * 100) / 100);
+}
+
+/** Suma tanda por tanda. */
+function sumarTandas(listas: (readonly number[] | null | undefined)[]): number[] {
+  return TANDAS.map((i) =>
+    Math.round(listas.reduce((t, l) => t + (l?.[i] ?? 0), 0) * 100) / 100
+  );
+}
+
 type Props = {
   fecha: string;
   /** Ya vienen en el orden del Excel. */
@@ -34,6 +62,7 @@ type Props = {
   sucursales: Sucursal[];
   celdas: Record<string, CeldaSugerido>;
   principal: DatosPrincipal;
+  batidas: DatosBatidas;
 };
 
 /** Qué casilla se está escribiendo: lo que va a una sucursal, o DECO / SIN DECO. */
@@ -51,7 +80,7 @@ const CAMPO_NUMERO = "h-8 w-16 text-right tabular-nums";
  * Principal de hoy; lo de cada tienda es su sugerido (override). El SALDO
  * se recalcula al instante.
  */
-export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, principal }: Props) {
+export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, principal, batidas }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [celdas, setCeldas] = useState(celdasProp);
@@ -179,7 +208,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   }, [productos]);
 
   const edicionProps = { edicion, setEdicion, confirmar };
-  const columnas = 4 + tiendas.length * 2 + 1 + (sucursalPrincipal ? 1 : 0) + 1;
+  const columnas = 4 + tiendas.length * 2 + 3 + (sucursalPrincipal ? 1 : 0) + 1 + NUM_TANDAS;
 
   return (
     <div className="flex flex-col gap-3">
@@ -210,7 +239,10 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
         <p className="text-muted-foreground sm:col-span-3">
           <span className="font-semibold text-primary">• 12</span> = cambiado a
           mano · <span className="italic">12</span> en cursiva = la tienda aún no
-          anota ese producto · — = la tienda no lleva ese producto
+          anota ese producto · — = la tienda no lleva ese producto · DEC y PROD
+          (21*6 = 21 en la primera batida y 6 en la segunda) y las libras de las
+          batidas 1–4 salen del reparto: se llenan después de hacerlo, y si
+          cambiás números aquí, volvé a hacer el reparto
         </p>
       </div>
 
@@ -238,6 +270,20 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                 </Fragment>
               ))}
               <th className="border-l px-2 py-2 text-right font-semibold">Saldo</th>
+              <th
+                className="border-l px-2 py-2 text-left font-semibold"
+                title="Cuánto se decora en cada batida (del reparto): 21*6 = 21 en la primera y 6 en la segunda"
+              >
+                Dec
+                <span className="block font-normal normal-case">1*2*3*4</span>
+              </th>
+              <th
+                className="border-l px-2 py-2 text-left font-semibold"
+                title="Cuánto se hornea en cada batida (del reparto)"
+              >
+                Prod
+                <span className="block font-normal normal-case">1*2*3*4</span>
+              </th>
               {sucursalPrincipal && (
                 <th
                   className="border-l px-2 py-2 text-right font-semibold"
@@ -252,6 +298,16 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
               >
                 Sugerido
               </th>
+              {TANDAS.map((i) => (
+                <th
+                  key={i}
+                  className={cn("px-2 py-2 text-right font-semibold", i === 0 && "border-l")}
+                  title={`Libras de masa en la batida ${i + 1} (máximo ${MAX_LIBRAS_BATIDA} lb)`}
+                >
+                  {i + 1}
+                  <span className="block font-normal normal-case">lb</span>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -345,6 +401,8 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                         >
                           {fila.saldo}
                         </td>
+                        <Texto valor={formatoTandas(batidas.dec[p.id] ?? [])} className="border-l" />
+                        <Texto valor={formatoTandas(batidas.prod[p.id] ?? [])} className="border-l" />
                         {sucursalPrincipal && (
                           <CeldaMandar
                             clave={`${p.id}-${sucursalPrincipal.id}`}
@@ -357,6 +415,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                         <td className="border-l px-2 py-1.5 text-right font-semibold tabular-nums">
                           {total || ""}
                         </td>
+                        <CeldasLibras libras={librasProducto(batidas, p.id)} />
                       </tr>
                     );
                   })}
@@ -373,6 +432,9 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                           : null
                       }
                       total={paraTotal.reduce((t, f) => t + f.total, 0)}
+                      dec={sumarTandas(paraTotal.map((f) => batidas.dec[f.p.id]))}
+                      prod={sumarTandas(paraTotal.map((f) => batidas.prod[f.p.id]))}
+                      libras={sumarTandas(paraTotal.map((f) => librasProducto(batidas, f.p.id)))}
                     />
                   )}
                 </Fragment>
@@ -391,11 +453,17 @@ function FilaTotalSeccion({
   fila,
   principal,
   total,
+  dec,
+  prod,
+  libras,
 }: {
   categoria: string;
   fila: FilaHojaCompleta;
   principal: number | null;
   total: number;
+  dec: number[];
+  prod: number[];
+  libras: number[];
 }) {
   return (
     <tr className="border-b-2 border-foreground/30 bg-muted/50 font-bold print:border-black print:bg-black/10">
@@ -425,9 +493,51 @@ function FilaTotalSeccion({
       >
         {fila.saldo}
       </td>
+      <Texto valor={formatoTandas(dec)} className="border-l" />
+      <Texto valor={formatoTandas(prod)} className="border-l" />
       {principal !== null && <Numero valor={principal} className="border-l font-bold" />}
       <td className="border-l px-2 py-1.5 text-right tabular-nums">{total || ""}</td>
+      <CeldasLibras libras={libras} total />
     </tr>
+  );
+}
+
+/** DEC / PROD por batida ("21*6"), como en el Excel. */
+function Texto({ valor, className }: { valor: string; className?: string }) {
+  return (
+    <td className={cn("whitespace-nowrap px-2 py-1.5 text-left tabular-nums", className)}>
+      {valor}
+    </td>
+  );
+}
+
+/**
+ * Libras por batida (1–4). En el total de la sección, la batida que pasa de
+ * 100 lb sale en rojo; los productos sin libras quedan vacíos.
+ */
+function CeldasLibras({ libras, total }: { libras: number[] | null; total?: boolean }) {
+  return (
+    <>
+      {TANDAS.map((i) => {
+        const lb = libras?.[i] ?? 0;
+        const excede = total && lb > MAX_LIBRAS_BATIDA;
+        return (
+          <td
+            key={i}
+            className={cn(
+              "px-2 py-1.5 text-right tabular-nums",
+              i === 0 && "border-l",
+              !total && "text-muted-foreground",
+              excede && "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
+            )}
+            title={excede ? `Se pasa de ${MAX_LIBRAS_BATIDA} lb en la batida ${i + 1}` : undefined}
+          >
+            {libras === null ? "" : total ? lb : lb || ""}
+            {excede ? " ⚠" : ""}
+          </td>
+        );
+      })}
+    </>
   );
 }
 
