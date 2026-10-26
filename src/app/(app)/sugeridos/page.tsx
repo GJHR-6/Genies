@@ -3,7 +3,6 @@ import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { cargarSugeridosDelDia, type SugeridosDelDia } from "@/lib/sugeridos";
 import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
 import { GRUPO_HOY } from "@/lib/grupos";
-import { ordenarProductos } from "@/lib/orden-productos";
 import { SugeridosCliente } from "./sugeridos-cliente";
 
 export const dynamic = "force-dynamic";
@@ -35,16 +34,9 @@ export default async function SugeridosPage() {
     <SugeridosCliente
       fecha={fecha}
       fechaLegible={formatoLargo(fecha)}
-      productos={ordenarProductos(dia.productos)}
+      productos={dia.productos}
       sucursales={dia.sucursales}
       celdasIniciales={dia.celdas}
-      principal={{
-        id: dia.principalId,
-        sinDecorar: dia.sinDecorar,
-        decorado: dia.decorado,
-        saldo: dia.saldoPrincipal,
-        cambios: dia.cambios,
-      }}
     />
   );
 }

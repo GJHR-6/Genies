@@ -16,6 +16,7 @@ import { Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { compararProductos } from "@/lib/orden-productos";
 import { BotonImprimir } from "./boton-imprimir";
+import { HojaCuadro } from "./hoja-cuadro";
 
 export const dynamic = "force-dynamic";
 
@@ -103,13 +104,10 @@ export default async function CuadrosPage() {
   // Dentro de cada cuadro, el orden del Excel (igual en todas las hojas).
   const porOrdenArea = (a: ProductoSugerido, b: ProductoSugerido) =>
     compararProductos(a, b);
-  // Primero el cuadro completo: todos los productos en el orden del Excel,
-  // con sus secciones, como la hoja de la dueña. Después, uno por área.
-  const completo: Cuadro = {
-    titulo: "Completo",
-    encargadas: null,
-    productos: [...productos].sort(compararProductos),
-  };
+  // Primero el cuadro completo (HojaCuadro): todos los productos en el
+  // orden del Excel, como INVENTARIO DIARIO, para llenar y revisar el
+  // SALDO. Después, uno por área.
+  const ordenExcel = [...productos].sort(compararProductos);
   const cuadros: Cuadro[] = areas
     .map((a) => ({
       titulo: a.nombre,
@@ -124,7 +122,6 @@ export default async function CuadrosPage() {
   const decoracion = conRegla
     .filter((p) => p.lleva_decoracion)
     .sort(porOrdenArea);
-  cuadros.unshift(completo);
   if (decoracion.length > 0) {
     cuadros.push({ titulo: "Decoración", encargadas: null, productos: decoracion });
   }
@@ -184,15 +181,43 @@ export default async function CuadrosPage() {
       )}
 
       <p className="text-sm text-muted-foreground print:hidden">
-        Primero sale el cuadro completo (en el orden del Excel) y después una
-        hoja por área. Al imprimir, cada cuadro va en su propia página.
+        Primero el cuadro completo, igual que la hoja del Excel: ahí se llena
+        lo que hay en Principal y lo que va a cada tienda. Después, una hoja por
+        área. Al imprimir, cada cuadro va en su propia página.
       </p>
+
+      {ordenExcel.length > 0 && (
+        <article className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0">
+          <header className="mb-3 flex items-baseline justify-between gap-2 border-b pb-2 print:border-black">
+            <h2 className="text-lg font-bold">Cuadro completo (como el Excel)</h2>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground print:text-black">
+                Gennie&apos;s · {formatoLargo(fecha)}
+              </p>
+              <ChipColorDia fecha={fecha} conEtiqueta />
+            </div>
+          </header>
+          <HojaCuadro
+            fecha={fecha}
+            productos={ordenExcel}
+            sucursales={sucursales}
+            celdas={celdas}
+            principal={{
+              id: dia.principalId,
+              sinDecorar: dia.sinDecorar,
+              decorado: dia.decorado,
+              saldo: dia.saldoPrincipal,
+              cambios: dia.cambios,
+            }}
+          />
+        </article>
+      )}
 
       {!haySinDecorar && cuadros.length > 0 && (
         <Aviso tipo="info" className="print:hidden">
           Principal todavía no anotó pasteles sin decorar hoy: se hornea el
-          total. Si hay sin decorar en el congelador o el enfriador, anotalos en
-          el inventario de Principal (columna «Sin decorar»).
+          total. Si hay sin decorar en el congelador o el enfriador, escribilos
+          en la columna SIN DECO del cuadro completo.
         </Aviso>
       )}
 
@@ -203,9 +228,7 @@ export default async function CuadrosPage() {
         >
           <header className="mb-3 flex items-baseline justify-between gap-2 border-b pb-2 print:border-black">
             <h2 className="text-lg font-bold">
-              {cuadro === completo
-                ? "Cuadro completo (orden del Excel)"
-                : cuadro.titulo === "Decoración"
+              {cuadro.titulo === "Decoración"
                 ? "Cuadro de decoración"
                 : `Cuadro de producción — ${cuadro.titulo}`}
               {cuadro.encargadas && (

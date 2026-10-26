@@ -1,93 +1,60 @@
-# Guion de la demo — viernes 16 oct 2026
+# Guion de la demo — lunes 26 oct 2026 (datos reales)
 
-**Duración:** 12–15 min · **Color del día:** amarillo · **Estado al empezar:**
-5 de 6 tiendas terminaron su inventario; **Palenque sigue contando**; sin
-reparto todavía. La semana anterior (9–15 oct) tiene datos para Historial y
-Rotación.
+**Color del día:** rosado (lunes) · **Sitio:** https://genies-zeta.vercel.app
+**Estado al empezar:** hoy no hay nada cargado. Ayer fue domingo, así que el
+"Saldo anterior" de todas las tiendas arranca en 0: se cuenta lo real de hoy.
+
+| Quién | Correo |
+|---|---|
+| Administración | admin@genies.test |
+| Encargada Cypress | cypress@genies.test |
+
+(Las contraseñas las tiene el equipo; no van en este archivo.)
+
+⚠️ Hoy **no correr** `scripts/datos-demo.ts`, `npm run verificar` ni
+`npm run e2e`: escriben sobre los datos de hoy.
 
 ## Antes de empezar (5 min)
+1. **Pantalla A — compu (lo que proyectás):** entrá como **admin**. Abre en
+   **Hoy**.
+2. **Pantalla B — celular** (o **otro navegador**): entrá como **Cypress**. Un
+   mismo navegador no puede tener dos sesiones.
+3. Impresora con papel carta y una prueba hecha.
 
-1. **Pantalla A — compu (lo que proyectás):** abrí
-   **https://genies-zeta.vercel.app** y entrá como **admin**. Tiene que
-   abrir en **Hoy** y decir *"Falta 1 tienda por terminar su inventario"*.
-2. **Pantalla B — celular** (o una ventana de **otro navegador**, p. ej. Safari):
-   entrá como **Palenque**. Una misma ventana no puede tener dos sesiones: si
-   entrás con otra cuenta en el mismo navegador, se cierra la del admin.
-3. Dejá en A la pestaña **Hoy → Tiendas** abierta.
+## 1. La tienda cuenta su inventario (celular · Cypress)
+1. Entra directo a **Inventario de hoy**; arriba, el aviso grande del color
+   del día (rosado).
+2. Anotá los números reales: **Ingreso, Devolución, Pedido, Saldo y CM**. Cada
+   fila se guarda sola (sirve con internet inestable). Mostrá el botón
+   **Como el Excel / A–Z**.
+3. Tocá **Terminé el inventario de hoy** → la pantalla queda en solo lectura.
 
-| Quién | Correo | Contraseña |
-|---|---|---|
-| Administración | admin@genies.test | AdminGenies-2026 |
-| Encargada Palenque | palenque@genies.test | Genies-Palenque-2026 |
-| Tablet de cocina (Principal) | principal@genies.test | Genies-Principal-2026 |
+## 3. Administración (compu · admin)
+1. **Hoy**: saludo, el aviso de "qué hacer ahora" y las 4 tarjetas. Abajo,
+   **Hojas para imprimir**.
+2. **Tiendas**: Cypress aparece como terminada en vivo. A las que no
+   capturaron, **cerrarles el día** (ver nota abajo).
+3. **Sugeridos**: objetivo − saldo. Cambiá un número a mano para mostrar el
+   ajuste.
+4. **Cuadros**: el cuadro completo y uno por área (columnas Sin decorar y
+   Hornear). Imprimí uno.
+5. **Reparto**:
+   1. **Hacer el reparto**: divide el trabajo por porcentaje.
+   2. **Libras por batida**: si una masa pasa de 100 lb en una batida, sale
+      en rojo; pasá parte a T2 para que quede bien.
+      (6X2 = 1 · 8X2 = 1.75 · 9X2 = 2 · 10X2 = 2.5 · 11X2 = 3 · 9X13 = 4 lb.)
+   3. **Imprimir hojas** → la hoja de cada pastelera.
+6. **Hoy → Hojas para imprimir**: **Hoja completa** (igual a INVENTARIO
+   DIARIO, con DEC/PROD por batida y libras) y **Hoja de cada tienda** (para
+   empaque).
 
-**¿Ensayaste y tocaste datos?** Volvé al estado inicial con
-`DEMO_PERMITIR=1 npx tsx --env-file=.env.local scripts/datos-demo.ts` (borra
-también el reparto de hoy).
+**Nota:** sin el paso de Principal y con solo Cypress contando, las demás
+tiendas tienen saldo 0 → su sugerido es el objetivo completo. Los totales
+del cuadro y las libras salen más altos que en un día normal (se nota bien
+el aviso de 100 lb).
 
-## La demo
-
-### 1. El problema (30 s)
-"Hoy cada tienda llena un Excel, alguien lo junta a mano y de ahí salen los
-cuadros de producción. Esto lo reemplaza: cada tienda anota en su celular y los
-cuadros salen solos."
-
-### 2. La encargada, en el celular (B · 2 min)
-- Abre directo en **Inventario de hoy**, con su tienda y el color del día.
-- En el buscador escribí **`vain 8`** → aparece VAINILLA · 8X2.
-- Anotá un **Ingreso** (ej. 6) y pasá al siguiente campo → **Guardado ✓**.
-  *"No hay botón de guardar: cada número se guarda solo. Si se cae el
-  internet sigue anotando y se guarda cuando vuelve la señal."*
-- Bajá al final → **Terminé el inventario de hoy** → **Sí, terminé**.
-
-### 3. La administración lo ve al instante (A · 1 min)
-- En **Tiendas**, Palenque pasa sola a **Terminó ✓** (no hace falta recargar).
-- Volvé a **Hoy** (botón *← Hoy* o el menú) → ahora dice *"Todas las tiendas
-  terminaron"*. *"Las tarjetas se abren en el orden que quieran; el número es
-  solo una guía."*
-
-### 4. Sugeridos (A · 2 min)
-- *"Cuánto producir para cada tienda: su objetivo menos lo que ya tiene."*
-- Mostrá los **2 números con punto (•)**: cambiados a mano en Principal.
-- Tocá un número, escribí otro, **Enter** → queda con •. Vacío = vuelve al
-  calculado.
-
-### 5. Cuadros (A · 1 min)
-- Una hoja por área de producción, con las pasteleras y **DECORAR** marcado.
-- **Imprimir cuadros** → vista de impresión (cada área en su página, con el
-  color del día). Cancelá la impresión.
-
-### 6. Reparto y tablet de cocina (A + B · 3 min)
-- **Reparto → Hacer el reparto**: cada producto se divide solo entre las
-  pasteleras del área según su porcentaje. Se puede pasar parte a otra tanda.
-- **Enviar a cocina**. Cuando diga *"Enviado a cocina"*, **recargá la página
-  (F5)**: así el avance de la cocina aparece al instante.
-- En **B**: **Salir** → entrá como **principal** → menú **Cocina** →
-  *¿Quién sos?* → tocá **Kenia** → **✓ Listo** en un producto.
-- En **A** (Reparto): *Cómo va la cocina* sube solo. En **Hoy**, la tarjeta
-  Reparto dice *"En cocina: X de Y"*.
-
-### 7. Rotación (A · 1 min)
-- Menú **Rotación**: cada pastel lleva el color del día en que se hizo.
-  **2 días = prioridad de venta**, **3 o más = regresar a Principal**.
-
-### 8. Catálogos (A · 2 min)
-- Menú **Catálogos**: tarjetas independientes.
-- **Productos**: buscar, abrir uno y mostrar los campos (no guardes cambios).
-- **Objetivos por tienda**: la tabla tienda × día (base del sugerido).
-- **Pasteleras**: porcentajes por área y PIN de la tablet.
-
-### 9. Cierre (30 s)
-Siguientes pasos: validar el catálogo con la administradora, cargar correos
-reales, piloto de 3–5 días en una sucursal junto con el Excel y capacitación.
-
-## Si algo sale raro
-- **Una pantalla no cambió:** recargá la página.
-- **No crees usuarios en la demo:** el botón "Nuevo usuario" está desactivado
-  hasta poner la service key en Vercel.
-- **Se ve otra cuenta:** cada navegador guarda una sola sesión; usá Salir.
-- **"Hoy es domingo":** la demo necesita un día de lunes a sábado.
-
-## Después de la demo
-Los datos son de prueba. Antes del piloto, borrarlos con
-`supabase/mantenimiento/limpiar-datos-demo.sql` (ya incluye 9–16 oct).
+## 5. Después de la demo
+- Decidir si los datos de hoy quedan como **primer día real** o se borran.
+- Antes del piloto, borrar los datos demo viejos (julio, agosto y 9–21 oct)
+  con `supabase/mantenimiento/limpiar-datos-demo.sql`. No toca los datos de
+  hoy. Revisá los NOTICE antes del `commit`.
