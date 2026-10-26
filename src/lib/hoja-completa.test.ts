@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cuentaEnTotalSeccion, filaHojaCompleta, sumarFilas } from "./hoja-completa";
+import { aMandar, cuentaEnTotalSeccion, filaHojaCompleta, sumarFilas } from "./hoja-completa";
 
 const celda = (sugerido: number) => ({
   objetivo: sugerido,
@@ -10,7 +10,10 @@ const celda = (sugerido: number) => ({
 });
 
 const dia = {
-  celdas: { "1-20": celda(5), "1-30": celda(4), "2-20": celda(3) },
+  // El sugerido es solo referencia: lo que se manda es el pedido.
+  celdas: { "1-20": celda(9), "1-30": celda(4), "2-20": celda(3) },
+  pedidos: { "1-20": 5, "1-30": 4, "2-20": 3 },
+  mandarOverride: {} as Record<string, number>,
   sinDecorar: { 1: 6 },
   decorado: { 1: 8 },
   cambios: { "1-30": 2 },
@@ -26,10 +29,19 @@ describe("filaHojaCompleta", () => {
     expect(f.sinDeco).toBe(6);
     expect(f.invTotal).toBe(14);
     expect(f.tiendas).toEqual([
-      { sucursalId: 20, mandar: 5, cm: null },
-      { sucursalId: 30, mandar: 4, cm: 2 },
+      { sucursalId: 20, mandar: 5, cm: null, sugerido: 9, ajustado: false },
+      { sucursalId: 30, mandar: 4, cm: 2, sugerido: 4, ajustado: false },
     ]);
     expect(f.saldo).toBe(14 + 2 - 5 - 4);
+  });
+
+  it("lo que se manda: ajuste del admin > pedido > nada", () => {
+    const conAjuste = { ...dia, mandarOverride: { "1-20": 0 } };
+    expect(aMandar(conAjuste, "1-20")).toEqual({ mandar: 0, ajustado: true });
+    expect(aMandar(conAjuste, "1-30")).toEqual({ mandar: 4, ajustado: false });
+    expect(aMandar(conAjuste, "3-20")).toEqual({ mandar: null, ajustado: false });
+    const f = filaHojaCompleta(conAjuste, { id: 1, lleva_decoracion: true }, tiendas);
+    expect(f.saldo).toBe(14 + 2 - 0 - 4);
   });
 
   it("sin decoración: el inventario de Principal va en DECO", () => {
@@ -37,7 +49,7 @@ describe("filaHojaCompleta", () => {
     expect(f.deco).toBe(10);
     expect(f.sinDeco).toBeNull();
     expect(f.invTotal).toBe(10);
-    expect(f.tiendas[1]).toEqual({ sucursalId: 30, mandar: null, cm: null });
+    expect(f.tiendas[1]).toEqual({ sucursalId: 30, mandar: null, cm: null, sugerido: null, ajustado: false });
     expect(f.saldo).toBe(7);
   });
 
@@ -62,8 +74,8 @@ describe("total de sección", () => {
     expect(t.sinDeco).toBe(6);
     expect(t.invTotal).toBe(24);
     expect(t.tiendas).toEqual([
-      { sucursalId: 20, mandar: 5 + (b.tiendas[0].mandar ?? 0), cm: b.tiendas[0].cm },
-      { sucursalId: 30, mandar: 4, cm: 2 },
+      { sucursalId: 20, mandar: 8, cm: null, sugerido: 12, ajustado: false },
+      { sucursalId: 30, mandar: 4, cm: 2, sugerido: 4, ajustado: false },
     ]);
     expect(t.saldo).toBe(a.saldo + b.saldo);
   });

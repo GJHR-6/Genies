@@ -38,6 +38,10 @@ export type SugeridosDelDia = {
   decorado: Record<number, number>;
   /** Cambios de hoy por tienda: clave `${productoId}-${sucursalId}`. */
   cambios: Record<string, number>;
+  /** Pedido que anotó cada tienda hoy (misma clave; solo > 0). */
+  pedidos: Record<string, number>;
+  /** Ajuste del admin a lo que se manda (misma clave); manda sobre el pedido. */
+  mandarOverride: Record<string, number>;
   /** Saldo de Principal hoy (producto → unidades), si ya lo anotó. */
   saldoPrincipal: Record<number, number>;
   /** Id de la sucursal Principal (no sale como columna de tienda). */
@@ -161,9 +165,9 @@ export async function cargarSugeridosDelDia(
         .eq("sucursales.es_principal", true),
       supabase
         .from("movimientos_diarios")
-        .select("producto_id, sucursal_id, cambio")
+        .select("producto_id, sucursal_id, cambio, pedido, mandar_override")
         .eq("fecha", fecha)
-        .gt("cambio", 0),
+        .or("cambio.gt.0,pedido.gt.0,mandar_override.not.is.null"),
     ]);
 
   const error =
@@ -212,8 +216,13 @@ export async function cargarSugeridosDelDia(
       m.saldo_final ?? m.saldo_inicial + m.ingreso - m.devolucion;
   }
   const cambios: Record<string, number> = {};
+  const pedidos: Record<string, number> = {};
+  const mandarOverride: Record<string, number> = {};
   for (const m of cambiosRes.data ?? []) {
-    cambios[`${m.producto_id}-${m.sucursal_id}`] = m.cambio;
+    const clave = `${m.producto_id}-${m.sucursal_id}`;
+    if (m.cambio > 0) cambios[clave] = m.cambio;
+    if (m.pedido > 0) pedidos[clave] = m.pedido;
+    if (m.mandar_override !== null) mandarOverride[clave] = m.mandar_override;
   }
   const celdas: Record<string, CeldaSugerido> = {};
   for (const p of productos) {
@@ -232,5 +241,16 @@ export async function cargarSugeridosDelDia(
     }
   }
 
-  return { productos, sucursales, celdas, sinDecorar, decorado, cambios, saldoPrincipal, principalId };
+  return {
+    productos,
+    sucursales,
+    celdas,
+    sinDecorar,
+    decorado,
+    cambios,
+    pedidos,
+    mandarOverride,
+    saldoPrincipal,
+    principalId,
+  };
 }

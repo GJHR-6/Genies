@@ -63,10 +63,18 @@ type Props = {
   celdas: Record<string, CeldaSugerido>;
   principal: DatosPrincipal;
   batidas: DatosBatidas;
+  /** Pedido que anotó cada tienda hoy (`${productoId}-${sucursalId}`). */
+  pedidos: Record<string, number>;
+  /** Ajustes del admin a lo que se manda a cada tienda. */
+  mandarOverride: Record<string, number>;
 };
 
-/** Qué casilla se está escribiendo: lo que va a una sucursal, o DECO / SIN DECO. */
+/**
+ * Qué casilla se está escribiendo: lo que se manda a una tienda (ajuste
+ * sobre su pedido), el sugerido de Principal, o DECO / SIN DECO.
+ */
 type Edicion =
+  | { tipo: "enviar"; clave: string; valor: string }
   | { tipo: "mandar"; clave: string; valor: string }
   | { tipo: "decorado" | "sin_decorar"; productoId: number; valor: string }
   | null;
@@ -80,12 +88,13 @@ const CAMPO_NUMERO = "h-8 w-16 text-right tabular-nums";
  * Principal de hoy; lo de cada tienda es su sugerido (override). El SALDO
  * se recalcula al instante.
  */
-export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, principal, batidas }: Props) {
+export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, principal, batidas, pedidos, mandarOverride: ajustesProp }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [celdas, setCeldas] = useState(celdasProp);
   const [decorado, setDecorado] = useState(principal.decorado);
   const [sinDecorar, setSinDecorar] = useState(principal.sinDecorar);
+  const [mandarOverride, setMandarOverride] = useState(ajustesProp);
   const [edicion, setEdicion] = useState<Edicion>(null);
   const [errorGuardado, setErrorGuardado] = useState(false);
 
@@ -93,6 +102,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   useEffect(() => setCeldas(celdasProp), [celdasProp]);
   useEffect(() => setDecorado(principal.decorado), [principal.decorado]);
   useEffect(() => setSinDecorar(principal.sinDecorar), [principal.sinDecorar]);
+  useEffect(() => setMandarOverride(ajustesProp), [ajustesProp]);
 
   const usuario = async () => (await supabase.auth.getUser()).data.user?.id ?? null;
 
@@ -100,7 +110,12 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   const guardarFila = async (
     sucursalId: number,
     productoId: number,
-    cambios: { sugerido_override?: number | null; decorado?: number; sin_decorar?: number }
+    cambios: {
+      sugerido_override?: number | null;
+      mandar_override?: number | null;
+      decorado?: number;
+      sin_decorar?: number;
+    }
   ) => {
     const updated_by = await usuario();
     const updated_at = new Date().toISOString();
@@ -113,7 +128,8 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
       .select("id");
     if (error) throw new Error(error.message);
     if ((data ?? []).length > 0) return;
-    if (cambios.sugerido_override === null) return;
+    // Quitar un ajuste que no existe: no hay nada que crear.
+    if (cambios.sugerido_override === null || cambios.mandar_override === null) return;
     // La sucursal aún no capturó ese producto: crear la fila con el dato.
     const { error: errInserta } = await supabase.from("movimientos_diarios").insert({
       fecha,
@@ -134,9 +150,13 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
 
   const mutacion = useMutation({
     mutationFn: async (e: NonNullable<Edicion> & { numero: number | null }) => {
-      if (e.tipo === "mandar") {
+      if (e.tipo === "mandar" || e.tipo === "enviar") {
         const [productoId, sucursalId] = e.clave.split("-").map(Number);
-        await guardarFila(sucursalId, productoId, { sugerido_override: e.numero });
+        await guardarFila(
+          sucursalId,
+          productoId,
+          e.tipo === "enviar" ? { mandar_override: e.numero } : { sugerido_override: e.numero }
+        );
       } else {
         if (principal.id === null) throw new Error("Sin Principal");
         await guardarFila(principal.id, e.productoId, { [e.tipo]: e.numero ?? 0 });
@@ -144,7 +164,13 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
     },
     onSuccess: (_d, e) => {
       setErrorGuardado(false);
-      if (e.tipo === "mandar") {
+      if (e.tipo === "enviar") {
+        setMandarOverride((prev) => {
+          const { [e.clave]: _quitado, ...resto } = prev;
+          void _quitado;
+          return e.numero === null ? resto : { ...resto, [e.clave]: e.numero };
+        });
+      } else if (e.tipo === "mandar") {
         setCeldas((prev) => {
           const celda = prev[e.clave];
           if (!celda) return prev;
@@ -178,7 +204,12 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
     const numero = texto === "" ? null : parseInt(texto, 10);
     setEdicion(null);
     if (numero !== null && (!Number.isFinite(numero) || numero < 0)) return;
-    if (edicion.tipo === "mandar") {
+    if (edicion.tipo === "enviar") {
+      // Sin cambios: mismo ajuste, o se limpió sin haber ajuste.
+      const ajuste = mandarOverride[edicion.clave];
+      if (numero === null && ajuste === undefined) return;
+      if (numero !== null && numero === ajuste) return;
+    } else if (edicion.tipo === "mandar") {
       const celda = celdas[edicion.clave];
       if (!celda) return;
       // Sin cambios: mismo override, o se limpió sin haber override.
@@ -223,9 +254,9 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
         <p>
           <span className="font-semibold">2. Lo que va a cada tienda.</span>{" "}
           <span className="text-muted-foreground">
-            Ya viene calculado (objetivo − lo que la tienda tiene). Tocá un
-            número para cambiarlo y presioná Enter; vacío = vuelve al calculado.
-            CM = cambio de la tienda.
+            Es el pedido que anotó la tienda; abajo, en chico, su sugerido.
+            Tocá un número para cambiarlo y presioná Enter; vacío = vuelve al
+            pedido. Sin pedido no se manda nada. CM = cambio de la tienda.
           </span>
         </p>
         <p>
@@ -239,7 +270,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
         <p className="text-muted-foreground sm:col-span-3">
           <span className="font-semibold text-primary">• 12</span> = cambiado a
           mano · <span className="italic">12</span> en cursiva = la tienda aún no
-          anota ese producto · — = la tienda no lleva ese producto · DEC y PROD
+          anota ese producto (columna de Principal) · — = la tienda no lleva ese producto · DEC y PROD
           (21*6 = 21 en la primera batida y 6 en la segunda) y las libras de las
           batidas 1–4 salen del reparto: se llenan después de hacerlo, y si
           cambiás números aquí, volvé a hacer el reparto
@@ -320,6 +351,8 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                     sinDecorar,
                     decorado,
                     cambios: principal.cambios,
+                    pedidos,
+                    mandarOverride,
                     saldoPrincipal: principal.saldo,
                     principalId: principal.id,
                   },
@@ -380,10 +413,10 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                         <Numero valor={fila.invTotal} className="font-semibold" />
                         {tiendas.map((t, i) => (
                           <Fragment key={t.id}>
-                            <CeldaMandar
+                            <CeldaEnviar
                               clave={`${p.id}-${t.id}`}
-                              celda={celdas[`${p.id}-${t.id}`]}
-                              etiqueta={`Sugerido de ${nombre} en ${t.nombre}`}
+                              tienda={fila.tiendas[i]}
+                              etiqueta={`Lo que se manda de ${nombre} a ${t.nombre}`}
                               className="border-l"
                               {...edicionProps}
                             />
@@ -640,6 +673,77 @@ function CeldaPrincipal({
           {valor ? valor : ""}
         </button>
       )}
+    </td>
+  );
+}
+
+/**
+ * Lo que se le manda a una tienda: su pedido (grande) y su sugerido de
+ * referencia (chico). Se toca para ajustarlo; vacío = vuelve al pedido.
+ */
+function CeldaEnviar({
+  clave,
+  tienda,
+  etiqueta,
+  className,
+  edicion,
+  setEdicion,
+  confirmar,
+}: EdicionProps & {
+  clave: string;
+  tienda: FilaHojaCompleta["tiendas"][number];
+  etiqueta: string;
+  className?: string;
+}) {
+  const { mandar, sugerido, ajustado } = tienda;
+  if (mandar === null && sugerido === null) {
+    return (
+      <td
+        className={cn("px-2 py-1.5 text-right text-muted-foreground", className)}
+        title="La tienda no lleva este producto y no lo pidió"
+      >
+        —
+      </td>
+    );
+  }
+  const referencia =
+    sugerido === null ? null : (
+      <span className="block text-[11px] leading-tight text-muted-foreground print:hidden">
+        sug. {sugerido}
+      </span>
+    );
+  if (edicion?.tipo === "enviar" && edicion.clave === clave) {
+    return (
+      <td className={cn("px-1 py-0.5 text-right", className)}>
+        <CampoNumero
+          valor={edicion.valor}
+          onChange={(v) => setEdicion({ tipo: "enviar", clave, valor: v })}
+          etiqueta={etiqueta}
+          confirmar={confirmar}
+          cancelar={() => setEdicion(null)}
+        />
+        {referencia}
+      </td>
+    );
+  }
+  return (
+    <td className={cn("px-1 py-0.5 text-right", className)}>
+      <button
+        type="button"
+        onClick={() =>
+          setEdicion({ tipo: "enviar", clave, valor: ajustado && mandar !== null ? String(mandar) : "" })
+        }
+        title={ajustado ? "Cambiado por administración" : mandar === null ? "La tienda no pidió" : "Pedido de la tienda"}
+        className={cn(BOTON_CELDA, ajustado && "font-semibold text-primary")}
+        aria-label={`${etiqueta}: ${mandar ?? "sin pedido"}${ajustado ? " (ajustado)" : ""}${
+          sugerido !== null ? `, sugerido ${sugerido}` : ""
+        }`}
+      >
+        {ajustado ? "• " : ""}
+        {/* Sin pedido: casilla vacía (el espacio la mantiene del mismo alto). */}
+        {mandar ?? "\u00a0"}
+      </button>
+      {referencia}
     </td>
   );
 }

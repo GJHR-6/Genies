@@ -162,6 +162,7 @@ export type Database = {
           fecha: string
           id: number
           ingreso: number
+          mandar_override: number | null
           pedido: number
           producto_id: number
           saldo_final: number | null
@@ -179,6 +180,7 @@ export type Database = {
           fecha: string
           id?: never
           ingreso?: number
+          mandar_override?: number | null
           pedido?: number
           producto_id: number
           saldo_final?: number | null
@@ -196,6 +198,7 @@ export type Database = {
           fecha?: string
           id?: never
           ingreso?: number
+          mandar_override?: number | null
           pedido?: number
           producto_id?: number
           saldo_final?: number | null

@@ -233,6 +233,8 @@ export default async function CuadrosPage() {
               cambios: dia.cambios,
             }}
             batidas={batidas}
+            pedidos={dia.pedidos}
+            mandarOverride={dia.mandarOverride}
           />
         </article>
       )}

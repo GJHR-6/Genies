@@ -20,7 +20,7 @@ import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
 import { Aviso } from "@/components/encabezado-seccion";
 import { ordenarProductos } from "@/lib/orden-productos";
-import { filaHojaCompleta, type FilaHojaCompleta } from "@/lib/hoja-completa";
+import { aMandar, filaHojaCompleta, type FilaHojaCompleta } from "@/lib/hoja-completa";
 import { BotonImprimir } from "../boton-imprimir";
 
 export const dynamic = "force-dynamic";
@@ -104,8 +104,12 @@ export default async function DespachoPage({
   }
 
   const { sucursales, celdas } = dia;
+  // Lo que se manda: a las tiendas, su pedido (o el ajuste del admin en el
+  // cuadro completo); a Principal, su sugerido.
   const pedido = (productoId: number, sucursalId: number) =>
-    celdas[`${productoId}-${sucursalId}`]?.sugerido ?? 0;
+    sucursalId === dia.principalId
+      ? (celdas[`${productoId}-${sucursalId}`]?.sugerido ?? 0)
+      : (aMandar(dia, `${productoId}-${sucursalId}`).mandar ?? 0);
 
   // Orden del Excel (INVENTARIO DIARIO), igual en todas las hojas.
   const todos = ordenarProductos(dia.productos);
