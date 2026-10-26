@@ -482,7 +482,7 @@ function TablaSeccion({
         <table className="w-full min-w-[560px] border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
-              <th rowSpan={2} className="sticky left-0 z-10 bg-card px-3 py-1.5 text-left font-semibold">
+              <th rowSpan={2} className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-card px-3 py-1.5 text-left font-semibold">
                 Producto
               </th>
               <th
@@ -542,7 +542,7 @@ function TablaSeccion({
               const descuadre = asignado !== cuadro;
               return (
                 <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/20">
-                  <td className="sticky left-0 z-10 bg-card px-3 py-1 font-medium">
+                  <td className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-card px-3 py-1 font-medium">
                     {nombreProducto(p)}
                   </td>
                   <td

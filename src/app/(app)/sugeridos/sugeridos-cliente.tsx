@@ -181,7 +181,7 @@ export function SugeridosCliente({
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="sticky left-0 z-10 bg-background px-3 py-2 text-left font-semibold">
+              <th className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-2 text-left font-semibold">
                 Producto
               </th>
               {sucursales.map((s) => (
@@ -233,14 +233,14 @@ function FilasCategoria({
       <tr className="border-b bg-muted/30">
         <td
           colSpan={sucursales.length + 1}
-          className="sticky left-0 px-3 py-1.5 text-xs font-semibold text-muted-foreground"
+          className="px-3 py-1.5 text-xs font-semibold text-muted-foreground"
         >
-          {categoria}
+          <span className="sticky left-3">{categoria}</span>
         </td>
       </tr>
       {productos.map((p) => (
         <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/20">
-          <td className="sticky left-0 z-10 bg-background px-3 py-1.5 font-medium">
+          <td className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-1.5 font-medium">
             {p.nombre}
             {p.tamano ? ` · ${p.tamano}` : ""}
           </td>

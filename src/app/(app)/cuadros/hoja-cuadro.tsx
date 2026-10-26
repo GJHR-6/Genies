@@ -219,7 +219,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
         <table className="w-full min-w-[900px] border-collapse text-sm print:min-w-0 print:text-[9.5px]">
           <thead>
             <tr className="border-b bg-muted/50 text-xs uppercase print:border-black print:bg-transparent">
-              <th className="sticky left-0 z-10 bg-background px-3 py-2 text-left font-semibold print:static">
+              <th className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-2 text-left font-semibold print:static">
                 Producto
               </th>
               <th className="border-l px-2 py-2 text-right font-semibold">Deco</th>
@@ -252,8 +252,9 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
             {grupos.map(([categoria, lista]) => (
               <Fragment key={categoria}>
                 <tr className="border-b bg-muted/30 print:border-black/60 print:bg-black/10">
-                  <td colSpan={columnas} className="sticky left-0 px-3 py-1.5 text-xs font-bold uppercase print:static">
-                    {categoria}
+                  <td colSpan={columnas} className="px-3 py-1.5 text-xs font-bold uppercase">
+                    {/* El nombre de la sección queda a la vista al mover la tabla de lado. */}
+                    <span className="sticky left-3 print:static">{categoria}</span>
                   </td>
                 </tr>
                 {lista.map((p) => {
@@ -277,7 +278,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                   const editablePrincipal = p.lleva_decoracion && principal.id !== null;
                   return (
                     <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/20 print:border-black/40">
-                      <td className="sticky left-0 z-10 bg-background px-3 py-1.5 font-medium print:static">
+                      <td className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-1.5 font-medium print:static">
                         {p.nombre}
                         {p.tamano ? ` · ${p.tamano}` : ""}
                       </td>

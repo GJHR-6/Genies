@@ -263,7 +263,7 @@ function EditorObjetivos({
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
             <tr className="bg-muted/50">
-              <th className="sticky left-0 z-10 bg-muted px-3 py-2 text-left font-semibold">
+              <th className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-muted px-3 py-2 text-left font-semibold">
                 Sucursal
               </th>
               {DIAS.map((d) => (
@@ -283,7 +283,7 @@ function EditorObjetivos({
           <tbody>
             {sucursales.map((s) => (
               <tr key={s.id} className="border-t">
-                <th className="sticky left-0 z-10 bg-card px-3 py-1.5 text-left font-medium">
+                <th className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-card px-3 py-1.5 text-left font-medium">
                   {s.nombre}
                 </th>
                 {DIAS.map((d) => {
