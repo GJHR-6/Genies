@@ -7,7 +7,13 @@ import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Aviso } from "@/components/encabezado-seccion";
 import type { CeldaSugerido, ProductoSugerido } from "@/lib/sugeridos";
-import { filaHojaCompleta } from "@/lib/hoja-completa";
+import {
+  SECCIONES_CON_TOTAL,
+  cuentaEnTotalSeccion,
+  filaHojaCompleta,
+  sumarFilas,
+  type FilaHojaCompleta,
+} from "@/lib/hoja-completa";
 import { cn } from "@/lib/utils";
 
 type Sucursal = { id: number; nombre: string };
@@ -249,112 +255,179 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
             </tr>
           </thead>
           <tbody>
-            {grupos.map(([categoria, lista]) => (
-              <Fragment key={categoria}>
-                <tr className="border-b bg-muted/30 print:border-black/60 print:bg-black/10">
-                  <td colSpan={columnas} className="px-3 py-1.5 text-xs font-bold uppercase">
-                    {/* El nombre de la sección queda a la vista al mover la tabla de lado. */}
-                    <span className="sticky left-3 print:static">{categoria}</span>
-                  </td>
-                </tr>
-                {lista.map((p) => {
-                  const fila = filaHojaCompleta(
-                    {
-                      celdas,
-                      sinDecorar,
-                      decorado,
-                      cambios: principal.cambios,
-                      saldoPrincipal: principal.saldo,
-                      principalId: principal.id,
-                    },
-                    p,
-                    tiendas
-                  );
-                  const total = sucursales.reduce(
-                    (t, x) => t + (celdas[`${p.id}-${x.id}`]?.sugerido ?? 0),
-                    0
-                  );
-                  const nombre = `${p.nombre}${p.tamano ? ` ${p.tamano}` : ""}`;
-                  const editablePrincipal = p.lleva_decoracion && principal.id !== null;
-                  return (
-                    <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/20 print:border-black/40">
-                      <td className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-1.5 font-medium print:static">
-                        {p.nombre}
-                        {p.tamano ? ` · ${p.tamano}` : ""}
-                      </td>
-                      {editablePrincipal ? (
-                        <>
-                          <CeldaPrincipal
-                            campo="decorado"
-                            producto={p.id}
-                            valor={decorado[p.id] ?? 0}
-                            etiqueta={`Deco de ${nombre}`}
-                            className="border-l"
-                            {...edicionProps}
-                          />
-                          <CeldaPrincipal
-                            campo="sin_decorar"
-                            producto={p.id}
-                            valor={sinDecorar[p.id] ?? 0}
-                            etiqueta={`Sin deco de ${nombre}`}
-                            {...edicionProps}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <Numero
-                            valor={fila.deco}
-                            className="border-l"
-                            titulo="No lleva decoración: es el saldo de Principal (sale de su inventario)"
-                          />
-                          <Numero valor={null} />
-                        </>
-                      )}
-                      <Numero valor={fila.invTotal} className="font-semibold" />
-                      {tiendas.map((t, i) => (
-                        <Fragment key={t.id}>
-                          <CeldaMandar
-                            clave={`${p.id}-${t.id}`}
-                            celda={celdas[`${p.id}-${t.id}`]}
-                            etiqueta={`Sugerido de ${nombre} en ${t.nombre}`}
-                            className="border-l"
-                            {...edicionProps}
-                          />
-                          <Numero valor={fila.tiendas[i].cm} apagado />
-                        </Fragment>
-                      ))}
-                      <td
-                        className={cn(
-                          "border-l px-2 py-1.5 text-right font-bold tabular-nums",
-                          fila.saldo < 0
-                            ? "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
-                            : "text-exito print:text-black"
+            {grupos.map(([categoria, lista]) => {
+              const filas = lista.map((p) => ({
+                p,
+                fila: filaHojaCompleta(
+                  {
+                    celdas,
+                    sinDecorar,
+                    decorado,
+                    cambios: principal.cambios,
+                    saldoPrincipal: principal.saldo,
+                    principalId: principal.id,
+                  },
+                  p,
+                  tiendas
+                ),
+                total: sucursales.reduce((t, x) => t + (celdas[`${p.id}-${x.id}`]?.sugerido ?? 0), 0),
+              }));
+              // Total de la sección de masa, sin porciones (como en el Excel).
+              const paraTotal = SECCIONES_CON_TOTAL.includes(categoria.toUpperCase())
+                ? filas.filter((f) => cuentaEnTotalSeccion(f.p))
+                : [];
+              return (
+                <Fragment key={categoria}>
+                  <tr className="border-b bg-muted/30 print:border-black/60 print:bg-black/10">
+                    <td colSpan={columnas} className="px-3 py-1.5 text-xs font-bold uppercase">
+                      {/* El nombre de la sección queda a la vista al mover la tabla de lado. */}
+                      <span className="sticky left-3 print:static">{categoria}</span>
+                    </td>
+                  </tr>
+                  {filas.map(({ p, fila, total }) => {
+                    const nombre = `${p.nombre}${p.tamano ? ` ${p.tamano}` : ""}`;
+                    const editablePrincipal = p.lleva_decoracion && principal.id !== null;
+                    return (
+                      <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/20 print:border-black/40">
+                        <td className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-1.5 font-medium print:static">
+                          {p.nombre}
+                          {p.tamano ? ` · ${p.tamano}` : ""}
+                        </td>
+                        {editablePrincipal ? (
+                          <>
+                            <CeldaPrincipal
+                              campo="decorado"
+                              producto={p.id}
+                              valor={decorado[p.id] ?? 0}
+                              etiqueta={`Deco de ${nombre}`}
+                              className="border-l"
+                              {...edicionProps}
+                            />
+                            <CeldaPrincipal
+                              campo="sin_decorar"
+                              producto={p.id}
+                              valor={sinDecorar[p.id] ?? 0}
+                              etiqueta={`Sin deco de ${nombre}`}
+                              {...edicionProps}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <Numero
+                              valor={fila.deco}
+                              className="border-l"
+                              titulo="No lleva decoración: es el saldo de Principal (sale de su inventario)"
+                            />
+                            <Numero valor={null} />
+                          </>
                         )}
-                        title={fila.saldo < 0 ? `Faltan ${-fila.saldo}` : "Alcanza con lo que hay en Principal"}
-                      >
-                        {fila.saldo}
-                      </td>
-                      {sucursalPrincipal && (
-                        <CeldaMandar
-                          clave={`${p.id}-${sucursalPrincipal.id}`}
-                          celda={celdas[`${p.id}-${sucursalPrincipal.id}`]}
-                          etiqueta={`Sugerido de ${nombre} en ${sucursalPrincipal.nombre}`}
-                          className="border-l"
-                          {...edicionProps}
-                        />
-                      )}
-                      <td className="border-l px-2 py-1.5 text-right font-semibold tabular-nums">
-                        {total || ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </Fragment>
-            ))}
+                        <Numero valor={fila.invTotal} className="font-semibold" />
+                        {tiendas.map((t, i) => (
+                          <Fragment key={t.id}>
+                            <CeldaMandar
+                              clave={`${p.id}-${t.id}`}
+                              celda={celdas[`${p.id}-${t.id}`]}
+                              etiqueta={`Sugerido de ${nombre} en ${t.nombre}`}
+                              className="border-l"
+                              {...edicionProps}
+                            />
+                            <Numero valor={fila.tiendas[i].cm} apagado />
+                          </Fragment>
+                        ))}
+                        <td
+                          className={cn(
+                            "border-l px-2 py-1.5 text-right font-bold tabular-nums",
+                            fila.saldo < 0
+                              ? "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
+                              : "text-exito print:text-black"
+                          )}
+                          title={fila.saldo < 0 ? `Faltan ${-fila.saldo}` : "Alcanza con lo que hay en Principal"}
+                        >
+                          {fila.saldo}
+                        </td>
+                        {sucursalPrincipal && (
+                          <CeldaMandar
+                            clave={`${p.id}-${sucursalPrincipal.id}`}
+                            celda={celdas[`${p.id}-${sucursalPrincipal.id}`]}
+                            etiqueta={`Sugerido de ${nombre} en ${sucursalPrincipal.nombre}`}
+                            className="border-l"
+                            {...edicionProps}
+                          />
+                        )}
+                        <td className="border-l px-2 py-1.5 text-right font-semibold tabular-nums">
+                          {total || ""}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {paraTotal.length > 0 && (
+                    <FilaTotalSeccion
+                      categoria={categoria}
+                      fila={sumarFilas(paraTotal.map((f) => f.fila))}
+                      principal={
+                        sucursalPrincipal
+                          ? paraTotal.reduce(
+                              (t, f) => t + (celdas[`${f.p.id}-${sucursalPrincipal.id}`]?.sugerido ?? 0),
+                              0
+                            )
+                          : null
+                      }
+                      total={paraTotal.reduce((t, f) => t + f.total, 0)}
+                    />
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+/** Total de la sección (sin porciones), al final de VAINILLA, CHOCOLATE y MIXTO. */
+function FilaTotalSeccion({
+  categoria,
+  fila,
+  principal,
+  total,
+}: {
+  categoria: string;
+  fila: FilaHojaCompleta;
+  principal: number | null;
+  total: number;
+}) {
+  return (
+    <tr className="border-b-2 border-foreground/30 bg-muted/50 font-bold print:border-black print:bg-black/10">
+      <td
+        className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-muted px-3 py-1.5 print:static print:bg-transparent"
+        title="Suma de la sección sin contar porciones"
+      >
+        Total {categoria}
+        <span className="block text-xs font-normal text-muted-foreground">sin porciones</span>
+      </td>
+      <Numero valor={fila.deco} className="border-l font-bold" />
+      <Numero valor={fila.sinDeco} className="font-bold" />
+      <Numero valor={fila.invTotal} className="font-bold" />
+      {fila.tiendas.map((t) => (
+        <Fragment key={t.sucursalId}>
+          <Numero valor={t.mandar} className="border-l font-bold" />
+          <Numero valor={t.cm} apagado />
+        </Fragment>
+      ))}
+      <td
+        className={cn(
+          "border-l px-2 py-1.5 text-right tabular-nums",
+          fila.saldo < 0
+            ? "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
+            : "text-exito print:text-black"
+        )}
+      >
+        {fila.saldo}
+      </td>
+      {principal !== null && <Numero valor={principal} className="border-l font-bold" />}
+      <td className="border-l px-2 py-1.5 text-right tabular-nums">{total || ""}</td>
+    </tr>
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filaHojaCompleta } from "./hoja-completa";
+import { cuentaEnTotalSeccion, filaHojaCompleta, sumarFilas } from "./hoja-completa";
 
 const celda = (sugerido: number) => ({
   objetivo: sugerido,
@@ -45,5 +45,26 @@ describe("filaHojaCompleta", () => {
     const f = filaHojaCompleta(dia, { id: 3, lleva_decoracion: false }, tiendas);
     expect(f.invTotal).toBeNull();
     expect(f.saldo).toBe(0);
+  });
+});
+
+describe("total de sección", () => {
+  it("las porciones no cuentan", () => {
+    expect(cuentaEnTotalSeccion({ nombre: "Porciones VAINILLA" })).toBe(false);
+    expect(cuentaEnTotalSeccion({ nombre: "VAINILLA" })).toBe(true);
+  });
+
+  it("suma columna por columna; vacío + vacío sigue vacío", () => {
+    const a = filaHojaCompleta(dia, { id: 1, lleva_decoracion: true }, tiendas);
+    const b = filaHojaCompleta(dia, { id: 2, lleva_decoracion: false }, tiendas);
+    const t = sumarFilas([a, b]);
+    expect(t.deco).toBe(18);
+    expect(t.sinDeco).toBe(6);
+    expect(t.invTotal).toBe(24);
+    expect(t.tiendas).toEqual([
+      { sucursalId: 20, mandar: 5 + (b.tiendas[0].mandar ?? 0), cm: b.tiendas[0].cm },
+      { sucursalId: 30, mandar: 4, cm: 2 },
+    ]);
+    expect(t.saldo).toBe(a.saldo + b.saldo);
   });
 });

@@ -53,3 +53,31 @@ export function filaHojaCompleta(
 
   return { deco, sinDeco, invTotal, tiendas: porTienda, saldo };
 }
+
+/** Secciones de masa que llevan fila de total al final (como en el Excel). */
+export const SECCIONES_CON_TOTAL = ["VAINILLA", "CHOCOLATE", "MIXTO"];
+
+/** Las porciones no entran en el total de la sección. */
+export function cuentaEnTotalSeccion(producto: { nombre: string }): boolean {
+  return !/^porci[oó]n/i.test(producto.nombre.trim());
+}
+
+/** Suma columna por columna varias filas de la hoja completa. */
+export function sumarFilas(filas: FilaHojaCompleta[]): FilaHojaCompleta {
+  const suma = (a: number | null, b: number | null) =>
+    a === null && b === null ? null : (a ?? 0) + (b ?? 0);
+  return filas.reduce<FilaHojaCompleta>(
+    (total, f) => ({
+      deco: suma(total.deco, f.deco),
+      sinDeco: suma(total.sinDeco, f.sinDeco),
+      invTotal: suma(total.invTotal, f.invTotal),
+      tiendas: f.tiendas.map((t, i) => ({
+        sucursalId: t.sucursalId,
+        mandar: suma(total.tiendas[i]?.mandar ?? null, t.mandar),
+        cm: suma(total.tiendas[i]?.cm ?? null, t.cm),
+      })),
+      saldo: total.saldo + f.saldo,
+    }),
+    { deco: null, sinDeco: null, invTotal: null, tiendas: [], saldo: 0 }
+  );
+}
