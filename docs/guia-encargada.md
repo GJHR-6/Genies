@@ -13,7 +13,8 @@
 
 1. Buscá el producto con el **buscador** de arriba, o bajá por la lista
    (está agrupada por categoría).
-2. En cada producto llená lo que aplique:
+2. En cada producto, el cuadro gris **Inicial** dice con cuánto quedaste ayer.
+   Solo se ve: no se cambia. Llená lo que aplique:
    - **Ingreso** — lo que llegó de producción hoy.
    - **Devolución** — lo que devolvés (dañado, vencido).
    - **Pedido** — lo que pedís para mañana.

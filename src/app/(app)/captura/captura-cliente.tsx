@@ -540,17 +540,29 @@ export function CapturaCliente({
                       {producto.nombre}
                       {producto.tamano ? ` · ${producto.tamano}` : ""}
                     </p>
-                    <p className="text-xs tabular-nums text-muted-foreground">
-                      Saldo anterior: {saldosAnteriores[producto.id] ?? 0}
-                    </p>
                   </div>
                   <BadgeEstado estado={estados[producto.id]} />
                 </div>
                 <div
                   className={`mt-2 grid gap-2 ${
-                    esPrincipal ? "grid-cols-3" : "grid-cols-2 min-[400px]:grid-cols-4"
+                    esPrincipal
+                      ? "grid-cols-2 min-[400px]:grid-cols-4"
+                      : "grid-cols-3 sm:grid-cols-5"
                   }`}
                 >
+                  {/* Inicial: con lo que quedó la tienda ayer. Solo se ve. */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      Inicial
+                    </span>
+                    <div
+                      className="flex h-11 items-center rounded-md border border-dashed bg-muted px-3 text-base font-medium tabular-nums"
+                      aria-label={`Inicial de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}: ${saldosAnteriores[producto.id] ?? 0}`}
+                      title="Con lo que quedaron ayer. No se cambia."
+                    >
+                      {saldosAnteriores[producto.id] ?? 0}
+                    </div>
+                  </div>
                   {(
                     [
                       ["ingreso", "Ingreso"],
