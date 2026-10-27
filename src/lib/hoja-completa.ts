@@ -45,12 +45,14 @@ export function filaHojaCompleta(
   producto: { id: number; lleva_decoracion: boolean },
   tiendas: { id: number }[]
 ): FilaHojaCompleta {
-  const sinDeco = producto.lleva_decoracion
-    ? (dia.sinDecorar[producto.id] ?? null)
-    : null;
-  const deco = producto.lleva_decoracion
-    ? (dia.decorado[producto.id] ?? null)
-    : (dia.saldoPrincipal[producto.id] ?? null);
+  // Todos los productos pueden tener Deco / Sin deco anotados en Principal.
+  // Si uno sin decoración no tiene nada anotado, su saldo va en DECO.
+  const sinDeco = dia.sinDecorar[producto.id] ?? null;
+  const deco =
+    dia.decorado[producto.id] ??
+    (producto.lleva_decoracion || sinDeco !== null
+      ? null
+      : (dia.saldoPrincipal[producto.id] ?? null));
   const invTotal =
     deco === null && sinDeco === null ? null : (deco ?? 0) + (sinDeco ?? 0);
 

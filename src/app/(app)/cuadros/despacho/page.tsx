@@ -9,11 +9,14 @@ import {
   type SugeridosDelDia,
 } from "@/lib/sugeridos";
 import {
+  batidasDelCuadro,
+  comoAsignaciones,
   formatoLibras,
   formatoTandas,
   librasPorBatida,
   MAX_LIBRAS_BATIDA,
   tandasPorProducto,
+  type AjusteBatida,
   type BatidasMasa,
 } from "@/lib/batidas";
 import { colorDelDia } from "@/lib/color-dia";
@@ -32,7 +35,9 @@ export const dynamic = "force-dynamic";
  *     Principal, lo que se manda y el CM (cambio) de cada tienda, y el
  *     SALDO de CM que la dueña pidió agregar (20 oct 2026).
  *     A la derecha, como en el Excel (21 oct 2026): DEC y PROD por batida
- *     ("39*2" = 39 en la primera y 2 en la segunda, salen del reparto) y
+ *     ("39*2" = 39 en la primera y 2 en la segunda; DEC 1 = sin decorar,
+ *     DEC 2 = lo que se hornea, PROD = reparto, con lo cambiado a mano en
+ *     el cuadro completo) y
  *     el Sugerido; en la fila de cada masa, las libras por batida (máximo
  *     100 lb).
  *  2. Una hoja por tienda: lo que le toca y su saldo, para tachar lo
@@ -69,19 +74,28 @@ export default async function DespachoPage({
     cantidad: number;
   }[];
   let libras: Record<number, number | null>;
+  let ajustes: AjusteBatida[];
   try {
-    const [d, asignacionesRes, librasRes] = await Promise.all([
+    const [d, asignacionesRes, librasRes, ajustesRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase
         .from("asignaciones")
         .select("producto_id, tipo, tanda, cantidad")
         .eq("fecha", fecha),
       supabase.from("productos").select("id, libras").eq("activo", true),
+      supabase
+        .from("batidas_ajuste")
+        .select("producto_id, tipo, tanda, cantidad")
+        .eq("fecha", fecha),
     ]);
-    const error = asignacionesRes.error ?? librasRes.error;
+    const error = asignacionesRes.error ?? librasRes.error ?? ajustesRes.error;
     if (error) throw new Error(error.message);
     dia = d;
     asignaciones = (asignacionesRes.data ?? []).map((a) => ({
+      ...a,
+      tipo: a.tipo === "decoracion" ? "decoracion" : "produccion",
+    }));
+    ajustes = (ajustesRes.data ?? []).map((a) => ({
       ...a,
       tipo: a.tipo === "decoracion" ? "decoracion" : "produccion",
     }));
@@ -119,13 +133,18 @@ export default async function DespachoPage({
   // En la hoja completa Principal no es columna: es el INV/TOTAL.
   const tiendas = sucursales.filter((s) => s.id !== dia.principalId);
 
-  // DEC / PROD por batida (del reparto), Sugerido y libras por masa.
+  // DEC / PROD por batida (igual que el cuadro completo), Sugerido y
+  // libras por masa (con el PROD ya ajustado).
   const totales = totalesPorProducto(dia);
-  const dec = tandasPorProducto(asignaciones, "decoracion");
-  const prod = tandasPorProducto(asignaciones, "produccion");
+  const { dec, prod } = batidasDelCuadro({
+    productos: todos,
+    prodReparto: tandasPorProducto(asignaciones, "produccion"),
+    sinDecorar: dia.sinDecorar,
+    ajustes,
+  });
   const batidas = new Map<string, BatidasMasa>(
     librasPorBatida(
-      asignaciones,
+      comoAsignaciones(prod, "produccion"),
       todos.map((p) => ({ ...p, libras: libras[p.id] ?? null }))
     ).map((b) => [b.masa, b])
   );

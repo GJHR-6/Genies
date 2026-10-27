@@ -50,7 +50,7 @@ export default async function CuadrosPage() {
   let cerradas = 0;
   let batidas: DatosBatidas;
   try {
-    const [diaCargado, areasRes, cierresRes, asignacionesRes, librasRes] = await Promise.all([
+    const [diaCargado, areasRes, cierresRes, asignacionesRes, librasRes, ajustesRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase
         .from("areas_produccion")
@@ -68,20 +68,29 @@ export default async function CuadrosPage() {
         .select("producto_id, tipo, tanda, cantidad")
         .eq("fecha", fecha),
       supabase.from("productos").select("id, libras").eq("activo", true),
+      supabase
+        .from("batidas_ajuste")
+        .select("producto_id, tipo, tanda, cantidad")
+        .eq("fecha", fecha),
     ]);
     if (areasRes.error) throw new Error(areasRes.error.message);
     if (cierresRes.error) throw new Error(cierresRes.error.message);
     if (asignacionesRes.error) throw new Error(asignacionesRes.error.message);
     if (librasRes.error) throw new Error(librasRes.error.message);
+    if (ajustesRes.error) throw new Error(ajustesRes.error.message);
     dia = diaCargado;
-    // DEC / PROD por batida (del reparto) y libras, para el cuadro completo.
+    // PROD por batida (del reparto), lo cambiado a mano en DEC / PROD y
+    // libras, para el cuadro completo.
     const asignaciones = (asignacionesRes.data ?? []).map((a) => ({
       ...a,
       tipo: a.tipo === "decoracion" ? ("decoracion" as const) : ("produccion" as const),
     }));
     batidas = {
-      dec: Object.fromEntries(tandasPorProducto(asignaciones, "decoracion")),
-      prod: Object.fromEntries(tandasPorProducto(asignaciones, "produccion")),
+      prodReparto: Object.fromEntries(tandasPorProducto(asignaciones, "produccion")),
+      ajustes: (ajustesRes.data ?? []).map((a) => ({
+        ...a,
+        tipo: a.tipo === "decoracion" ? ("decoracion" as const) : ("produccion" as const),
+      })),
       libras: Object.fromEntries(
         (librasRes.data ?? [])
           .filter((p) => p.libras !== null && Number(p.libras) > 0)
@@ -347,7 +356,7 @@ export default async function CuadrosPage() {
                           : ""
                       }`}
                     >
-                      {p.lleva_decoracion ? t.sinDecorar : "—"}
+                      {t.sinDecorar}
                     </td>
                     <td className="pl-2 py-1.5 text-right text-base font-bold tabular-nums">
                       {t.aProducir}

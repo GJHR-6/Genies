@@ -34,7 +34,7 @@ describe("totalesPorProducto", () => {
       "2-10": celda(3),
       "3-20": celda(2),
     },
-    // 2 no lleva decoración: su sin decorar se ignora
+    // 2 no lleva decoración: su sin decorar igual se descuenta de lo que se hornea
     sinDecorar: { 1: 7, 2: 5, 3: 9 },
   };
 
@@ -43,9 +43,9 @@ describe("totalesPorProducto", () => {
     expect(t.get(1)).toEqual({ total: 10, sinDecorar: 7, aProducir: 3, aDecorar: 10 });
   });
 
-  it("sin decoración: produce el total y no decora", () => {
+  it("sin decoración: descuenta lo sin decorar y no decora", () => {
     const t = totalesPorProducto(dia);
-    expect(t.get(2)).toEqual({ total: 3, sinDecorar: 0, aProducir: 3, aDecorar: 0 });
+    expect(t.get(2)).toEqual({ total: 3, sinDecorar: 5, aProducir: 0, aDecorar: 0 });
   });
 
   it("si sobra sin decorar, no produce nada (nunca negativo)", () => {

@@ -58,6 +58,14 @@ describe("filaHojaCompleta", () => {
     expect(f.invTotal).toBeNull();
     expect(f.saldo).toBe(0);
   });
+
+  it("sin decoración pero con Deco / Sin deco anotados: se usan en vez del saldo", () => {
+    const anotado = { ...dia, decorado: { 2: 4 }, sinDecorar: { 2: 3 } };
+    const f = filaHojaCompleta(anotado, { id: 2, lleva_decoracion: false }, tiendas);
+    expect(f.deco).toBe(4);
+    expect(f.sinDeco).toBe(3);
+    expect(f.invTotal).toBe(7);
+  });
 });
 
 describe("total de sección", () => {

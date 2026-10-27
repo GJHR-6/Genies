@@ -528,7 +528,8 @@ export function CapturaCliente({
           </h2>
           {lista.map((producto) => {
             const v = valores[producto.id] ?? FILA_VACIA;
-            const conDecoracion = esPrincipal && producto.lleva_decoracion;
+            // En Principal todos los productos anotan Decorado / Sin decorar.
+            const conDecoracion = esPrincipal;
             return (
               <div
                 key={producto.id}

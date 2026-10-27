@@ -60,9 +60,9 @@ export type TotalProducto = {
 };
 
 /**
- * Totales del día por producto. Para los que llevan decoración, lo que ya
- * está sin decorar en Principal se descuenta de la producción (se decora
- * primero eso y se hornea solo la diferencia); la decoración es el total.
+ * Totales del día por producto. Lo que ya está sin decorar en Principal se
+ * descuenta de la producción (se hornea solo la diferencia), lleve o no
+ * decoración; la decoración es el total de los que llevan decoración.
  */
 export function totalesPorProducto(
   dia: Pick<SugeridosDelDia, "productos" | "sucursales" | "celdas" | "sinDecorar">
@@ -73,9 +73,7 @@ export function totalesPorProducto(
     for (const s of dia.sucursales) {
       total += dia.celdas[`${p.id}-${s.id}`]?.sugerido ?? 0;
     }
-    const sinDecorar = p.lleva_decoracion
-      ? Math.max(dia.sinDecorar[p.id] ?? 0, 0)
-      : 0;
+    const sinDecorar = Math.max(dia.sinDecorar[p.id] ?? 0, 0);
     resultado.set(p.id, {
       total,
       sinDecorar,

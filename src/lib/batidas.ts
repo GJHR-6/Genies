@@ -106,3 +106,67 @@ export function formatoLibras(libras: readonly number[]): string {
   const texto = formatoTandas(libras.map((l) => Math.round(l * 10) / 10));
   return texto ? `${texto} lb` : "";
 }
+
+/** Casilla de DEC o PROD cambiada a mano en el cuadro completo. */
+export type AjusteBatida = {
+  producto_id: number;
+  tipo: "produccion" | "decoracion";
+  tanda: number;
+  cantidad: number;
+};
+
+/** Clave de una casilla: `${productoId}-${tipo}-${tanda}`. */
+export const claveBatida = (
+  productoId: number,
+  tipo: AjusteBatida["tipo"],
+  tanda: number
+) => `${productoId}-${tipo}-${tanda}`;
+
+/**
+ * DEC y PROD por batida del cuadro completo (27 oct 2026):
+ * - PROD = lo del reparto.
+ * - DEC batida 1 = lo que Principal anotó sin decorar (se decora primero).
+ * - DEC batida 2 = lo que se hornea (suma de PROD), si el producto lleva
+ *   decoración.
+ * Cualquier casilla cambiada a mano manda sobre lo automático; DEC 2 usa
+ * el PROD ya ajustado. Solo salen los productos con algún número.
+ */
+export function batidasDelCuadro(params: {
+  productos: readonly { id: number; lleva_decoracion: boolean }[];
+  prodReparto: ReadonlyMap<number, readonly number[]>;
+  sinDecorar: Readonly<Record<number, number>>;
+  ajustes: readonly AjusteBatida[];
+}): {
+  dec: Map<number, number[]>;
+  prod: Map<number, number[]>;
+  ajustadas: Set<string>;
+} {
+  const ajuste = new Map(
+    params.ajustes.map((a) => [claveBatida(a.producto_id, a.tipo, a.tanda), a.cantidad])
+  );
+  const conAjuste = (id: number, tipo: AjusteBatida["tipo"], base: readonly number[]) =>
+    Array.from({ length: NUM_TANDAS }, (_, i) => ajuste.get(claveBatida(id, tipo, i + 1)) ?? base[i] ?? 0);
+  const dec = new Map<number, number[]>();
+  const prod = new Map<number, number[]>();
+  for (const p of params.productos) {
+    const prodFila = conAjuste(p.id, "produccion", params.prodReparto.get(p.id) ?? []);
+    const hornear = prodFila.reduce((t, c) => t + c, 0);
+    const decFila = conAjuste(p.id, "decoracion", [
+      Math.max(params.sinDecorar[p.id] ?? 0, 0),
+      p.lleva_decoracion ? hornear : 0,
+    ]);
+    if (prodFila.some((c) => c > 0)) prod.set(p.id, prodFila);
+    if (decFila.some((c) => c > 0)) dec.set(p.id, decFila);
+  }
+  return { dec, prod, ajustadas: new Set(ajuste.keys()) };
+}
+
+/** Por producto y batida → filas tipo asignación (para `librasPorBatida`). */
+export function comoAsignaciones(
+  porProducto: ReadonlyMap<number, readonly number[]>,
+  tipo: AjusteBatida["tipo"]
+): AjusteBatida[] {
+  return [...porProducto].flatMap(([producto_id, fila]) =>
+    fila.map((cantidad, i) => ({ producto_id, tipo, tanda: i + 1, cantidad }))
+  );
+}

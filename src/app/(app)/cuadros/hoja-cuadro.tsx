@@ -14,7 +14,13 @@ import {
   sumarFilas,
   type FilaHojaCompleta,
 } from "@/lib/hoja-completa";
-import { MAX_LIBRAS_BATIDA, NUM_TANDAS, formatoTandas } from "@/lib/batidas";
+import {
+  MAX_LIBRAS_BATIDA,
+  NUM_TANDAS,
+  batidasDelCuadro,
+  claveBatida,
+  type AjusteBatida,
+} from "@/lib/batidas";
 import { cn } from "@/lib/utils";
 
 type Sucursal = { id: number; nombre: string };
@@ -29,22 +35,26 @@ export type DatosPrincipal = {
 };
 
 /**
- * Lo del reparto de hoy: cuánto se decora y se hornea en cada batida
- * (tanda T1–T4) por producto, y las libras de masa por unidad.
+ * Para DEC / PROD por batida (tanda T1–T4): lo que se hornea según el
+ * reparto, las casillas cambiadas a mano y las libras de masa por unidad.
  */
 export type DatosBatidas = {
-  dec: Record<number, number[]>;
-  prod: Record<number, number[]>;
+  prodReparto: Record<number, number[]>;
+  ajustes: AjusteBatida[];
   libras: Record<number, number>;
 };
 
 const TANDAS = Array.from({ length: NUM_TANDAS }, (_, i) => i);
 
 /** Libras de cada batida de un producto: lo que se hornea × libras por unidad. */
-function librasProducto(batidas: DatosBatidas, productoId: number): number[] | null {
-  const lb = batidas.libras[productoId];
+function librasProducto(
+  libras: Record<number, number>,
+  prodPorProducto: ReadonlyMap<number, number[]>,
+  productoId: number
+): number[] | null {
+  const lb = libras[productoId];
   if (!lb) return null;
-  const prod = batidas.prod[productoId] ?? [];
+  const prod = prodPorProducto.get(productoId) ?? [];
   return TANDAS.map((i) => Math.round((prod[i] ?? 0) * lb * 100) / 100);
 }
 
@@ -71,12 +81,21 @@ type Props = {
 
 /**
  * Qué casilla se está escribiendo: lo que se manda a una tienda (ajuste
- * sobre su pedido), el sugerido de Principal, o DECO / SIN DECO.
+ * sobre su pedido), el CM de una tienda, el sugerido de Principal,
+ * DECO / SIN DECO, o una batida de DEC / PROD.
  */
 type Edicion =
   | { tipo: "enviar"; clave: string; valor: string }
+  | { tipo: "cambio"; clave: string; valor: string }
   | { tipo: "mandar"; clave: string; valor: string }
   | { tipo: "decorado" | "sin_decorar"; productoId: number; valor: string }
+  | {
+      tipo: "batida";
+      productoId: number;
+      clase: AjusteBatida["tipo"];
+      tanda: number;
+      valor: string;
+    }
   | null;
 
 const CAMPO_NUMERO = "h-8 w-16 text-right tabular-nums";
@@ -95,6 +114,8 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   const [decorado, setDecorado] = useState(principal.decorado);
   const [sinDecorar, setSinDecorar] = useState(principal.sinDecorar);
   const [mandarOverride, setMandarOverride] = useState(ajustesProp);
+  const [cambios, setCambios] = useState(principal.cambios);
+  const [ajustesBatida, setAjustesBatida] = useState(batidas.ajustes);
   const [edicion, setEdicion] = useState<Edicion>(null);
   const [errorGuardado, setErrorGuardado] = useState(false);
 
@@ -103,6 +124,25 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   useEffect(() => setDecorado(principal.decorado), [principal.decorado]);
   useEffect(() => setSinDecorar(principal.sinDecorar), [principal.sinDecorar]);
   useEffect(() => setMandarOverride(ajustesProp), [ajustesProp]);
+  useEffect(() => setCambios(principal.cambios), [principal.cambios]);
+  useEffect(() => setAjustesBatida(batidas.ajustes), [batidas.ajustes]);
+
+  // DEC 1 = sin decorar, DEC 2 = lo que se hornea, PROD = reparto; lo
+  // cambiado a mano manda.
+  const efectivas = useMemo(
+    () =>
+      batidasDelCuadro({
+        productos,
+        prodReparto: new Map(
+          Object.entries(batidas.prodReparto).map(([id, fila]) => [Number(id), fila])
+        ),
+        sinDecorar,
+        ajustes: ajustesBatida,
+      }),
+    [productos, batidas.prodReparto, sinDecorar, ajustesBatida]
+  );
+  const librasDe = (productoId: number) =>
+    librasProducto(batidas.libras, efectivas.prod, productoId);
 
   const usuario = async () => (await supabase.auth.getUser()).data.user?.id ?? null;
 
@@ -113,6 +153,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
     cambios: {
       sugerido_override?: number | null;
       mandar_override?: number | null;
+      cambio?: number;
       decorado?: number;
       sin_decorar?: number;
     }
@@ -150,7 +191,36 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
 
   const mutacion = useMutation({
     mutationFn: async (e: NonNullable<Edicion> & { numero: number | null }) => {
-      if (e.tipo === "mandar" || e.tipo === "enviar") {
+      if (e.tipo === "batida") {
+        // Vacío = vuelve a lo automático.
+        if (e.numero === null) {
+          const { error } = await supabase
+            .from("batidas_ajuste")
+            .delete()
+            .eq("fecha", fecha)
+            .eq("producto_id", e.productoId)
+            .eq("tipo", e.clase)
+            .eq("tanda", e.tanda);
+          if (error) throw new Error(error.message);
+          return;
+        }
+        const { error } = await supabase.from("batidas_ajuste").upsert(
+          {
+            fecha,
+            producto_id: e.productoId,
+            tipo: e.clase,
+            tanda: e.tanda,
+            cantidad: e.numero,
+            updated_at: new Date().toISOString(),
+            updated_by: await usuario(),
+          },
+          { onConflict: "fecha,producto_id,tipo,tanda" }
+        );
+        if (error) throw new Error(error.message);
+      } else if (e.tipo === "cambio") {
+        const [productoId, sucursalId] = e.clave.split("-").map(Number);
+        await guardarFila(sucursalId, productoId, { cambio: e.numero ?? 0 });
+      } else if (e.tipo === "mandar" || e.tipo === "enviar") {
         const [productoId, sucursalId] = e.clave.split("-").map(Number);
         await guardarFila(
           sucursalId,
@@ -164,7 +234,25 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
     },
     onSuccess: (_d, e) => {
       setErrorGuardado(false);
-      if (e.tipo === "enviar") {
+      if (e.tipo === "batida") {
+        setAjustesBatida((prev) => {
+          const resto = prev.filter(
+            (a) => !(a.producto_id === e.productoId && a.tipo === e.clase && a.tanda === e.tanda)
+          );
+          return e.numero === null
+            ? resto
+            : [...resto, { producto_id: e.productoId, tipo: e.clase, tanda: e.tanda, cantidad: e.numero }];
+        });
+        // Solo cambia este cuadro: no hace falta recargar.
+        return;
+      }
+      if (e.tipo === "cambio") {
+        setCambios((prev) => {
+          const { [e.clave]: _quitado, ...resto } = prev;
+          void _quitado;
+          return e.numero ? { ...resto, [e.clave]: e.numero } : resto;
+        });
+      } else if (e.tipo === "enviar") {
         setMandarOverride((prev) => {
           const { [e.clave]: _quitado, ...resto } = prev;
           void _quitado;
@@ -204,7 +292,17 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
     const numero = texto === "" ? null : parseInt(texto, 10);
     setEdicion(null);
     if (numero !== null && (!Number.isFinite(numero) || numero < 0)) return;
-    if (edicion.tipo === "enviar") {
+    if (edicion.tipo === "batida") {
+      const clave = claveBatida(edicion.productoId, edicion.clase, edicion.tanda);
+      const ajustada = efectivas.ajustadas.has(clave);
+      const fila = (edicion.clase === "decoracion" ? efectivas.dec : efectivas.prod).get(edicion.productoId);
+      const actual = fila?.[edicion.tanda - 1] ?? 0;
+      // Sin cambios: se limpió sin haber ajuste, o el mismo número.
+      if (numero === null && !ajustada) return;
+      if (numero !== null && numero === actual) return;
+    } else if (edicion.tipo === "cambio") {
+      if ((numero ?? 0) === (cambios[edicion.clave] ?? 0)) return;
+    } else if (edicion.tipo === "enviar") {
       // Sin cambios: mismo ajuste, o se limpió sin haber ajuste.
       const ajuste = mandarOverride[edicion.clave];
       if (numero === null && ajuste === undefined) return;
@@ -239,7 +337,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   }, [productos]);
 
   const edicionProps = { edicion, setEdicion, confirmar };
-  const columnas = 4 + tiendas.length * 2 + 3 + (sucursalPrincipal ? 1 : 0) + 1 + NUM_TANDAS;
+  const columnas = 4 + tiendas.length * 2 + 1 + 2 * NUM_TANDAS + (sucursalPrincipal ? 1 : 0) + 1 + NUM_TANDAS;
 
   return (
     <div className="flex flex-col gap-3">
@@ -270,10 +368,11 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
         <p className="text-muted-foreground sm:col-span-3">
           <span className="font-semibold text-primary">• 12</span> = cambiado a
           mano · <span className="italic">12</span> en cursiva = la tienda aún no
-          anota ese producto (columna de Principal) · — = la tienda no lleva ese producto · DEC y PROD
-          (21*6 = 21 en la primera batida y 6 en la segunda) y las libras de las
-          batidas 1–4 salen del reparto: se llenan después de hacerlo, y si
-          cambiás números aquí, volvé a hacer el reparto
+          anota ese producto (columna de Principal) · — = la tienda no lleva ese producto · DEC 1 =
+          lo que está sin decorar; DEC 2 = lo que se hornea (suma de PROD) · PROD
+          sale del reparto · Todas las casillas de DEC, PROD y CM se pueden tocar
+          para cambiarlas; vacío = vuelve a lo automático · Las libras de las
+          batidas 1–4 salen de PROD
         </p>
       </div>
 
@@ -301,20 +400,26 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                 </Fragment>
               ))}
               <th className="border-l px-2 py-2 text-right font-semibold">Saldo</th>
-              <th
-                className="border-l px-2 py-2 text-left font-semibold"
-                title="Cuánto se decora en cada batida (del reparto): 21*6 = 21 en la primera y 6 en la segunda"
-              >
-                Dec
-                <span className="block font-normal normal-case">1*2*3*4</span>
-              </th>
-              <th
-                className="border-l px-2 py-2 text-left font-semibold"
-                title="Cuánto se hornea en cada batida (del reparto)"
-              >
-                Prod
-                <span className="block font-normal normal-case">1*2*3*4</span>
-              </th>
+              {(["decoracion", "produccion"] as const).map((clase) =>
+                TANDAS.map((i) => (
+                  <th
+                    key={`${clase}-${i}`}
+                    className={cn("px-2 py-2 text-right font-semibold", i === 0 && "border-l")}
+                    title={
+                      clase === "produccion"
+                        ? `Cuánto se hornea en la batida ${i + 1} (del reparto)`
+                        : i === 0
+                          ? "Decorar primero lo que está sin decorar"
+                          : i === 1
+                            ? "Decorar lo que se hornea (suma de PROD)"
+                            : `Cuánto se decora en la batida ${i + 1}`
+                    }
+                  >
+                    {clase === "decoracion" ? "Dec" : "Prod"}
+                    <span className="block font-normal normal-case">{i + 1}</span>
+                  </th>
+                ))
+              )}
               {sucursalPrincipal && (
                 <th
                   className="border-l px-2 py-2 text-right font-semibold"
@@ -350,7 +455,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                     celdas,
                     sinDecorar,
                     decorado,
-                    cambios: principal.cambios,
+                    cambios,
                     pedidos,
                     mandarOverride,
                     saldoPrincipal: principal.saldo,
@@ -375,7 +480,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                   </tr>
                   {filas.map(({ p, fila, total }) => {
                     const nombre = `${p.nombre}${p.tamano ? ` ${p.tamano}` : ""}`;
-                    const editablePrincipal = p.lleva_decoracion && principal.id !== null;
+                    const editablePrincipal = principal.id !== null;
                     return (
                       <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/20 print:border-black/40">
                         <td className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-1.5 font-medium print:static">
@@ -387,7 +492,8 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                             <CeldaPrincipal
                               campo="decorado"
                               producto={p.id}
-                              valor={decorado[p.id] ?? 0}
+                              // Sin nada anotado, los que no llevan decoración muestran su saldo.
+                              valor={fila.deco ?? 0}
                               etiqueta={`Deco de ${nombre}`}
                               className="border-l"
                               {...edicionProps}
@@ -405,7 +511,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                             <Numero
                               valor={fila.deco}
                               className="border-l"
-                              titulo="No lleva decoración: es el saldo de Principal (sale de su inventario)"
+                              titulo="Saldo de Principal (sale de su inventario)"
                             />
                             <Numero valor={null} />
                           </>
@@ -420,7 +526,23 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                               className="border-l"
                               {...edicionProps}
                             />
-                            <Numero valor={fila.tiendas[i].cm} apagado />
+                            <CeldaEditable
+                              editando={edicion?.tipo === "cambio" && edicion.clave === `${p.id}-${t.id}`}
+                              valorEdicion={edicion?.valor ?? ""}
+                              alEscribir={(v) => setEdicion({ tipo: "cambio", clave: `${p.id}-${t.id}`, valor: v })}
+                              alTocar={() =>
+                                setEdicion({
+                                  tipo: "cambio",
+                                  clave: `${p.id}-${t.id}`,
+                                  valor: fila.tiendas[i].cm ? String(fila.tiendas[i].cm) : "",
+                                })
+                              }
+                              valor={fila.tiendas[i].cm ?? 0}
+                              etiqueta={`CM de ${nombre} en ${t.nombre}`}
+                              className="text-muted-foreground"
+                              confirmar={confirmar}
+                              cancelar={() => setEdicion(null)}
+                            />
                           </Fragment>
                         ))}
                         <td
@@ -434,8 +556,45 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                         >
                           {fila.saldo}
                         </td>
-                        <Texto valor={formatoTandas(batidas.dec[p.id] ?? [])} className="border-l" />
-                        <Texto valor={formatoTandas(batidas.prod[p.id] ?? [])} className="border-l" />
+                        {(["decoracion", "produccion"] as const).map((clase) =>
+                          TANDAS.map((i) => {
+                            const tanda = i + 1;
+                            const valor =
+                              (clase === "decoracion" ? efectivas.dec : efectivas.prod).get(p.id)?.[i] ?? 0;
+                            const ajustada = efectivas.ajustadas.has(claveBatida(p.id, clase, tanda));
+                            return (
+                              <CeldaEditable
+                                key={`${clase}-${i}`}
+                                editando={
+                                  edicion?.tipo === "batida" &&
+                                  edicion.productoId === p.id &&
+                                  edicion.clase === clase &&
+                                  edicion.tanda === tanda
+                                }
+                                valorEdicion={edicion?.valor ?? ""}
+                                alEscribir={(v) =>
+                                  setEdicion({ tipo: "batida", productoId: p.id, clase, tanda, valor: v })
+                                }
+                                alTocar={() =>
+                                  setEdicion({
+                                    tipo: "batida",
+                                    productoId: p.id,
+                                    clase,
+                                    tanda,
+                                    valor: valor ? String(valor) : "",
+                                  })
+                                }
+                                valor={valor}
+                                destacado={ajustada}
+                                titulo={ajustada ? "Cambiado a mano" : undefined}
+                                etiqueta={`${clase === "decoracion" ? "Dec" : "Prod"} batida ${tanda} de ${nombre}`}
+                                className={i === 0 ? "border-l" : undefined}
+                                confirmar={confirmar}
+                                cancelar={() => setEdicion(null)}
+                              />
+                            );
+                          })
+                        )}
                         {sucursalPrincipal && (
                           <CeldaMandar
                             clave={`${p.id}-${sucursalPrincipal.id}`}
@@ -448,7 +607,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                         <td className="border-l px-2 py-1.5 text-right font-semibold tabular-nums">
                           {total || ""}
                         </td>
-                        <CeldasLibras libras={librasProducto(batidas, p.id)} />
+                        <CeldasLibras libras={librasDe(p.id)} />
                       </tr>
                     );
                   })}
@@ -465,9 +624,9 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                           : null
                       }
                       total={paraTotal.reduce((t, f) => t + f.total, 0)}
-                      dec={sumarTandas(paraTotal.map((f) => batidas.dec[f.p.id]))}
-                      prod={sumarTandas(paraTotal.map((f) => batidas.prod[f.p.id]))}
-                      libras={sumarTandas(paraTotal.map((f) => librasProducto(batidas, f.p.id)))}
+                      dec={sumarTandas(paraTotal.map((f) => efectivas.dec.get(f.p.id)))}
+                      prod={sumarTandas(paraTotal.map((f) => efectivas.prod.get(f.p.id)))}
+                      libras={sumarTandas(paraTotal.map((f) => librasDe(f.p.id)))}
                     />
                   )}
                 </Fragment>
@@ -526,8 +685,11 @@ function FilaTotalSeccion({
       >
         {fila.saldo}
       </td>
-      <Texto valor={formatoTandas(dec)} className="border-l" />
-      <Texto valor={formatoTandas(prod)} className="border-l" />
+      {[dec, prod].map((fila, j) =>
+        TANDAS.map((i) => (
+          <Numero key={`${j}-${i}`} valor={fila[i]} className={cn("font-bold", i === 0 && "border-l")} />
+        ))
+      )}
       {principal !== null && <Numero valor={principal} className="border-l font-bold" />}
       <td className="border-l px-2 py-1.5 text-right tabular-nums">{total || ""}</td>
       <CeldasLibras libras={libras} total />
@@ -535,14 +697,6 @@ function FilaTotalSeccion({
   );
 }
 
-/** DEC / PROD por batida ("21*6"), como en el Excel. */
-function Texto({ valor, className }: { valor: string; className?: string }) {
-  return (
-    <td className={cn("whitespace-nowrap px-2 py-1.5 text-left tabular-nums", className)}>
-      {valor}
-    </td>
-  );
-}
 
 /**
  * Libras por batida (1–4). En el total de la sección, la batida que pasa de
@@ -671,6 +825,58 @@ function CeldaPrincipal({
           aria-label={`${etiqueta}: ${valor}`}
         >
           {valor ? valor : ""}
+        </button>
+      )}
+    </td>
+  );
+}
+
+/** Casilla de número que se toca para escribirla (DEC / PROD por batida, CM). */
+function CeldaEditable({
+  editando,
+  valorEdicion,
+  alEscribir,
+  alTocar,
+  valor,
+  destacado,
+  titulo,
+  etiqueta,
+  className,
+  confirmar,
+  cancelar,
+}: {
+  editando: boolean;
+  valorEdicion: string;
+  alEscribir: (v: string) => void;
+  alTocar: () => void;
+  valor: number;
+  destacado?: boolean;
+  titulo?: string;
+  etiqueta: string;
+  className?: string;
+  confirmar: () => void;
+  cancelar: () => void;
+}) {
+  return (
+    <td className={cn("px-1 py-0.5 text-right", className)}>
+      {editando ? (
+        <CampoNumero
+          valor={valorEdicion}
+          onChange={alEscribir}
+          etiqueta={etiqueta}
+          confirmar={confirmar}
+          cancelar={cancelar}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={alTocar}
+          title={titulo}
+          className={cn(BOTON_CELDA, "min-h-8", destacado && "font-semibold text-primary")}
+          aria-label={`${etiqueta}: ${valor}${destacado ? " (cambiado a mano)" : ""}`}
+        >
+          {destacado ? "• " : ""}
+          {valor ? valor : destacado ? "0" : ""}
         </button>
       )}
     </td>

@@ -104,6 +104,47 @@ export type Database = {
           },
         ]
       }
+      batidas_ajuste: {
+        Row: {
+          cantidad: number
+          fecha: string
+          id: number
+          producto_id: number
+          tanda: number
+          tipo: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cantidad: number
+          fecha: string
+          id?: never
+          producto_id: number
+          tanda: number
+          tipo: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cantidad?: number
+          fecha?: string
+          id?: never
+          producto_id?: number
+          tanda?: number
+          tipo?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batidas_ajuste_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cierres_dia: {
         Row: {
           cerrado_at: string | null

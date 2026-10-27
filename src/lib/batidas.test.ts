@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  batidasDelCuadro,
   formatoLibras,
   formatoTandas,
   librasPorBatida,
@@ -90,5 +91,52 @@ describe("formatoLibras", () => {
   it("agrega lb y redondea a un decimal", () => {
     expect(formatoLibras([84, 60.25, 0, 0])).toBe("84*60.3 lb");
     expect(formatoLibras([0, 0, 0, 0])).toBe("");
+  });
+});
+
+describe("batidasDelCuadro", () => {
+  const productos = [
+    { id: 1, lleva_decoracion: true },
+    { id: 2, lleva_decoracion: false },
+  ];
+  const prodReparto = new Map([
+    [1, [20, 5, 0, 0]],
+    [2, [8, 0, 0, 0]],
+  ]);
+
+  it("DEC 1 = sin decorar, DEC 2 = lo que se hornea (si lleva decoración)", () => {
+    const r = batidasDelCuadro({ productos, prodReparto, sinDecorar: { 1: 7, 2: 3 }, ajustes: [] });
+    expect(r.dec.get(1)).toEqual([7, 25, 0, 0]);
+    expect(r.dec.get(2)).toEqual([3, 0, 0, 0]);
+    expect(r.prod.get(1)).toEqual([20, 5, 0, 0]);
+  });
+
+  it("lo escrito a mano manda; DEC 2 usa el PROD ajustado", () => {
+    const r = batidasDelCuadro({
+      productos,
+      prodReparto,
+      sinDecorar: {},
+      ajustes: [
+        { producto_id: 1, tipo: "produccion", tanda: 2, cantidad: 10 },
+        { producto_id: 2, tipo: "decoracion", tanda: 3, cantidad: 4 },
+      ],
+    });
+    expect(r.prod.get(1)).toEqual([20, 10, 0, 0]);
+    expect(r.dec.get(1)).toEqual([0, 30, 0, 0]);
+    expect(r.dec.get(2)).toEqual([0, 0, 4, 0]);
+    expect(r.ajustadas.has("1-produccion-2")).toBe(true);
+  });
+
+  it("un 0 escrito a mano borra lo automático", () => {
+    const r = batidasDelCuadro({
+      productos,
+      prodReparto,
+      sinDecorar: { 1: 7 },
+      ajustes: [
+        { producto_id: 1, tipo: "decoracion", tanda: 1, cantidad: 0 },
+        { producto_id: 1, tipo: "decoracion", tanda: 2, cantidad: 0 },
+      ],
+    });
+    expect(r.dec.has(1)).toBe(false);
   });
 });
