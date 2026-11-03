@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   batidasDelCuadro,
+  batidasUsadas,
   formatoLibras,
   formatoTandas,
   librasPorBatida,
@@ -106,9 +107,9 @@ describe("batidasDelCuadro", () => {
 
   it("DEC 1 = sin decorar, DEC 2 = lo que se hornea (si lleva decoración)", () => {
     const r = batidasDelCuadro({ productos, prodReparto, sinDecorar: { 1: 7, 2: 3 }, ajustes: [] });
-    expect(r.dec.get(1)).toEqual([7, 25, 0, 0]);
-    expect(r.dec.get(2)).toEqual([3, 0, 0, 0]);
-    expect(r.prod.get(1)).toEqual([20, 5, 0, 0]);
+    expect(r.dec.get(1)).toEqual([7, 25, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.dec.get(2)).toEqual([3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.prod.get(1)).toEqual([20, 5, 0, 0, 0, 0, 0, 0, 0, 0]);
   });
 
   it("lo escrito a mano manda; DEC 2 usa el PROD ajustado", () => {
@@ -121,9 +122,9 @@ describe("batidasDelCuadro", () => {
         { producto_id: 2, tipo: "decoracion", tanda: 3, cantidad: 4 },
       ],
     });
-    expect(r.prod.get(1)).toEqual([20, 10, 0, 0]);
-    expect(r.dec.get(1)).toEqual([0, 30, 0, 0]);
-    expect(r.dec.get(2)).toEqual([0, 0, 4, 0]);
+    expect(r.prod.get(1)).toEqual([20, 10, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.dec.get(1)).toEqual([0, 30, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.dec.get(2)).toEqual([0, 0, 4, 0, 0, 0, 0, 0, 0, 0]);
     expect(r.ajustadas.has("1-produccion-2")).toBe(true);
   });
 
@@ -138,5 +139,23 @@ describe("batidasDelCuadro", () => {
       ],
     });
     expect(r.dec.has(1)).toBe(false);
+  });
+});
+
+describe("hasta 10 batidas", () => {
+  it("una batida escrita a mano después de la 4 se suma a DEC 2", () => {
+    const r = batidasDelCuadro({
+      productos: [{ id: 1, lleva_decoracion: true }],
+      prodReparto: new Map([[1, [10, 0, 0, 0]]]),
+      sinDecorar: {},
+      ajustes: [{ producto_id: 1, tipo: "produccion", tanda: 9, cantidad: 6 }],
+    });
+    expect(r.prod.get(1)?.[8]).toBe(6);
+    expect(r.dec.get(1)?.[1]).toBe(16);
+    expect(batidasUsadas(r.dec, r.prod)).toBe(9);
+  });
+
+  it("sin nada, se usa 1 batida", () => {
+    expect(batidasUsadas(new Map(), new Map())).toBe(1);
   });
 });

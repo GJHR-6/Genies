@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Aviso } from "@/components/encabezado-seccion";
 import type { CeldaSugerido, ProductoSugerido } from "@/lib/sugeridos";
 import {
@@ -15,13 +16,15 @@ import {
   type FilaHojaCompleta,
 } from "@/lib/hoja-completa";
 import {
+  MAX_BATIDAS,
   MAX_LIBRAS_BATIDA,
-  NUM_TANDAS,
   batidasDelCuadro,
-  claveBatida,
+  batidasUsadas,
+  formatoTandas,
   type AjusteBatida,
 } from "@/lib/batidas";
 import { cn } from "@/lib/utils";
+import { PanelBatidas, type CambioBatida } from "./panel-batidas";
 
 type Sucursal = { id: number; nombre: string };
 
@@ -35,8 +38,8 @@ export type DatosPrincipal = {
 };
 
 /**
- * Para DEC / PROD por batida (tanda T1–T4): lo que se hornea según el
- * reparto, las casillas cambiadas a mano y las libras de masa por unidad.
+ * Para DEC / PROD por batida (1–10): lo que se hornea según el reparto
+ * (T1–T4), las casillas cambiadas a mano y las libras de masa por unidad.
  */
 export type DatosBatidas = {
   prodReparto: Record<number, number[]>;
@@ -44,7 +47,7 @@ export type DatosBatidas = {
   libras: Record<number, number>;
 };
 
-const TANDAS = Array.from({ length: NUM_TANDAS }, (_, i) => i);
+const indices = (n: number) => Array.from({ length: n }, (_, i) => i);
 
 /** Libras de cada batida de un producto: lo que se hornea × libras por unidad. */
 function librasProducto(
@@ -55,15 +58,30 @@ function librasProducto(
   const lb = libras[productoId];
   if (!lb) return null;
   const prod = prodPorProducto.get(productoId) ?? [];
-  return TANDAS.map((i) => Math.round((prod[i] ?? 0) * lb * 100) / 100);
+  return indices(MAX_BATIDAS).map((i) => Math.round((prod[i] ?? 0) * lb * 100) / 100);
 }
 
-/** Suma tanda por tanda. */
+/** Suma batida por batida. */
 function sumarTandas(listas: (readonly number[] | null | undefined)[]): number[] {
-  return TANDAS.map((i) =>
+  return indices(MAX_BATIDAS).map((i) =>
     Math.round(listas.reduce((t, l) => t + (l?.[i] ?? 0), 0) * 100) / 100
   );
 }
+
+/**
+ * Qué columnas se ven: Despacho (lo que hay en Principal y lo que va a
+ * cada tienda), Producción (sin deco, sugerido, DEC / PROD y libras) o
+ * Todo. Al imprimir siempre sale la hoja completa, como el Excel.
+ */
+type Vista = "despacho" | "produccion" | "todo";
+const VISTAS: { valor: Vista; etiqueta: string }[] = [
+  { valor: "despacho", etiqueta: "Despacho" },
+  { valor: "produccion", etiqueta: "Producción" },
+  { valor: "todo", etiqueta: "Todo" },
+];
+const CLAVE_VISTA = "genies:cuadro-vista";
+/** Batidas que se ven aunque no se usen (un día normal). */
+const MIN_BATIDAS_VISIBLES = 2;
 
 type Props = {
   fecha: string;
@@ -81,21 +99,14 @@ type Props = {
 
 /**
  * Qué casilla se está escribiendo: lo que se manda a una tienda (ajuste
- * sobre su pedido), el CM de una tienda, el sugerido de Principal,
- * DECO / SIN DECO, o una batida de DEC / PROD.
+ * sobre su pedido), el CM de una tienda, el sugerido de Principal o
+ * DECO / SIN DECO. DEC / PROD se escriben en el panel de batidas.
  */
 type Edicion =
   | { tipo: "enviar"; clave: string; valor: string }
   | { tipo: "cambio"; clave: string; valor: string }
   | { tipo: "mandar"; clave: string; valor: string }
   | { tipo: "decorado" | "sin_decorar"; productoId: number; valor: string }
-  | {
-      tipo: "batida";
-      productoId: number;
-      clase: AjusteBatida["tipo"];
-      tanda: number;
-      valor: string;
-    }
   | null;
 
 const CAMPO_NUMERO = "h-8 w-16 text-right tabular-nums";
@@ -118,6 +129,34 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   const [ajustesBatida, setAjustesBatida] = useState(batidas.ajustes);
   const [edicion, setEdicion] = useState<Edicion>(null);
   const [errorGuardado, setErrorGuardado] = useState(false);
+  const [panel, setPanel] = useState<number | null>(null);
+  const [batidasAgregadas, setBatidasAgregadas] = useState(0);
+
+  // Cada tablet o computadora recuerda la pestaña (si falla, Despacho).
+  const [vista, setVista] = useState<Vista>("despacho");
+  useEffect(() => {
+    try {
+      const guardada = localStorage.getItem(CLAVE_VISTA);
+      if (VISTAS.some((v) => v.valor === guardada)) {
+        setVista(guardada as Vista);
+      }
+    } catch {
+      /* sin almacenamiento: Despacho */
+    }
+  }, []);
+  const cambiarVista = (v: Vista) => {
+    setVista(v);
+    try {
+      localStorage.setItem(CLAVE_VISTA, v);
+    } catch {
+      /* sin almacenamiento: vale solo para esta visita */
+    }
+  };
+  /** Clases de una columna: escondida si no es de la pestaña (al imprimir, sí). */
+  const col = (...grupos: Exclude<Vista, "todo">[]) =>
+    vista === "todo" || grupos.includes(vista as Exclude<Vista, "todo">)
+      ? ""
+      : "hidden print:table-cell";
 
   // Al recargar (router.refresh) llegan los datos frescos del servidor.
   useEffect(() => setCeldas(celdasProp), [celdasProp]);
@@ -143,6 +182,14 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   );
   const librasDe = (productoId: number) =>
     librasProducto(batidas.libras, efectivas.prod, productoId);
+  // Se ven las batidas que se usan hoy (mínimo 2) más las agregadas con
+  // «Agregar batida», hasta 10.
+  const numBatidas = Math.min(
+    Math.max(batidasUsadas(efectivas.dec, efectivas.prod), MIN_BATIDAS_VISIBLES, batidasAgregadas),
+    MAX_BATIDAS
+  );
+  const BATIDAS = indices(numBatidas);
+  const agregarBatida = () => setBatidasAgregadas(Math.min(numBatidas + 1, MAX_BATIDAS));
 
   const usuario = async () => (await supabase.auth.getUser()).data.user?.id ?? null;
 
@@ -191,33 +238,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
 
   const mutacion = useMutation({
     mutationFn: async (e: NonNullable<Edicion> & { numero: number | null }) => {
-      if (e.tipo === "batida") {
-        // Vacío = vuelve a lo automático.
-        if (e.numero === null) {
-          const { error } = await supabase
-            .from("batidas_ajuste")
-            .delete()
-            .eq("fecha", fecha)
-            .eq("producto_id", e.productoId)
-            .eq("tipo", e.clase)
-            .eq("tanda", e.tanda);
-          if (error) throw new Error(error.message);
-          return;
-        }
-        const { error } = await supabase.from("batidas_ajuste").upsert(
-          {
-            fecha,
-            producto_id: e.productoId,
-            tipo: e.clase,
-            tanda: e.tanda,
-            cantidad: e.numero,
-            updated_at: new Date().toISOString(),
-            updated_by: await usuario(),
-          },
-          { onConflict: "fecha,producto_id,tipo,tanda" }
-        );
-        if (error) throw new Error(error.message);
-      } else if (e.tipo === "cambio") {
+      if (e.tipo === "cambio") {
         const [productoId, sucursalId] = e.clave.split("-").map(Number);
         await guardarFila(sucursalId, productoId, { cambio: e.numero ?? 0 });
       } else if (e.tipo === "mandar" || e.tipo === "enviar") {
@@ -234,18 +255,6 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
     },
     onSuccess: (_d, e) => {
       setErrorGuardado(false);
-      if (e.tipo === "batida") {
-        setAjustesBatida((prev) => {
-          const resto = prev.filter(
-            (a) => !(a.producto_id === e.productoId && a.tipo === e.clase && a.tanda === e.tanda)
-          );
-          return e.numero === null
-            ? resto
-            : [...resto, { producto_id: e.productoId, tipo: e.clase, tanda: e.tanda, cantidad: e.numero }];
-        });
-        // Solo cambia este cuadro: no hace falta recargar.
-        return;
-      }
       if (e.tipo === "cambio") {
         setCambios((prev) => {
           const { [e.clave]: _quitado, ...resto } = prev;
@@ -286,21 +295,67 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
     onError: () => setErrorGuardado(true),
   });
 
+  /** Lo del panel de batidas: a mano = upsert; vacío = se borra el ajuste. */
+  const guardarBatidas = useMutation({
+    mutationFn: async ({ productoId, cambios: lista }: { productoId: number; cambios: CambioBatida[] }) => {
+      const updated_by = await usuario();
+      const updated_at = new Date().toISOString();
+      const escritos = lista.filter((c) => c.cantidad !== null);
+      if (escritos.length > 0) {
+        const { error } = await supabase.from("batidas_ajuste").upsert(
+          escritos.map((c) => ({
+            fecha,
+            producto_id: productoId,
+            tipo: c.tipo,
+            tanda: c.tanda,
+            cantidad: c.cantidad!,
+            updated_at,
+            updated_by,
+          })),
+          { onConflict: "fecha,producto_id,tipo,tanda" }
+        );
+        if (error) throw new Error(error.message);
+      }
+      for (const tipo of ["decoracion", "produccion"] as const) {
+        const borrar = lista.filter((c) => c.cantidad === null && c.tipo === tipo).map((c) => c.tanda);
+        if (borrar.length === 0) continue;
+        const { error } = await supabase
+          .from("batidas_ajuste")
+          .delete()
+          .eq("fecha", fecha)
+          .eq("producto_id", productoId)
+          .eq("tipo", tipo)
+          .in("tanda", borrar);
+        if (error) throw new Error(error.message);
+      }
+    },
+    retry: 2,
+    onSuccess: (_d, { productoId, cambios: lista }) => {
+      setErrorGuardado(false);
+      setAjustesBatida((prev) => {
+        const tocadas = new Set(lista.map((c) => `${c.tipo}-${c.tanda}`));
+        const resto = prev.filter(
+          (a) => a.producto_id !== productoId || !tocadas.has(`${a.tipo}-${a.tanda}`)
+        );
+        return [
+          ...resto,
+          ...lista
+            .filter((c) => c.cantidad !== null)
+            .map((c) => ({ producto_id: productoId, tipo: c.tipo, tanda: c.tanda, cantidad: c.cantidad! })),
+        ];
+      });
+      setPanel(null);
+    },
+    onError: () => setErrorGuardado(true),
+  });
+
   const confirmar = () => {
     if (!edicion) return;
     const texto = edicion.valor.trim();
     const numero = texto === "" ? null : parseInt(texto, 10);
     setEdicion(null);
     if (numero !== null && (!Number.isFinite(numero) || numero < 0)) return;
-    if (edicion.tipo === "batida") {
-      const clave = claveBatida(edicion.productoId, edicion.clase, edicion.tanda);
-      const ajustada = efectivas.ajustadas.has(clave);
-      const fila = (edicion.clase === "decoracion" ? efectivas.dec : efectivas.prod).get(edicion.productoId);
-      const actual = fila?.[edicion.tanda - 1] ?? 0;
-      // Sin cambios: se limpió sin haber ajuste, o el mismo número.
-      if (numero === null && !ajustada) return;
-      if (numero !== null && numero === actual) return;
-    } else if (edicion.tipo === "cambio") {
+    if (edicion.tipo === "cambio") {
       if ((numero ?? 0) === (cambios[edicion.clave] ?? 0)) return;
     } else if (edicion.tipo === "enviar") {
       // Sin cambios: mismo ajuste, o se limpió sin haber ajuste.
@@ -337,42 +392,87 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   }, [productos]);
 
   const edicionProps = { edicion, setEdicion, confirmar };
-  const columnas = 4 + tiendas.length * 2 + 1 + 2 * NUM_TANDAS + (sucursalPrincipal ? 1 : 0) + 1 + NUM_TANDAS;
+  const columnas = 4 + tiendas.length * 2 + 3 + (sucursalPrincipal ? 1 : 0) + 1 + numBatidas;
+  const productoPanel = panel === null ? null : (productos.find((p) => p.id === panel) ?? null);
+  /** Hay algo de DEC / PROD cambiado a mano en este producto. */
+  const conAjuste = (productoId: number, tipo: AjusteBatida["tipo"]) =>
+    ajustesBatida.some((a) => a.producto_id === productoId && a.tipo === tipo);
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid gap-3 rounded-2xl border bg-muted/40 p-4 text-sm sm:grid-cols-3 print:hidden">
-        <p>
-          <span className="font-semibold">1. Lo que hay en Principal.</span>{" "}
-          <span className="text-muted-foreground">
-            Escribí DECO y SIN DECO (se guardan en el inventario de Principal de
-            hoy). INV/TOTAL = DECO + SIN DECO.
-          </span>
-        </p>
-        <p>
-          <span className="font-semibold">2. Lo que va a cada tienda.</span>{" "}
-          <span className="text-muted-foreground">
-            Es el pedido que anotó la tienda; abajo, en chico, su sugerido.
-            Tocá un número para cambiarlo y presioná Enter; vacío = vuelve al
-            pedido. Sin pedido no se manda nada. CM = cambio de la tienda.
-          </span>
-        </p>
-        <p>
-          <span className="font-semibold">3. Revisá el SALDO.</span>{" "}
-          <span className="text-muted-foreground">
-            INV/TOTAL + CM − lo que se manda. En{" "}
-            <span className="font-semibold text-destructive">rojo</span>, falta
-            producto: hay que hornear o mandar menos.
-          </span>
-        </p>
-        <p className="text-muted-foreground sm:col-span-3">
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
+        <div role="tablist" aria-label="Qué columnas ver" className="inline-flex rounded-lg border bg-muted/40 p-1">
+          {VISTAS.map((v) => (
+            <button
+              key={v.valor}
+              type="button"
+              role="tab"
+              aria-selected={vista === v.valor}
+              onClick={() => cambiarVista(v.valor)}
+              className={cn(
+                "min-h-10 rounded-md px-4 text-sm font-semibold",
+                vista === v.valor ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {v.etiqueta}
+            </button>
+          ))}
+        </div>
+        {vista !== "despacho" && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">
+              Batidas hoy: <span className="font-semibold text-foreground">{numBatidas}</span>
+            </span>
+            {numBatidas < MAX_BATIDAS && (
+              <Button type="button" variant="outline" size="sm" onClick={agregarBatida}>
+                + Batida
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border bg-muted/40 p-4 text-sm print:hidden">
+        {vista !== "produccion" ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <p>
+              <span className="font-semibold">1. Lo que hay en Principal.</span>{" "}
+              <span className="text-muted-foreground">
+                Escribí DECO y SIN DECO (se guardan en el inventario de Principal
+                de hoy). INV/TOTAL = DECO + SIN DECO.
+              </span>
+            </p>
+            <p>
+              <span className="font-semibold">2. Lo que va a cada tienda.</span>{" "}
+              <span className="text-muted-foreground">
+                Es el pedido que anotó la tienda; abajo, en chico, su sugerido.
+                Tocá un número para cambiarlo y presioná Enter; vacío = vuelve al
+                pedido. CM = cambio de la tienda (también se puede cambiar).
+              </span>
+            </p>
+            <p>
+              <span className="font-semibold">3. Revisá el SALDO.</span>{" "}
+              <span className="text-muted-foreground">
+                INV/TOTAL + CM − lo que se manda. En{" "}
+                <span className="font-semibold text-destructive">rojo</span>,
+                falta producto: hay que hornear o mandar menos.
+              </span>
+            </p>
+          </div>
+        ) : (
+          <p className="text-muted-foreground">
+            <span className="font-semibold text-foreground">DEC y PROD por batida</span>{" "}
+            (21*6 = 21 en la primera y 6 en la segunda). Dec 1 = lo que está sin
+            decorar; Dec 2 = lo que se hornea; Prod sale del reparto. Tocá un
+            producto para cambiar sus batidas (hasta {MAX_BATIDAS}). Las libras
+            salen de Prod; en rojo, la batida que pasa de {MAX_LIBRAS_BATIDA} lb.
+          </p>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
           <span className="font-semibold text-primary">• 12</span> = cambiado a
           mano · <span className="italic">12</span> en cursiva = la tienda aún no
-          anota ese producto (columna de Principal) · — = la tienda no lleva ese producto · DEC 1 =
-          lo que está sin decorar; DEC 2 = lo que se hornea (suma de PROD) · PROD
-          sale del reparto · Todas las casillas de DEC, PROD y CM se pueden tocar
-          para cambiarlas; vacío = vuelve a lo automático · Las libras de las
-          batidas 1–4 salen de PROD
+          anota ese producto · — = la tienda no lleva ese producto · Al imprimir
+          sale la hoja completa, con todas las columnas.
         </p>
       </div>
 
@@ -384,60 +484,59 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
       )}
 
       <div className="overflow-x-auto rounded-lg border print:overflow-visible print:rounded-none print:border-0">
-        <table className="w-full min-w-[900px] border-collapse text-sm print:min-w-0 print:text-[9.5px]">
+        <table
+          className={cn(
+            "w-full border-collapse text-sm print:min-w-0 print:text-[9.5px]",
+            vista !== "produccion" && "min-w-[900px]"
+          )}
+        >
           <thead>
             <tr className="border-b bg-muted/50 text-xs uppercase print:border-black print:bg-transparent">
               <th className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-2 text-left font-semibold print:static">
                 Producto
               </th>
-              <th className="border-l px-2 py-2 text-right font-semibold">Deco</th>
-              <th className="px-2 py-2 text-right font-semibold">Sin deco</th>
-              <th className="px-2 py-2 text-right font-semibold">Inv/Total</th>
+              <th className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}>Deco</th>
+              <th className={cn("px-2 py-2 text-right font-semibold", col("despacho", "produccion"))}>Sin deco</th>
+              <th className={cn("px-2 py-2 text-right font-semibold", col("despacho"))}>Inv/Total</th>
               {tiendas.map((t) => (
                 <Fragment key={t.id}>
-                  <th className="border-l px-2 py-2 text-right font-semibold">{t.nombre}</th>
-                  <th className="px-2 py-2 text-right font-medium text-muted-foreground">CM</th>
+                  <th className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}>{t.nombre}</th>
+                  <th className={cn("px-2 py-2 text-right font-medium text-muted-foreground", col("despacho"))}>CM</th>
                 </Fragment>
               ))}
-              <th className="border-l px-2 py-2 text-right font-semibold">Saldo</th>
-              {(["decoracion", "produccion"] as const).map((clase) =>
-                TANDAS.map((i) => (
-                  <th
-                    key={`${clase}-${i}`}
-                    className={cn("px-2 py-2 text-right font-semibold", i === 0 && "border-l")}
-                    title={
-                      clase === "produccion"
-                        ? `Cuánto se hornea en la batida ${i + 1} (del reparto)`
-                        : i === 0
-                          ? "Decorar primero lo que está sin decorar"
-                          : i === 1
-                            ? "Decorar lo que se hornea (suma de PROD)"
-                            : `Cuánto se decora en la batida ${i + 1}`
-                    }
-                  >
-                    {clase === "decoracion" ? "Dec" : "Prod"}
-                    <span className="block font-normal normal-case">{i + 1}</span>
-                  </th>
-                ))
-              )}
+              <th className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}>Saldo</th>
+              <th
+                className={cn("border-l px-2 py-2 text-left font-semibold", col("produccion"))}
+                title="Cuánto se decora en cada batida: 1 = lo sin decorar, 2 = lo que se hornea"
+              >
+                Dec
+                <span className="block font-normal normal-case">por batida</span>
+              </th>
+              <th
+                className={cn("border-l px-2 py-2 text-left font-semibold", col("produccion"))}
+                title="Cuánto se hornea en cada batida (del reparto)"
+              >
+                Prod
+                <span className="block font-normal normal-case">por batida</span>
+              </th>
               {sucursalPrincipal && (
                 <th
-                  className="border-l px-2 py-2 text-right font-semibold"
+                  className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}
                   title="Lo que necesita la vitrina de Principal"
                 >
                   {sucursalPrincipal.nombre}
                 </th>
               )}
               <th
-                className="border-l px-2 py-2 text-right font-semibold"
+                className={cn("border-l px-2 py-2 text-right font-semibold", col("produccion"))}
                 title="Suma de todas las sucursales"
               >
                 Sugerido
               </th>
-              {TANDAS.map((i) => (
+              {BATIDAS.map((i) => (
                 <th
                   key={i}
-                  className={cn("px-2 py-2 text-right font-semibold", i === 0 && "border-l")}
+                  className={cn("px-2 py-2 text-right font-semibold", i === 0 && "border-l", col("produccion"))}
                   title={`Libras de masa en la batida ${i + 1} (máximo ${MAX_LIBRAS_BATIDA} lb)`}
                 >
                   {i + 1}
@@ -495,7 +594,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                               // Sin nada anotado, los que no llevan decoración muestran su saldo.
                               valor={fila.deco ?? 0}
                               etiqueta={`Deco de ${nombre}`}
-                              className="border-l"
+                              className={cn("border-l", col("despacho"))}
                               {...edicionProps}
                             />
                             <CeldaPrincipal
@@ -503,6 +602,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                               producto={p.id}
                               valor={sinDecorar[p.id] ?? 0}
                               etiqueta={`Sin deco de ${nombre}`}
+                              className={col("despacho", "produccion")}
                               {...edicionProps}
                             />
                           </>
@@ -510,20 +610,20 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                           <>
                             <Numero
                               valor={fila.deco}
-                              className="border-l"
+                              className={cn("border-l", col("despacho"))}
                               titulo="Saldo de Principal (sale de su inventario)"
                             />
-                            <Numero valor={null} />
+                            <Numero valor={null} className={col("despacho", "produccion")} />
                           </>
                         )}
-                        <Numero valor={fila.invTotal} className="font-semibold" />
+                        <Numero valor={fila.invTotal} className={cn("font-semibold", col("despacho"))} />
                         {tiendas.map((t, i) => (
                           <Fragment key={t.id}>
                             <CeldaEnviar
                               clave={`${p.id}-${t.id}`}
                               tienda={fila.tiendas[i]}
                               etiqueta={`Lo que se manda de ${nombre} a ${t.nombre}`}
-                              className="border-l"
+                              className={cn("border-l", col("despacho"))}
                               {...edicionProps}
                             />
                             <CeldaEditable
@@ -539,7 +639,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                               }
                               valor={fila.tiendas[i].cm ?? 0}
                               etiqueta={`CM de ${nombre} en ${t.nombre}`}
-                              className="text-muted-foreground"
+                              className={cn("text-muted-foreground", col("despacho"))}
                               confirmar={confirmar}
                               cancelar={() => setEdicion(null)}
                             />
@@ -550,64 +650,38 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                             "border-l px-2 py-1.5 text-right font-bold tabular-nums",
                             fila.saldo < 0
                               ? "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
-                              : "text-exito print:text-black"
+                              : "text-exito print:text-black",
+                            col("despacho")
                           )}
                           title={fila.saldo < 0 ? `Faltan ${-fila.saldo}` : "Alcanza con lo que hay en Principal"}
                         >
                           {fila.saldo}
                         </td>
-                        {(["decoracion", "produccion"] as const).map((clase) =>
-                          TANDAS.map((i) => {
-                            const tanda = i + 1;
-                            const valor =
-                              (clase === "decoracion" ? efectivas.dec : efectivas.prod).get(p.id)?.[i] ?? 0;
-                            const ajustada = efectivas.ajustadas.has(claveBatida(p.id, clase, tanda));
-                            return (
-                              <CeldaEditable
-                                key={`${clase}-${i}`}
-                                editando={
-                                  edicion?.tipo === "batida" &&
-                                  edicion.productoId === p.id &&
-                                  edicion.clase === clase &&
-                                  edicion.tanda === tanda
-                                }
-                                valorEdicion={edicion?.valor ?? ""}
-                                alEscribir={(v) =>
-                                  setEdicion({ tipo: "batida", productoId: p.id, clase, tanda, valor: v })
-                                }
-                                alTocar={() =>
-                                  setEdicion({
-                                    tipo: "batida",
-                                    productoId: p.id,
-                                    clase,
-                                    tanda,
-                                    valor: valor ? String(valor) : "",
-                                  })
-                                }
-                                valor={valor}
-                                destacado={ajustada}
-                                titulo={ajustada ? "Cambiado a mano" : undefined}
-                                etiqueta={`${clase === "decoracion" ? "Dec" : "Prod"} batida ${tanda} de ${nombre}`}
-                                className={i === 0 ? "border-l" : undefined}
-                                confirmar={confirmar}
-                                cancelar={() => setEdicion(null)}
-                              />
-                            );
-                          })
-                        )}
+                        {(["decoracion", "produccion"] as const).map((clase) => (
+                          <CeldaBatidas
+                            key={clase}
+                            valor={formatoTandas(
+                              (clase === "decoracion" ? efectivas.dec : efectivas.prod).get(p.id) ?? []
+                            )}
+                            ajustada={conAjuste(p.id, clase)}
+                            etiqueta={`${clase === "decoracion" ? "Dec" : "Prod"} por batida de ${nombre}`}
+                            alTocar={() => setPanel(p.id)}
+                            className={cn("border-l", col("produccion"))}
+                          />
+                        ))}
                         {sucursalPrincipal && (
                           <CeldaMandar
                             clave={`${p.id}-${sucursalPrincipal.id}`}
                             celda={celdas[`${p.id}-${sucursalPrincipal.id}`]}
                             etiqueta={`Sugerido de ${nombre} en ${sucursalPrincipal.nombre}`}
-                            className="border-l"
+                            className={cn("border-l", col("despacho"))}
                             {...edicionProps}
                           />
                         )}
-                        <td className="border-l px-2 py-1.5 text-right font-semibold tabular-nums">
+                        <td className={cn("border-l px-2 py-1.5 text-right font-semibold tabular-nums", col("produccion"))}>
                           {total || ""}
                         </td>
-                        <CeldasLibras libras={librasDe(p.id)} />
+                        <CeldasLibras libras={librasDe(p.id)} numBatidas={numBatidas} className={col("produccion")} />
                       </tr>
                     );
                   })}
@@ -627,6 +701,8 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                       dec={sumarTandas(paraTotal.map((f) => efectivas.dec.get(f.p.id)))}
                       prod={sumarTandas(paraTotal.map((f) => efectivas.prod.get(f.p.id)))}
                       libras={sumarTandas(paraTotal.map((f) => librasDe(f.p.id)))}
+                      numBatidas={numBatidas}
+                      col={col}
                     />
                   )}
                 </Fragment>
@@ -635,6 +711,26 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
           </tbody>
         </table>
       </div>
+
+      {productoPanel && (
+        <PanelBatidas
+          key={productoPanel.id}
+          producto={{
+            id: productoPanel.id,
+            nombre: `${productoPanel.nombre}${productoPanel.tamano ? ` · ${productoPanel.tamano}` : ""}`,
+            lleva_decoracion: productoPanel.lleva_decoracion,
+          }}
+          numBatidas={numBatidas}
+          agregarBatida={agregarBatida}
+          prodReparto={batidas.prodReparto[productoPanel.id] ?? []}
+          sinDecorar={sinDecorar[productoPanel.id] ?? 0}
+          ajustes={ajustesBatida}
+          librasPorUnidad={batidas.libras[productoPanel.id] ?? null}
+          guardando={guardarBatidas.isPending}
+          alGuardar={(lista) => guardarBatidas.mutate({ productoId: productoPanel.id, cambios: lista })}
+          alCerrar={() => setPanel(null)}
+        />
+      )}
     </div>
   );
 }
@@ -648,6 +744,8 @@ function FilaTotalSeccion({
   dec,
   prod,
   libras,
+  numBatidas,
+  col,
 }: {
   categoria: string;
   fila: FilaHojaCompleta;
@@ -656,6 +754,8 @@ function FilaTotalSeccion({
   dec: number[];
   prod: number[];
   libras: number[];
+  numBatidas: number;
+  col: (...grupos: Exclude<Vista, "todo">[]) => string;
 }) {
   return (
     <tr className="border-b-2 border-foreground/30 bg-muted/50 font-bold print:border-black print:bg-black/10">
@@ -666,13 +766,13 @@ function FilaTotalSeccion({
         Total {categoria}
         <span className="block text-xs font-normal text-muted-foreground">sin porciones</span>
       </td>
-      <Numero valor={fila.deco} className="border-l font-bold" />
-      <Numero valor={fila.sinDeco} className="font-bold" />
-      <Numero valor={fila.invTotal} className="font-bold" />
+      <Numero valor={fila.deco} className={cn("border-l font-bold", col("despacho"))} />
+      <Numero valor={fila.sinDeco} className={cn("font-bold", col("despacho", "produccion"))} />
+      <Numero valor={fila.invTotal} className={cn("font-bold", col("despacho"))} />
       {fila.tiendas.map((t) => (
         <Fragment key={t.sucursalId}>
-          <Numero valor={t.mandar} className="border-l font-bold" />
-          <Numero valor={t.cm} apagado />
+          <Numero valor={t.mandar} className={cn("border-l font-bold", col("despacho"))} />
+          <Numero valor={t.cm} apagado className={col("despacho")} />
         </Fragment>
       ))}
       <td
@@ -680,32 +780,79 @@ function FilaTotalSeccion({
           "border-l px-2 py-1.5 text-right tabular-nums",
           fila.saldo < 0
             ? "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
-            : "text-exito print:text-black"
+            : "text-exito print:text-black",
+          col("despacho")
         )}
       >
         {fila.saldo}
       </td>
-      {[dec, prod].map((fila, j) =>
-        TANDAS.map((i) => (
-          <Numero key={`${j}-${i}`} valor={fila[i]} className={cn("font-bold", i === 0 && "border-l")} />
-        ))
-      )}
-      {principal !== null && <Numero valor={principal} className="border-l font-bold" />}
-      <td className="border-l px-2 py-1.5 text-right tabular-nums">{total || ""}</td>
-      <CeldasLibras libras={libras} total />
+      <Texto valor={formatoTandas(dec)} className={cn("border-l", col("produccion"))} />
+      <Texto valor={formatoTandas(prod)} className={cn("border-l", col("produccion"))} />
+      {principal !== null && <Numero valor={principal} className={cn("border-l font-bold", col("despacho"))} />}
+      <td className={cn("border-l px-2 py-1.5 text-right tabular-nums", col("produccion"))}>{total || ""}</td>
+      <CeldasLibras libras={libras} total numBatidas={numBatidas} className={col("produccion")} />
     </tr>
   );
 }
 
+/** DEC / PROD por batida ("21*6"), como en el Excel. */
+function Texto({ valor, className }: { valor: string; className?: string }) {
+  return (
+    <td className={cn("whitespace-nowrap px-2 py-1.5 text-left tabular-nums", className)}>
+      {valor}
+    </td>
+  );
+}
+
+/** DEC o PROD de un producto ("21*6"): se toca para abrir el panel de batidas. */
+function CeldaBatidas({
+  valor,
+  ajustada,
+  etiqueta,
+  alTocar,
+  className,
+}: {
+  valor: string;
+  ajustada: boolean;
+  etiqueta: string;
+  alTocar: () => void;
+  className?: string;
+}) {
+  return (
+    <td className={cn("px-1 py-0.5 text-left", className)}>
+      <button
+        type="button"
+        onClick={alTocar}
+        title={ajustada ? "Cambiado a mano · tocá para ver las batidas" : "Tocá para ver o cambiar las batidas"}
+        className={cn(BOTON_CELDA, "min-h-8 whitespace-nowrap text-left", ajustada && "font-semibold text-primary")}
+        aria-label={`${etiqueta}: ${valor || "nada"}${ajustada ? " (cambiado a mano)" : ""}`}
+      >
+        {ajustada ? "• " : ""}
+        {valor || " "}
+      </button>
+    </td>
+  );
+}
 
 /**
- * Libras por batida (1–4). En el total de la sección, la batida que pasa de
- * 100 lb sale en rojo; los productos sin libras quedan vacíos.
+ * Libras por batida (las que se ven hoy). En el total de la sección, la
+ * batida que pasa de 100 lb sale en rojo; los productos sin libras quedan
+ * vacíos.
  */
-function CeldasLibras({ libras, total }: { libras: number[] | null; total?: boolean }) {
+function CeldasLibras({
+  libras,
+  total,
+  numBatidas,
+  className,
+}: {
+  libras: number[] | null;
+  total?: boolean;
+  numBatidas: number;
+  className?: string;
+}) {
   return (
     <>
-      {TANDAS.map((i) => {
+      {indices(numBatidas).map((i) => {
         const lb = libras?.[i] ?? 0;
         const excede = total && lb > MAX_LIBRAS_BATIDA;
         return (
@@ -715,7 +862,8 @@ function CeldasLibras({ libras, total }: { libras: number[] | null; total?: bool
               "px-2 py-1.5 text-right tabular-nums",
               i === 0 && "border-l",
               !total && "text-muted-foreground",
-              excede && "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
+              excede && "bg-destructive/10 text-destructive print:bg-transparent print:text-black",
+              className
             )}
             title={excede ? `Se pasa de ${MAX_LIBRAS_BATIDA} lb en la batida ${i + 1}` : undefined}
           >

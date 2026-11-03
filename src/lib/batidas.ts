@@ -13,7 +13,13 @@
  */
 
 export const MAX_LIBRAS_BATIDA = 100;
+/** Tandas del reparto de las pasteleras (T1–T4). */
 export const NUM_TANDAS = 4;
+/**
+ * Batidas del cuadro completo: en temporada alta se escriben a mano hasta
+ * la 10 (el reparto llena solo las primeras 4).
+ */
+export const MAX_BATIDAS = 10;
 
 /** Cantidades por tanda (índice 0 = T1) → "39*2", "0*10", "4" o "". */
 export function formatoTandas(cantidades: readonly number[]): string {
@@ -35,14 +41,15 @@ type Asignacion = {
 /** Por producto: cantidades por tanda de un tipo (sumando pasteleras). */
 export function tandasPorProducto(
   asignaciones: readonly Asignacion[],
-  tipo: Asignacion["tipo"]
+  tipo: Asignacion["tipo"],
+  tandas = NUM_TANDAS
 ): Map<number, number[]> {
   const resultado = new Map<number, number[]>();
   for (const a of asignaciones) {
-    if (a.tipo !== tipo || a.tanda < 1 || a.tanda > NUM_TANDAS) continue;
+    if (a.tipo !== tipo || a.tanda < 1 || a.tanda > tandas) continue;
     let fila = resultado.get(a.producto_id);
     if (!fila) {
-      fila = Array(NUM_TANDAS).fill(0);
+      fila = Array(tandas).fill(0);
       resultado.set(a.producto_id, fila);
     }
     fila[a.tanda - 1] += a.cantidad;
@@ -71,21 +78,22 @@ export function librasPorBatida(
     categoria: string | null;
     libras: number | null;
   }[],
-  maximo = MAX_LIBRAS_BATIDA
+  maximo = MAX_LIBRAS_BATIDA,
+  tandas = NUM_TANDAS
 ): BatidasMasa[] {
-  const porProducto = tandasPorProducto(asignaciones, "produccion");
+  const porProducto = tandasPorProducto(asignaciones, "produccion", tandas);
   const masas = new Map<string, number[]>();
   for (const p of productos) {
     if (p.libras === null || !(p.libras > 0)) continue;
     const masa = p.categoria ?? "OTROS";
     let libras = masas.get(masa);
     if (!libras) {
-      libras = Array(NUM_TANDAS).fill(0);
+      libras = Array(tandas).fill(0);
       masas.set(masa, libras);
     }
-    const tandas = porProducto.get(p.id);
-    if (!tandas) continue;
-    tandas.forEach((c, i) => {
+    const cantidades = porProducto.get(p.id);
+    if (!cantidades) continue;
+    cantidades.forEach((c, i) => {
       libras[i] += c * p.libras!;
     });
   }
@@ -123,7 +131,8 @@ export const claveBatida = (
 ) => `${productoId}-${tipo}-${tanda}`;
 
 /**
- * DEC y PROD por batida del cuadro completo (27 oct 2026):
+ * DEC y PROD por batida del cuadro completo (27 oct 2026; hasta la
+ * batida 10 desde el 3 nov):
  * - PROD = lo del reparto.
  * - DEC batida 1 = lo que Principal anotó sin decorar (se decora primero).
  * - DEC batida 2 = lo que se hornea (suma de PROD), si el producto lleva
@@ -145,7 +154,7 @@ export function batidasDelCuadro(params: {
     params.ajustes.map((a) => [claveBatida(a.producto_id, a.tipo, a.tanda), a.cantidad])
   );
   const conAjuste = (id: number, tipo: AjusteBatida["tipo"], base: readonly number[]) =>
-    Array.from({ length: NUM_TANDAS }, (_, i) => ajuste.get(claveBatida(id, tipo, i + 1)) ?? base[i] ?? 0);
+    Array.from({ length: MAX_BATIDAS }, (_, i) => ajuste.get(claveBatida(id, tipo, i + 1)) ?? base[i] ?? 0);
   const dec = new Map<number, number[]>();
   const prod = new Map<number, number[]>();
   for (const p of params.productos) {
@@ -159,6 +168,22 @@ export function batidasDelCuadro(params: {
     if (decFila.some((c) => c > 0)) dec.set(p.id, decFila);
   }
   return { dec, prod, ajustadas: new Set(ajuste.keys()) };
+}
+
+/**
+ * Cuántas batidas se usan hoy: hasta la última con algún número en DEC o
+ * PROD (mínimo 1).
+ */
+export function batidasUsadas(...porProducto: ReadonlyMap<number, readonly number[]>[]): number {
+  let ultima = 1;
+  for (const mapa of porProducto) {
+    for (const fila of mapa.values()) {
+      fila.forEach((c, i) => {
+        if (c > 0 && i + 1 > ultima) ultima = i + 1;
+      });
+    }
+  }
+  return ultima;
 }
 
 /** Por producto y batida → filas tipo asignación (para `librasPorBatida`). */

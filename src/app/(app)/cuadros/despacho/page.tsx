@@ -14,6 +14,7 @@ import {
   formatoLibras,
   formatoTandas,
   librasPorBatida,
+  MAX_BATIDAS,
   MAX_LIBRAS_BATIDA,
   tandasPorProducto,
   type AjusteBatida,
@@ -145,7 +146,9 @@ export default async function DespachoPage({
   const batidas = new Map<string, BatidasMasa>(
     librasPorBatida(
       comoAsignaciones(prod, "produccion"),
-      todos.map((p) => ({ ...p, libras: libras[p.id] ?? null }))
+      todos.map((p) => ({ ...p, libras: libras[p.id] ?? null })),
+      MAX_LIBRAS_BATIDA,
+      MAX_BATIDAS
     ).map((b) => [b.masa, b])
   );
 
