@@ -249,6 +249,12 @@ export function CapturaCliente({
           productoId,
           setTimeout(() => guardarFilaRef.current(productoId), 12_000)
         );
+      } else if (/ya se terminó/i.test(error.message)) {
+        // Administración terminó el día desde su pantalla.
+        cerradoRef.current = true;
+        setCerrado(true);
+        marcarEstado(productoId, "error");
+        setAvisoLive("El día ya se terminó");
       } else {
         marcarEstado(productoId, "error");
         setAvisoLive("Error al guardar");
@@ -317,7 +323,10 @@ export function CapturaCliente({
   // Al abrir: revisar si la página es de hoy y recuperar lo que quedó en la
   // tablet sin subir.
   useEffect(() => {
-    if (fecha !== hoyTegucigalpa()) {
+    // Abierta sin internet (copia de la tablet) y de otro día. Con internet
+    // la página viene del servidor: no se usa el reloj de la tablet, que
+    // puede estar mal puesto.
+    if (!navigator.onLine && fecha !== hoyTegucigalpa()) {
       desactualizadaRef.current = true;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDesactualizada(true);
@@ -352,6 +361,24 @@ export function CapturaCliente({
     if (navigator.onLine) void subirOtrosDias();
     // Solo al montar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Página que quedó abierta de un día para otro: cuando cambia la fecha
+  // de la tablet, deja de anotar en el día que ya pasó.
+  useEffect(() => {
+    const diaAlAbrir = hoyTegucigalpa();
+    const revisar = () => {
+      if (hoyTegucigalpa() !== diaAlAbrir && !desactualizadaRef.current) {
+        desactualizadaRef.current = true;
+        setDesactualizada(true);
+      }
+    };
+    const intervalo = setInterval(revisar, 60_000);
+    document.addEventListener("visibilitychange", revisar);
+    return () => {
+      clearInterval(intervalo);
+      document.removeEventListener("visibilitychange", revisar);
+    };
   }, []);
 
   const alCambiar = (productoId: number, campo: Campo, crudo: string) => {

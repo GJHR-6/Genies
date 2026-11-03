@@ -45,7 +45,8 @@ function FormularioLogin() {
     // si no, la pantalla inicial según el rol del perfil.
     const next = searchParams.get("next");
     let destino: string;
-    if (next && next.startsWith("/") && !next.startsWith("//")) {
+    // "/\\otro.com" el navegador lo toma como "//otro.com": se rechaza.
+    if (next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\")) {
       destino = next;
     } else {
       const { data: perfil } = await supabase
