@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { rutaInicio } from "@/lib/roles";
+import { olvidarCopiaSinInternet } from "@/components/modo-sin-internet";
 
 function FormularioLogin() {
   const router = useRouter();
@@ -13,6 +14,9 @@ function FormularioLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+
+  // Sin sesión: que no quede en la tablet la copia del inventario de nadie.
+  useEffect(() => olvidarCopiaSinInternet(), []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

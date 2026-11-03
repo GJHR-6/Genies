@@ -13,7 +13,8 @@ export const config = {
      * Todas las rutas excepto estáticos e imágenes:
      * - _next/static, _next/image, favicon.ico
      * - imágenes (svg, png, jpg, jpeg, gif, webp)
+     * - sw.js (modo sin internet: se instala sin sesión)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

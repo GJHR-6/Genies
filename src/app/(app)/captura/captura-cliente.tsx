@@ -9,8 +9,17 @@ import {
 } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { TablesInsert } from "@/lib/types";
+import {
+  almacenDelNavegador,
+  firmaFila,
+  leerCola,
+  ponerEnCola,
+  quitarDeCola,
+  type FilaPendiente,
+} from "@/lib/cola-offline";
+import { hoyTegucigalpa } from "@/lib/fechas";
 import { AvisoColorDia, ChipColorDia } from "@/components/color-dia";
+import { ModoSinInternet } from "@/components/modo-sin-internet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,7 +102,7 @@ function BadgeEstado({ estado }: { estado: EstadoFila | undefined }) {
   const estilos: Record<EstadoFila, { texto: string; clase: string }> = {
     guardando: { texto: "Guardando…", clase: "text-muted-foreground" },
     guardado: { texto: "Guardado ✓", clase: "text-exito" },
-    pendiente: { texto: "Guardando…", clase: "text-aviso" },
+    pendiente: { texto: "En la tablet · falta subir", clase: "text-aviso" },
     error: { texto: "No se pudo guardar", clase: "text-destructive" },
   };
   const { texto, clase } = estilos[estado];
@@ -154,9 +163,15 @@ export function CapturaCliente({
   const [enLinea, setEnLinea] = useState(true);
   const [dialogoCierre, setDialogoCierre] = useState(false);
   const [avisoLive, setAvisoLive] = useState("");
+  // Página vieja (abierta sin internet desde la copia de la tablet o
+  // dejada abierta de un día para otro): no se anota en un día que ya pasó.
+  const [desactualizada, setDesactualizada] = useState(false);
+  // Filas de otros días que quedaron en la tablet y no se pudieron subir.
+  const [otrosDiasPendientes, setOtrosDiasPendientes] = useState(0);
 
   const valoresRef = useRef(valores);
   const cerradoRef = useRef(cerrado);
+  const desactualizadaRef = useRef(false);
   useEffect(() => {
     cerradoRef.current = cerrado;
   }, [cerrado]);
@@ -198,7 +213,7 @@ export function CapturaCliente({
   const mutacionGuardar = useMutation({
     mutationFn: async (vars: {
       productoId: number;
-      payload: TablesInsert<"movimientos_diarios">;
+      payload: FilaPendiente;
       clave: string;
     }) => {
       const { error } = await supabase
@@ -207,7 +222,8 @@ export function CapturaCliente({
       if (error) throw new Error(error.message);
     },
     retry: (intentos, error) => esErrorDeRed(error) && intentos < 3,
-    onSuccess: (_datos, { productoId, clave }) => {
+    onSuccess: (_datos, { productoId, payload, clave }) => {
+      quitarDeCola(almacenDelNavegador(), userId, payload);
       ultimoGuardadoRef.current.set(productoId, clave);
       setGuardadas((prev) => {
         if (prev.has(productoId)) return prev;
@@ -242,13 +258,13 @@ export function CapturaCliente({
 
   const guardarFila = useCallback(
     (productoId: number) => {
-      if (cerradoRef.current) return;
+      if (cerradoRef.current || desactualizadaRef.current) return;
       if (!suciasRef.current.has(productoId)) return;
       const clave = serializar(productoId);
       if (ultimoGuardadoRef.current.get(productoId) === clave) return;
 
       const v = valoresRef.current[productoId] ?? FILA_VACIA;
-      const payload: TablesInsert<"movimientos_diarios"> = {
+      const payload: FilaPendiente = {
         fecha,
         sucursal_id: sucursalId,
         producto_id: productoId,
@@ -262,6 +278,8 @@ export function CapturaCliente({
         updated_at: new Date().toISOString(),
         updated_by: userId,
       };
+      // Primero a la tablet: si no hay señal o se cierra la página, no se pierde.
+      ponerEnCola(almacenDelNavegador(), userId, payload);
       marcarEstado(
         productoId,
         typeof navigator !== "undefined" && !navigator.onLine
@@ -277,6 +295,64 @@ export function CapturaCliente({
   useEffect(() => {
     guardarFilaRef.current = guardarFila;
   }, [guardarFila]);
+
+  // Filas de otros días (o de otra sucursal) que quedaron en la tablet: se
+  // suben tal cual se anotaron. Las de hoy las sube `guardarFila`.
+  const subirOtrosDias = useCallback(async () => {
+    const almacen = almacenDelNavegador();
+    const otras = leerCola(almacen, userId).filter(
+      (f) => f.fecha !== fecha || f.sucursal_id !== sucursalId
+    );
+    let fallidas = 0;
+    for (const f of otras) {
+      const { error } = await supabase
+        .from("movimientos_diarios")
+        .upsert(f, { onConflict: "fecha,sucursal_id,producto_id" });
+      if (error) fallidas++;
+      else quitarDeCola(almacen, userId, f);
+    }
+    setOtrosDiasPendientes(fallidas);
+  }, [supabase, userId, fecha, sucursalId]);
+
+  // Al abrir: revisar si la página es de hoy y recuperar lo que quedó en la
+  // tablet sin subir.
+  useEffect(() => {
+    if (fecha !== hoyTegucigalpa()) {
+      desactualizadaRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDesactualizada(true);
+    }
+    const almacen = almacenDelNavegador();
+    const deHoy = leerCola(almacen, userId).filter((f) => {
+      if (f.fecha !== fecha || f.sucursal_id !== sucursalId) return false;
+      // Ya estaba subida (se cortó antes de quitarla de la tablet).
+      if (ultimoGuardadoRef.current.get(f.producto_id) === firmaFila(f)) {
+        quitarDeCola(almacen, userId, f);
+        return false;
+      }
+      return true;
+    });
+    if (deHoy.length > 0 && !desactualizadaRef.current) {
+      const nuevos = { ...valoresRef.current };
+      for (const f of deHoy) {
+        nuevos[f.producto_id] = {
+          ingreso: f.ingreso ? String(f.ingreso) : "",
+          devolucion: f.devolucion ? String(f.devolucion) : "",
+          pedido: f.pedido ? String(f.pedido) : "",
+          cambio: f.cambio ? String(f.cambio) : "",
+          decorado: f.decorado ? String(f.decorado) : "",
+          sin_decorar: f.sin_decorar ? String(f.sin_decorar) : "",
+        };
+        suciasRef.current.add(f.producto_id);
+      }
+      valoresRef.current = nuevos;
+      setValores(nuevos);
+      for (const f of deHoy) guardarFilaRef.current(f.producto_id);
+    }
+    if (navigator.onLine) void subirOtrosDias();
+    // Solo al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const alCambiar = (productoId: number, campo: Campo, crudo: string) => {
     const limpio = crudo.replace(/\D/g, "").slice(0, 5);
@@ -304,6 +380,7 @@ export function CapturaCliente({
   useEffect(() => {
     const alVolver = () => {
       setEnLinea(true);
+      void subirOtrosDias();
       for (const productoId of suciasRef.current) {
         if (
           ultimoGuardadoRef.current.get(productoId) !== serializar(productoId)
@@ -320,20 +397,22 @@ export function CapturaCliente({
       window.removeEventListener("online", alVolver);
       window.removeEventListener("offline", alCaer);
     };
-  }, [serializar]);
+  }, [serializar, subirOtrosDias]);
 
-  // Aviso al salir con cambios sin guardar.
+  // Aviso al salir mientras se sube algo. Lo pendiente sin internet ya
+  // quedó en la tablet, así que no hace falta avisar por eso.
   const haySinGuardar = Object.values(estados).some(
     (e) => e === "guardando" || e === "pendiente"
   );
+  const subiendo = Object.values(estados).some((e) => e === "guardando");
   useEffect(() => {
-    if (!haySinGuardar) return;
+    if (!subiendo) return;
     const avisar = (evento: BeforeUnloadEvent) => {
       evento.preventDefault();
     };
     window.addEventListener("beforeunload", avisar);
     return () => window.removeEventListener("beforeunload", avisar);
-  }, [haySinGuardar]);
+  }, [subiendo]);
 
   const mutacionCierre = useMutation({
     mutationFn: async () => {
@@ -414,6 +493,7 @@ export function CapturaCliente({
 
   return (
     <section className="flex flex-col gap-3">
+      <ModoSinInternet />
       {/* Color de hoy, grande, para que la tienda lo vea apenas entra. */}
       <AvisoColorDia fecha={fecha} />
 
@@ -487,12 +567,40 @@ export function CapturaCliente({
             guarda solo.
           </p>
         )}
-        {!enLinea && (
+        {!enLinea && !desactualizada && (
           <p
             role="status"
             className="mt-2 rounded-md bg-aviso/10 px-3 py-1.5 text-xs font-medium text-aviso"
           >
-            Sin internet: seguí anotando, se guarda solo cuando vuelva la señal.
+            Sin internet: seguí anotando. Todo queda guardado en la tablet y se
+            sube solo cuando vuelva la señal. No cierres sesión.
+          </p>
+        )}
+        {desactualizada && (
+          <div
+            role="status"
+            className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-aviso/10 px-3 py-1.5 text-xs font-medium text-aviso"
+          >
+            <span className="flex-1">
+              Esta pantalla es del {fechaLegible}, no de hoy.
+              {enLinea
+                ? " Recargá para anotar el inventario de hoy."
+                : " Cuando vuelva el internet, recargá para anotar el de hoy."}
+            </span>
+            {enLinea && (
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                Recargar
+              </Button>
+            )}
+          </div>
+        )}
+        {otrosDiasPendientes > 0 && (
+          <p
+            role="status"
+            className="mt-2 rounded-md bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive"
+          >
+            Quedaron {otrosDiasPendientes} productos de otro día sin subir.
+            Siguen guardados en la tablet; avisá a administración.
           </p>
         )}
         {cerrado && (
@@ -585,7 +693,7 @@ export function CapturaCliente({
                           alCambiar(producto.id, campo, e.target.value)
                         }
                         onBlur={() => alSalirDelCampo(producto.id)}
-                        disabled={cerrado}
+                        disabled={cerrado || desactualizada}
                         placeholder="0"
                         className="h-11 text-base tabular-nums"
                         aria-label={`${etiqueta} de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
@@ -612,7 +720,7 @@ export function CapturaCliente({
                             alCambiar(producto.id, campo, e.target.value)
                           }
                           onBlur={() => alSalirDelCampo(producto.id)}
-                          disabled={cerrado}
+                          disabled={cerrado || desactualizada}
                           placeholder="0"
                           className="h-11 text-base tabular-nums"
                           aria-label={`${etiqueta} de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
@@ -627,14 +735,22 @@ export function CapturaCliente({
         </div>
       ))}
 
-      {!cerrado && total > 0 && (
-        <div className="pb-6 pt-2">
+      {!cerrado && !desactualizada && total > 0 && (
+        <div className="space-y-1.5 pb-6 pt-2">
           <Button
             className="h-12 w-full bg-primary text-base hover:bg-primary/90"
             onClick={() => setDialogoCierre(true)}
+            disabled={!enLinea || haySinGuardar}
           >
             Terminé el inventario de hoy
           </Button>
+          {(!enLinea || haySinGuardar) && (
+            <p className="text-center text-xs text-muted-foreground">
+              {enLinea
+                ? "Esperá a que se suba todo para terminar."
+                : "Para terminar hace falta internet. Lo anotado ya está guardado en la tablet."}
+            </p>
+          )}
         </div>
       )}
 
