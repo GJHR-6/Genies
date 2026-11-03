@@ -28,7 +28,7 @@ export default async function HoyPage() {
   const fecha = hoyTegucigalpa();
   const color = colorDelDia(fecha);
 
-  const [sucursales, cierres, ajustes, plan] = await Promise.all([
+  const [sucursales, cierres, ajustes, plan, noEnviados] = await Promise.all([
     supabase
       .from("sucursales")
       .select("id", { count: "exact", head: true })
@@ -40,6 +40,7 @@ export default async function HoyPage() {
       .eq("fecha", fecha)
       .not("sugerido_override", "is", null),
     supabase.from("planes_dia").select("generado_at").eq("fecha", fecha).maybeSingle(),
+    supabase.from("no_enviados").select("sucursal_id").is("enviado_at", null),
   ]);
 
   const tiendasTotal = sucursales.count ?? 0;
@@ -78,6 +79,7 @@ export default async function HoyPage() {
     reparto: repartoHecho
       ? { texto: "Hecho: listo para imprimir", tono: "exito" }
       : { texto: "Todavía no se hace" },
+    envios: estadoEnvios(noEnviados.data ?? []),
   };
 
   const IconoPaso =
@@ -147,6 +149,16 @@ export default async function HoyPage() {
       )}
     </section>
   );
+}
+
+/** Tarjeta "Lo que no se mandó": cuántos productos quedaron pendientes. */
+function estadoEnvios(pendientes: { sucursal_id: number }[]): EstadoTarjeta {
+  if (pendientes.length === 0) return { texto: "Nada pendiente", tono: "exito" };
+  const tiendas = new Set(pendientes.map((p) => p.sucursal_id)).size;
+  return {
+    texto: `${pendientes.length} ${pendientes.length === 1 ? "producto pendiente" : "productos pendientes"} en ${tiendas} ${tiendas === 1 ? "tienda" : "tiendas"}`,
+    tono: "aviso",
+  };
 }
 
 const HOJAS: { href: string; titulo: string; para: string; icono: LucideIcon }[] = [

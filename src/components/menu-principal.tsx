@@ -27,7 +27,7 @@ const MENU: Record<RolUsuario, Item[]> = {
       href: "/hoy",
       etiqueta: "Hoy",
       icono: House,
-      incluye: ["/dashboard", "/sugeridos", "/cuadros", "/asignar"],
+      incluye: ["/dashboard", "/sugeridos", "/cuadros", "/asignar", "/envios"],
     },
     {
       href: "/catalogos",

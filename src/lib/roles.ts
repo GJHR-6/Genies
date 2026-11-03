@@ -11,6 +11,7 @@ export const RUTAS_ADMIN = [
   "/catalogos",
   "/asignar",
   "/pasteleras",
+  "/envios",
 ] as const;
 
 /** Pantalla inicial según el rol del perfil. */

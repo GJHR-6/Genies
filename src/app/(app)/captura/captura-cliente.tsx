@@ -18,6 +18,7 @@ import {
   type FilaPendiente,
 } from "@/lib/cola-offline";
 import { hoyTegucigalpa } from "@/lib/fechas";
+import { cuandoFue } from "@/lib/no-enviados";
 import { AvisoColorDia, ChipColorDia } from "@/components/color-dia";
 import { ModoSinInternet } from "@/components/modo-sin-internet";
 import { Input } from "@/components/ui/input";
@@ -122,6 +123,8 @@ type Props = {
   productos: Producto[];
   movimientosIniciales: MovimientoInicial[];
   saldosAnteriores: Record<number, number>;
+  /** Lo que Principal no le pudo mandar y sigue pendiente. */
+  noEnviados: { id: number; fecha: string; cantidad: number; nombre: string }[];
 };
 
 export function CapturaCliente({
@@ -135,6 +138,7 @@ export function CapturaCliente({
   productos,
   movimientosIniciales,
   saldosAnteriores,
+  noEnviados,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -523,6 +527,27 @@ export function CapturaCliente({
       <ModoSinInternet />
       {/* Color de hoy, grande, para que la tienda lo vea apenas entra. */}
       <AvisoColorDia fecha={fecha} />
+
+      {noEnviados.length > 0 && (
+        <div role="status" className="rounded-xl border border-aviso/30 bg-aviso/10 px-4 py-3 text-sm">
+          <p className="font-semibold text-aviso">Principal te quedó debiendo</p>
+          <ul className="mt-1 space-y-0.5">
+            {noEnviados.map((n) => (
+              <li key={n.id} className="flex justify-between gap-3">
+                <span>
+                  {n.nombre}{" "}
+                  <span className="text-xs text-muted-foreground">({cuandoFue(n.fecha, fecha)})</span>
+                </span>
+                <span className="font-bold tabular-nums">{n.cantidad}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Ya está anotado en Principal y te lo mandan en cuanto se pueda: no
+            hace falta volver a pedirlo.
+          </p>
+        </div>
+      )}
 
       {/* Encabezado fijo: sucursal, fecha, progreso y buscador */}
       <div className="sticky top-0 z-20 -mx-4 border-b bg-background px-4 pb-3 pt-2">

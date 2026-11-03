@@ -4,6 +4,7 @@ import {
   ClipboardList,
   HandHeart,
   Layers,
+  PackageX,
   Printer,
   Split,
   Store,
@@ -54,6 +55,15 @@ export const GRUPO_HOY = {
       icono: Split,
       color: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
       paso: 4,
+    },
+    {
+      clave: "envios",
+      href: "/envios",
+      titulo: "Lo que no se mandó",
+      descripcion: "Al despachar, anotá lo que no salió para cada tienda. Queda pendiente hasta que se manda.",
+      icono: PackageX,
+      color: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+      paso: 5,
     },
   ],
 } as const satisfies Grupo;

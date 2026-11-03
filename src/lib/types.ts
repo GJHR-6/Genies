@@ -145,6 +145,57 @@ export type Database = {
           },
         ]
       }
+      no_enviados: {
+        Row: {
+          cantidad: number
+          enviado_at: string | null
+          enviado_by: string | null
+          fecha: string
+          id: number
+          producto_id: number
+          sucursal_id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cantidad: number
+          enviado_at?: string | null
+          enviado_by?: string | null
+          fecha: string
+          id?: never
+          producto_id: number
+          sucursal_id: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cantidad?: number
+          enviado_at?: string | null
+          enviado_by?: string | null
+          fecha?: string
+          id?: never
+          producto_id?: number
+          sucursal_id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "no_enviados_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "no_enviados_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cierres_dia: {
         Row: {
           cerrado_at: string | null
@@ -578,6 +629,17 @@ export type Database = {
       }
     }
     Functions: {
+      saldo_anterior: {
+        Args: { p_fecha: string; p_producto: number; p_sucursal: number }
+        Returns: number
+      }
+      saldos_anteriores: {
+        Args: { p_fecha: string; p_sucursal: number }
+        Returns: {
+          producto_id: number
+          saldo: number
+        }[]
+      }
       admin_usuarios: {
         Args: never
         Returns: {
