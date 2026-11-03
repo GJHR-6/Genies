@@ -96,4 +96,9 @@
     size: letter;
     margin: 12mm;
   }
+  /* Cuadros por área: la semana (lunes a sábado) no cabe en vertical. */
+  @page horizontal {
+    size: letter landscape;
+    margin: 10mm;
+  }
 }

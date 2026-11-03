@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import {
   cargarSugeridosDelDia,
-  totalesPorProducto,
+  diaSemana,
   type ProductoSugerido,
   type SugeridosDelDia,
 } from "@/lib/sugeridos";
@@ -16,7 +16,7 @@ import { Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { compararProductos } from "@/lib/orden-productos";
 import { BotonImprimir } from "./boton-imprimir";
-import { tandasPorProducto } from "@/lib/batidas";
+import { batidasDelCuadro, tandasPorProducto } from "@/lib/batidas";
 import { HojaCuadro, type DatosBatidas } from "./hoja-cuadro";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +24,21 @@ export const dynamic = "force-dynamic";
 type Cuadro = {
   titulo: string;
   encargadas: string | null;
-  productos: ProductoSugerido[];
+  /** Productos del cuadro con lo de hoy (PROD o DEC; 0 = nada). */
+  filas: { producto: ProductoSugerido; cantidad: number }[];
 };
+
+/** Columnas de la semana, como la hoja de papel (1 = lunes … 6 = sábado). */
+const DIAS_SEMANA = [
+  [1, "Lunes"],
+  [2, "Martes"],
+  [3, "Miércoles"],
+  [4, "Jueves"],
+  [5, "Viernes"],
+  [6, "Sábado"],
+] as const;
+/** Renglones vacíos al final, para anotar a mano. */
+const RENGLONES_EXTRA = 2;
 
 export default async function CuadrosPage() {
   const supabase = await createClient();
@@ -128,52 +141,74 @@ export default async function CuadrosPage() {
   const { productos, sucursales, celdas } = dia;
   const pendientes = sucursales.length - cerradas;
 
-  // Un cuadro por área de producción (pastelera); solo productos con alguna
-  // regla de sugerido. Dentro del área se respeta el orden del Excel.
+  // Solo para avisar si todavía no hay objetivos cargados.
   const conRegla = productos.filter((p) =>
     sucursales.some((s) => celdas[`${p.id}-${s.id}`] !== undefined)
   );
-  // Dentro de cada cuadro, el orden del Excel (igual en todas las hojas).
-  const porOrdenArea = (a: ProductoSugerido, b: ProductoSugerido) =>
-    compararProductos(a, b);
   // Primero el cuadro completo (HojaCuadro): todos los productos en el
   // orden del Excel, como INVENTARIO DIARIO, para llenar y revisar el
   // SALDO. Después, uno por área.
   const ordenExcel = [...productos].sort(compararProductos);
-  const cuadros: Cuadro[] = areas
-    .map((a) => ({
-      titulo: a.nombre,
-      encargadas: a.encargadas,
-      productos: conRegla.filter((p) => p.area_id === a.id).sort(porOrdenArea),
-    }))
-    .filter((c) => c.productos.length > 0);
 
-  // Decoración no es un área: su cuadro repite los productos marcados
-  // "Decorar", en el mismo orden en que salen en los cuadros de las áreas.
-  const idsPorArea = new Map(areas.map((a, i) => [a.id, i]));
-  const decoracion = conRegla
-    .filter((p) => p.lleva_decoracion)
-    .sort(porOrdenArea);
-  if (decoracion.length > 0) {
-    cuadros.push({ titulo: "Decoración", encargadas: null, productos: decoracion });
-  }
+  // Cuadros por área (3 nov 2026), como la hoja de papel de las pasteleras:
+  // MÍNIMO (objetivo de Principal) · PRODUCTO · lunes a sábado con PROD. y
+  // SALDO para llenar a mano. En el día de hoy, PROD. ya trae lo que se
+  // manda a hacer = suma del PROD de las batidas del cuadro completo
+  // (reparto + lo cambiado a mano); en Decoración, la suma del DEC.
+  const efectivas = batidasDelCuadro({
+    productos,
+    prodReparto: new Map(
+      Object.entries(batidas.prodReparto).map(([id, fila]) => [Number(id), fila])
+    ),
+    sinDecorar: dia.sinDecorar,
+    ajustes: batidas.ajustes,
+  });
+  const suma = (fila: readonly number[] | undefined) =>
+    (fila ?? []).reduce((t, c) => t + c, 0);
+  const filasDe = (
+    lista: ProductoSugerido[],
+    porProducto: ReadonlyMap<number, readonly number[]>,
+    soloConCantidad = false
+  ) =>
+    lista
+      .map((producto) => ({ producto, cantidad: suma(porProducto.get(producto.id)) }))
+      .filter((f) => !soloConCantidad || f.cantidad > 0);
+  const minimoDe = (id: number) =>
+    dia.principalId === null ? null : (celdas[`${id}-${dia.principalId}`]?.objetivo ?? null);
+  const hoySemana = diaSemana(fecha);
+
+  const cuadros: Cuadro[] = areas.map((a) => ({
+    titulo: a.nombre,
+    encargadas: a.encargadas,
+    filas: filasDe(
+      ordenExcel.filter((p) => p.area_id === a.id),
+      efectivas.prod
+    ),
+  }));
+
+  // Decoración no es un área: los productos que llevan decoración y lo que
+  // haya en DEC.
+  cuadros.push({
+    titulo: "Decoración",
+    encargadas: null,
+    filas: filasDe(ordenExcel, efectivas.dec).filter(
+      (f) => f.producto.lleva_decoracion || f.cantidad > 0
+    ),
+  });
 
   // Incluye los de un área desactivada en Catálogos, para que no se pierdan.
-  const sinArea = conRegla.filter(
-    (p) => p.area_id === null || !idsPorArea.has(p.area_id)
-  );
-  if (sinArea.length > 0) {
-    cuadros.push({ titulo: "Sin área asignada", encargadas: null, productos: sinArea });
-  }
-
-  const sugeridoDe = (productoId: number, sucursalId: number): number | null =>
-    celdas[`${productoId}-${sucursalId}`]?.sugerido ?? null;
-
-  // Total, sin decorar en Principal y lo que falta hornear, por producto.
-  const totales = totalesPorProducto(dia);
-  const totalDe = (id: number) =>
-    totales.get(id) ?? { total: 0, sinDecorar: 0, aProducir: 0, aDecorar: 0 };
-  const haySinDecorar = Object.values(dia.sinDecorar).some((n) => n > 0);
+  const idsPorArea = new Set(areas.map((a) => a.id));
+  cuadros.push({
+    titulo: "Sin área asignada",
+    encargadas: null,
+    filas: filasDe(
+      ordenExcel.filter((p) => p.area_id === null || !idsPorArea.has(p.area_id)),
+      efectivas.prod,
+      true
+    ),
+  });
+  const conTrabajo = cuadros.filter((c) => c.filas.length > 0);
+  const hayBatidas = efectivas.prod.size > 0;
 
   return (
     <section className="flex flex-col gap-4">
@@ -248,22 +283,48 @@ export default async function CuadrosPage() {
         </article>
       )}
 
-      {!haySinDecorar && cuadros.length > 0 && (
+      {!hayBatidas && (
         <Aviso tipo="info" className="print:hidden">
-          Principal todavía no anotó pasteles sin decorar hoy: se hornea el
-          total. Si hay sin decorar en el congelador o el enfriador, escribilos
-          en la columna SIN DECO del cuadro completo.
+          Los cuadros de cada área salen con lo que se manda a producir (PROD
+          de las batidas). Todavía no hay nada: hacé el reparto o escribí PROD
+          en el cuadro completo.{" "}
+          <Link href="/asignar" className="font-semibold underline">
+            Hacer el reparto
+          </Link>
         </Aviso>
       )}
 
-      {cuadros.map((cuadro) => (
+      {conTrabajo.map((cuadro) => {
+        const esDecoracion = cuadro.titulo === "Decoración";
+        // Secciones (VAINILLA, CHOCOLATE…) en el orden del Excel.
+        const secciones: { nombre: string; filas: Cuadro["filas"] }[] = [];
+        for (const f of cuadro.filas) {
+          const nombre = f.producto.categoria ?? "OTROS";
+          const ultima = secciones[secciones.length - 1];
+          if (ultima?.nombre === nombre) ultima.filas.push(f);
+          else secciones.push({ nombre, filas: [f] });
+        }
+        const borde = "border border-border print:border-black";
+        const hoyClase = "bg-primary/10 print:bg-black/10";
+        const celdasDias = (hoy: React.ReactNode, clase = "") =>
+          DIAS_SEMANA.map(([n]) => (
+            <Fragment key={n}>
+              <td
+                className={`${borde} h-8 w-12 px-1 text-right tabular-nums ${n === hoySemana ? `${hoyClase} ${clase}` : ""}`}
+              >
+                {n === hoySemana ? hoy : null}
+              </td>
+              <td className={`${borde} h-8 w-12 ${n === hoySemana ? hoyClase : ""}`} />
+            </Fragment>
+          ));
+        return (
         <article
           key={cuadro.titulo}
-          className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0"
+          className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0 print:[page:horizontal]"
         >
           <header className="mb-3 flex items-baseline justify-between gap-2 border-b pb-2 print:border-black">
             <h2 className="text-lg font-bold">
-              {cuadro.titulo === "Decoración"
+              {esDecoracion
                 ? "Cuadro de decoración"
                 : `Cuadro de producción — ${cuadro.titulo}`}
               {cuadro.encargadas && (
@@ -279,134 +340,96 @@ export default async function CuadrosPage() {
               <ChipColorDia fecha={fecha} conEtiqueta />
             </div>
           </header>
-          <table className="w-full border-collapse text-sm">
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full min-w-[900px] border-collapse text-sm print:min-w-0 print:text-xs">
             <thead>
-              <tr className="border-b-2 border-border print:border-black">
-                <th className="py-1.5 pr-2 text-left font-semibold">
+              <tr>
+                <th rowSpan={2} className={`${borde} w-16 px-1 py-1 text-center font-semibold uppercase`}>
+                  Mínimo
+                </th>
+                <th rowSpan={2} className={`${borde} px-2 py-1 text-left font-semibold uppercase`}>
                   Producto
                 </th>
-                {sucursales.map((s) => (
-                  <th key={s.id} className="px-2 py-1.5 text-right font-semibold">
-                    {s.nombre}
+                {DIAS_SEMANA.map(([n, nombre]) => (
+                  <th
+                    key={n}
+                    colSpan={2}
+                    className={`${borde} px-1 py-1 text-center font-semibold uppercase ${n === hoySemana ? hoyClase : ""}`}
+                  >
+                    {nombre}
+                    {n === hoySemana && <span className="sr-only"> (hoy)</span>}
                   </th>
                 ))}
-                <th className="pl-2 py-1.5 text-right font-semibold">
-                  {cuadro.titulo === "Decoración" ? "Decorar" : "Total"}
-                </th>
-                <th className="pl-2 py-1.5 text-right font-semibold">
-                  Sin decorar
-                </th>
-                <th className="pl-2 py-1.5 text-right font-semibold">
-                  Hornear
-                </th>
+              </tr>
+              <tr>
+                {DIAS_SEMANA.map(([n]) => (
+                  <Fragment key={n}>
+                    <th className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}>
+                      {esDecoracion ? "DEC." : "PROD."}
+                    </th>
+                    <th className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}>
+                      SALDO
+                    </th>
+                  </Fragment>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {cuadro.productos.map((p, i) => {
-                const porSucursal = sucursales.map((s) => sugeridoDe(p.id, s.id));
-                const t = totalDe(p.id);
-                // Título de sección (VAINILLA, CHOCOLATE…) cuando cambia,
-                // como en el Excel.
-                const seccion = p.categoria ?? "OTROS";
-                const nuevaSeccion =
-                  i === 0 || (cuadro.productos[i - 1].categoria ?? "OTROS") !== seccion;
-                return (
-                  <Fragment key={p.id}>
-                  {nuevaSeccion && (
-                    <tr className="border-b border-border bg-muted/50 print:border-black/60 print:bg-black/10">
-                      <td
-                        colSpan={sucursales.length + 4}
-                        className="py-0.5 pr-2 text-xs font-bold uppercase tracking-wide"
-                      >
-                        {seccion}
-                      </td>
-                    </tr>
-                  )}
-                  <tr
-                    className="border-b border-border/60 last:border-b-0 print:border-black/40"
-                  >
-                    <td className="py-1.5 pr-2 font-medium">
-                      {p.nombre}
-                      {p.tamano ? ` · ${p.tamano}` : ""}
-                      {p.lleva_decoracion && (
-                        <span className="ml-2 rounded border border-primary px-1 py-0.5 text-[10px] font-semibold uppercase text-primary print:border-black print:text-black">
-                          Decorar
-                        </span>
-                      )}
-                    </td>
-                    {porSucursal.map((valor, i) => (
-                      <td
-                        key={sucursales[i].id}
-                        className={`px-2 py-1.5 text-right tabular-nums ${
-                          valor === null || valor === 0
-                            ? "text-muted-foreground print:text-black/50"
-                            : ""
-                        }`}
-                      >
-                        {valor ?? "—"}
-                      </td>
-                    ))}
-                    <td className="pl-2 py-1.5 text-right font-semibold tabular-nums">
-                      {t.total}
-                    </td>
-                    <td
-                      className={`pl-2 py-1.5 text-right tabular-nums ${
-                        t.sinDecorar === 0
-                          ? "text-muted-foreground print:text-black/50"
-                          : ""
-                      }`}
-                    >
-                      {t.sinDecorar}
-                    </td>
-                    <td className="pl-2 py-1.5 text-right text-base font-bold tabular-nums">
-                      {t.aProducir}
+              {secciones.map((seccion) => (
+                <Fragment key={seccion.nombre}>
+                  <tr className="bg-muted/50 print:bg-black/10">
+                    <td colSpan={2 + DIAS_SEMANA.length * 2} className={`${borde} py-0.5 px-2 text-xs font-bold uppercase tracking-wide`}>
+                      {seccion.nombre}
                     </td>
                   </tr>
-                  </Fragment>
-                );
-              })}
+                  {seccion.filas.map(({ producto: p, cantidad }) => (
+                    <tr key={p.id}>
+                      <td className={`${borde} px-1 text-right tabular-nums`}>
+                        {minimoDe(p.id) || ""}
+                      </td>
+                      <td className={`${borde} px-2 font-medium`}>
+                        {p.nombre}
+                        {p.tamano ? ` · ${p.tamano}` : ""}
+                      </td>
+                      {celdasDias(cantidad || "", "text-base font-bold")}
+                    </tr>
+                  ))}
+                  {secciones.length > 1 && seccion.filas.length > 1 && (
+                    <tr>
+                      <td className={borde} />
+                      <td className={`${borde} px-2 text-xs font-semibold first-letter:uppercase`}>
+                        Total {seccion.nombre.toLowerCase()}
+                      </td>
+                      {celdasDias(seccion.filas.reduce((t, f) => t + f.cantidad, 0) || "", "font-semibold")}
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+              {Array.from({ length: RENGLONES_EXTRA }, (_, i) => (
+                <tr key={`extra-${i}`}>
+                  <td className={`${borde} h-8`} />
+                  <td className={borde} />
+                  {celdasDias(null)}
+                </tr>
+              ))}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-border font-semibold print:border-black">
-                <td className="py-1.5 pr-2">Total</td>
-                {sucursales.map((s) => {
-                  const total = cuadro.productos.reduce(
-                    (suma, p) => suma + (sugeridoDe(p.id, s.id) ?? 0),
-                    0
-                  );
-                  return (
-                    <td key={s.id} className="px-2 py-1.5 text-right tabular-nums">
-                      {total}
-                    </td>
-                  );
-                })}
-                <td className="pl-2 py-1.5 text-right tabular-nums">
-                  {cuadro.productos.reduce((suma, p) => suma + totalDe(p.id).total, 0)}
-                </td>
-                <td className="pl-2 py-1.5 text-right tabular-nums">
-                  {cuadro.productos.reduce(
-                    (suma, p) => suma + totalDe(p.id).sinDecorar,
-                    0
-                  )}
-                </td>
-                <td className="pl-2 py-1.5 text-right tabular-nums">
-                  {cuadro.productos.reduce(
-                    (suma, p) => suma + totalDe(p.id).aProducir,
-                    0
-                  )}
-                </td>
+              <tr className="font-bold">
+                <td className={borde} />
+                <td className={`${borde} px-2 py-1`}>Total</td>
+                {celdasDias(cuadro.filas.reduce((t, f) => t + f.cantidad, 0) || "", "text-base")}
               </tr>
             </tfoot>
           </table>
+          </div>
           <p className="mt-2 text-xs text-muted-foreground print:text-black/60">
-            Los productos marcados con “Decorar” llevan decoración.{" "}
-            <strong>Sin decorar</strong> = lo que Principal anotó hoy como hecho
-            sin decorar; eso se decora primero y no se vuelve a hornear.{" "}
-            <strong>Hornear</strong> = Total − Sin decorar. La producción de hoy
-            se marca con color <strong>{color.nombre.toLowerCase()}</strong>.
+            Mínimo = lo que Principal debe tener. Hoy ({color.nombre.toLowerCase()})
+            ya trae lo que hay que {esDecoracion ? "decorar" : "producir"}; los
+            demás días se llenan a mano.
           </p>
         </article>
-      ))}
+        );
+      })}
     </section>
   );
 }
