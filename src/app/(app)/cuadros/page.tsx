@@ -17,8 +17,9 @@ import { Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { compararProductos } from "@/lib/orden-productos";
 import { BotonImprimir } from "./boton-imprimir";
-import { batidasDelCuadro, tandasPorProducto } from "@/lib/batidas";
-import { HojaCuadro, type DatosBatidas } from "./hoja-cuadro";
+import { batidasDelCuadro } from "@/lib/batidas";
+import type { DatosBatidas } from "./hoja-cuadro";
+import { CuadroCompleto, cargarDatosBatidas } from "./cuadro-completo";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ export default async function CuadrosPage({
   let cerradas = 0;
   let batidas: DatosBatidas;
   try {
-    const [diaCargado, areasRes, cierresRes, asignacionesRes, librasRes, ajustesRes] = await Promise.all([
+    const [diaCargado, areasRes, cierresRes, batidasCargadas] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase
         .from("areas_produccion")
@@ -84,40 +85,12 @@ export default async function CuadrosPage({
         .select("estado")
         .eq("fecha", fecha)
         .eq("estado", "cerrado"),
-      supabase
-        .from("asignaciones")
-        .select("producto_id, tipo, tanda, cantidad")
-        .eq("fecha", fecha),
-      supabase.from("productos").select("id, libras").eq("activo", true),
-      supabase
-        .from("batidas_ajuste")
-        .select("producto_id, tipo, tanda, cantidad")
-        .eq("fecha", fecha),
+      cargarDatosBatidas(supabase, fecha),
     ]);
     if (areasRes.error) throw new Error(areasRes.error.message);
     if (cierresRes.error) throw new Error(cierresRes.error.message);
-    if (asignacionesRes.error) throw new Error(asignacionesRes.error.message);
-    if (librasRes.error) throw new Error(librasRes.error.message);
-    if (ajustesRes.error) throw new Error(ajustesRes.error.message);
     dia = diaCargado;
-    // PROD por batida (del reparto), lo cambiado a mano en DEC / PROD y
-    // libras, para el cuadro completo.
-    const asignaciones = (asignacionesRes.data ?? []).map((a) => ({
-      ...a,
-      tipo: a.tipo === "decoracion" ? ("decoracion" as const) : ("produccion" as const),
-    }));
-    batidas = {
-      prodReparto: Object.fromEntries(tandasPorProducto(asignaciones, "produccion")),
-      ajustes: (ajustesRes.data ?? []).map((a) => ({
-        ...a,
-        tipo: a.tipo === "decoracion" ? ("decoracion" as const) : ("produccion" as const),
-      })),
-      libras: Object.fromEntries(
-        (librasRes.data ?? [])
-          .filter((p) => p.libras !== null && Number(p.libras) > 0)
-          .map((p) => [p.id, Number(p.libras)])
-      ),
-    };
+    batidas = batidasCargadas;
     // Encargadas = pasteleras activas del área (si no hay, el texto original).
     areas = areasRes.data.map((a) => {
       const activas = [...(a.pasteleras ?? [])]
@@ -268,35 +241,7 @@ export default async function CuadrosPage({
         área. Al imprimir, cada cuadro va en su propia página.
       </p>
 
-      {ordenExcel.length > 0 && (
-        <article className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0">
-          <header className="mb-3 flex items-baseline justify-between gap-2 border-b pb-2 print:border-black">
-            <h2 className="text-lg font-bold">Cuadro completo (como el Excel)</h2>
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-muted-foreground print:text-black">
-                Gennie&apos;s · {formatoLargo(fecha)}
-              </p>
-              <ChipColorDia fecha={fecha} conEtiqueta />
-            </div>
-          </header>
-          <HojaCuadro
-            fecha={fecha}
-            productos={ordenExcel}
-            sucursales={sucursales}
-            celdas={celdas}
-            principal={{
-              id: dia.principalId,
-              sinDecorar: dia.sinDecorar,
-              decorado: dia.decorado,
-              saldo: dia.saldoPrincipal,
-              cambios: dia.cambios,
-            }}
-            batidas={batidas}
-            pedidos={dia.pedidos}
-            mandarOverride={dia.mandarOverride}
-          />
-        </article>
-      )}
+      <CuadroCompleto fecha={fecha} dia={dia} batidas={batidas} />
 
       {!hayBatidas && (
         <Aviso tipo="info" className="print:hidden">

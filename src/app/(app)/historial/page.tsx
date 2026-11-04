@@ -2,6 +2,9 @@ import { compararProductos } from "@/lib/orden-productos";
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
+import { cargarSugeridosDelDia } from "@/lib/sugeridos";
+import { CuadroCompleto, cargarDatosBatidas } from "../cuadros/cuadro-completo";
+import { BotonImprimir } from "../cuadros/boton-imprimir";
 
 export const dynamic = "force-dynamic";
 
@@ -87,9 +90,20 @@ export default async function HistorialPage({
   const esPrincipal = sucursal?.es_principal ?? false;
   const cerrado = cierreRes.data?.estado === "cerrado";
 
+  // Principal (admin): el cuadro completo de ese día, igual al primero de
+  // Cuadros y editable. La cuenta de Principal no ve las otras tiendas
+  // (RLS), así que para ella queda la tabla de su inventario.
+  const verCuadro = esAdmin && esPrincipal;
+  const datosCuadro = verCuadro
+    ? await Promise.all([
+        cargarSugeridosDelDia(supabase, fecha),
+        cargarDatosBatidas(supabase, fecha),
+      ]).catch(() => null)
+    : null;
+
   return (
     <section className="flex flex-col gap-3">
-      <div>
+      <div className="print:hidden">
         <h1 className="text-2xl font-bold">Historial</h1>
         <p className="text-sm text-muted-foreground">
           Lo que se anotó en días anteriores. Elegí la fecha
@@ -103,7 +117,7 @@ export default async function HistorialPage({
 
       <form
         method="get"
-        className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3"
+        className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3 print:hidden"
       >
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Fecha
@@ -139,7 +153,20 @@ export default async function HistorialPage({
         </button>
       </form>
 
-      {movimientos.length === 0 ? (
+      {verCuadro ? (
+        datosCuadro ? (
+          <>
+            <div className="flex justify-end print:hidden">
+              <BotonImprimir texto="Imprimir cuadro" />
+            </div>
+            <CuadroCompleto fecha={fecha} dia={datosCuadro[0]} batidas={datosCuadro[1]} />
+          </>
+        ) : (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            No se pudo cargar el cuadro. Revisá que haya internet y recargá la página.
+          </p>
+        )
+      ) : movimientos.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Sin registros para esa fecha.
         </p>
