@@ -56,10 +56,10 @@ export default async function HistorialPage({
       )
       .eq("fecha", fecha)
       .eq("sucursal_id", sucursalId),
-    // Cambio y Sin decorar no están en v_movimientos: se leen de la tabla.
+    // Cambio, Decorado y Sin decorar no están en v_movimientos: se leen de la tabla.
     supabase
       .from("movimientos_diarios")
-      .select("producto_id, cambio, sin_decorar")
+      .select("producto_id, cambio, decorado, sin_decorar")
       .eq("fecha", fecha)
       .eq("sucursal_id", sucursalId),
     supabase
@@ -82,7 +82,8 @@ export default async function HistorialPage({
   );
   const sucursal = sucursales?.find((s) => s.id === sucursalId);
   const sucursalNombre = sucursal?.nombre ?? "";
-  // Principal anota Sin decorar; las tiendas anotan Cambio (CM del Excel).
+  // Principal anota Decorado / Sin decorar (su inventario = INV/TOTAL del
+  // Excel); las tiendas anotan Cambio (CM) y su saldo.
   const esPrincipal = sucursal?.es_principal ?? false;
   const cerrado = cierreRes.data?.estado === "cerrado";
 
@@ -148,44 +149,65 @@ export default async function HistorialPage({
             <thead>
               <tr className="border-b bg-muted/50 text-right">
                 <th className="px-3 py-2 text-left font-semibold">Producto</th>
-                <th className="px-3 py-2 font-semibold">Saldo inicial</th>
-                <th className="px-3 py-2 font-semibold">Ingreso</th>
-                <th className="px-3 py-2 font-semibold">Devolución</th>
                 {esPrincipal ? (
-                  <th className="px-3 py-2 font-semibold">Sin decorar</th>
+                  <>
+                    <th className="px-3 py-2 font-semibold">Decorado</th>
+                    <th className="px-3 py-2 font-semibold">Sin decorar</th>
+                    <th className="px-3 py-2 font-semibold">Inv/Total</th>
+                    <th className="px-3 py-2 font-semibold">Ingreso</th>
+                    <th className="px-3 py-2 font-semibold">Devolución</th>
+                    <th className="px-3 py-2 font-semibold">Pedido</th>
+                  </>
                 ) : (
-                  <th className="px-3 py-2 font-semibold">Cambio</th>
+                  <>
+                    <th className="px-3 py-2 font-semibold">Saldo inicial</th>
+                    <th className="px-3 py-2 font-semibold">Ingreso</th>
+                    <th className="px-3 py-2 font-semibold">Devolución</th>
+                    <th className="px-3 py-2 font-semibold">Cambio</th>
+                    <th className="px-3 py-2 font-semibold">Vendido</th>
+                    <th className="px-3 py-2 font-semibold">Pedido</th>
+                    <th className="px-3 py-2 font-semibold">Saldo final</th>
+                  </>
                 )}
-                <th className="px-3 py-2 font-semibold">Vendido</th>
-                <th className="px-3 py-2 font-semibold">Pedido</th>
-                <th className="px-3 py-2 font-semibold">Saldo final</th>
               </tr>
             </thead>
             <tbody>
-              {movimientos.map((m) => (
-                <tr
-                  key={m.producto_id}
-                  className="border-b text-right tabular-nums last:border-b-0"
-                >
-                  <td className="px-3 py-1.5 text-left font-medium">
-                    {m.productos?.nombre}
-                    {m.productos?.tamano ? ` · ${m.productos.tamano}` : ""}
-                  </td>
-                  <td className="px-3 py-1.5">{m.saldo_inicial}</td>
-                  <td className="px-3 py-1.5">{m.ingreso}</td>
-                  <td className="px-3 py-1.5">{m.devolucion}</td>
-                  <td className="px-3 py-1.5">
-                    {m.producto_id != null
-                      ? (esPrincipal
-                          ? extras.get(m.producto_id)?.sin_decorar
-                          : extras.get(m.producto_id)?.cambio) ?? 0
-                      : 0}
-                  </td>
-                  <td className="px-3 py-1.5">{m.vendido}</td>
-                  <td className="px-3 py-1.5">{m.pedido}</td>
-                  <td className="px-3 py-1.5">{m.saldo_final ?? "—"}</td>
-                </tr>
-              ))}
+              {movimientos.map((m) => {
+                const extra = m.producto_id != null ? extras.get(m.producto_id) : undefined;
+                const deco = extra?.decorado ?? 0;
+                const sinDeco = extra?.sin_decorar ?? 0;
+                return (
+                  <tr
+                    key={m.producto_id}
+                    className="border-b text-right tabular-nums last:border-b-0"
+                  >
+                    <td className="px-3 py-1.5 text-left font-medium">
+                      {m.productos?.nombre}
+                      {m.productos?.tamano ? ` · ${m.productos.tamano}` : ""}
+                    </td>
+                    {esPrincipal ? (
+                      <>
+                        <td className="px-3 py-1.5">{deco}</td>
+                        <td className="px-3 py-1.5">{sinDeco}</td>
+                        <td className="px-3 py-1.5 font-semibold">{deco + sinDeco}</td>
+                        <td className="px-3 py-1.5">{m.ingreso}</td>
+                        <td className="px-3 py-1.5">{m.devolucion}</td>
+                        <td className="px-3 py-1.5">{m.pedido}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-1.5">{m.saldo_inicial}</td>
+                        <td className="px-3 py-1.5">{m.ingreso}</td>
+                        <td className="px-3 py-1.5">{m.devolucion}</td>
+                        <td className="px-3 py-1.5">{extra?.cambio ?? 0}</td>
+                        <td className="px-3 py-1.5">{m.vendido}</td>
+                        <td className="px-3 py-1.5">{m.pedido}</td>
+                        <td className="px-3 py-1.5">{m.saldo_final ?? "—"}</td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
