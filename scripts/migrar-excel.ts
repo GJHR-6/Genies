@@ -210,6 +210,20 @@ export function parsearSugerido(celda: Celda): ReglaParseada {
     };
   }
 
+  // "12L-V/24 S-D", "10 L-V20 S-D", "4 L-V/8S-D" (Excel del 4 nov 2026):
+  // lunes a viernes / sábado y domingo.
+  m = texto.match(/^(\d+)\s*L-V\s*\/?\s*(\d+)\s*S-D$/);
+  if (m) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    return {
+      porDia: [
+        ...LUN_A_VIE.map((dia) => ({ dia, objetivo: a })),
+        ...FIN_DE_SEMANA.map((dia) => ({ dia, objetivo: b })),
+      ],
+    };
+  }
+
   m = texto.match(/^(\d+)\s*V\s*\/\s*(\d+)\s*S$/);
   if (m) {
     return {
