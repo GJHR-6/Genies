@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
+import { hoyTegucigalpa, fechaElegida, formatoLargo } from "@/lib/fechas";
+import { ElegirDia } from "@/components/elegir-dia";
 import {
   cargarSugeridosDelDia,
   diaSemana,
@@ -40,9 +41,15 @@ const DIAS_SEMANA = [
 /** Renglones vacíos al final, para anotar a mano. */
 const RENGLONES_EXTRA = 2;
 
-export default async function CuadrosPage() {
+export default async function CuadrosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ fecha?: string }>;
+}) {
   const supabase = await createClient();
-  const fecha = hoyTegucigalpa();
+  // Hoy, o un día anterior para revisarlo o reimprimirlo (?fecha=).
+  const hoy = hoyTegucigalpa();
+  const fecha = fechaElegida((await searchParams).fecha, hoy);
   const color = colorDelDia(fecha);
 
   // Domingo: no hay producción, no se generan cuadros.
@@ -50,8 +57,9 @@ export default async function CuadrosPage() {
     return (
       <section className="flex flex-col gap-4">
         <EncabezadoSeccion grupo={GRUPO_HOY} actual="cuadros" />
+        <ElegirDia fecha={fecha} hoy={hoy} ruta="/cuadros" />
         <Aviso tipo="info">
-          Hoy es domingo: no hay producción. Los cuadros salen de lunes a
+          Ese día es domingo: no hay producción. Los cuadros salen de lunes a
           sábado.
         </Aviso>
       </section>
@@ -223,13 +231,20 @@ export default async function CuadrosPage() {
         }
       >
         <Button asChild size="lg" variant="outline" className="print:hidden">
-          <Link href="/cuadros/despacho">
+          <Link href={fecha === hoy ? "/cuadros/despacho" : `/cuadros/despacho?fecha=${fecha}`}>
             <Truck />
             Hojas de despacho
           </Link>
         </Button>
         <BotonImprimir />
       </EncabezadoSeccion>
+
+      <ElegirDia fecha={fecha} hoy={hoy} ruta="/cuadros" />
+      {fecha !== hoy && (
+        <Aviso tipo="info" className="print:hidden">
+          Estás viendo un día anterior. Lo que cambies acá se guarda en ese día.
+        </Aviso>
+      )}
 
       {pendientes > 0 && (
         <Aviso tipo="aviso" className="print:hidden">

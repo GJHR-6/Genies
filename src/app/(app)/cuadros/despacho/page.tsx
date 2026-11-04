@@ -1,7 +1,8 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
+import { hoyTegucigalpa, fechaElegida, formatoLargo } from "@/lib/fechas";
+import { ElegirDia } from "@/components/elegir-dia";
 import {
   cargarSugeridosDelDia,
   totalesPorProducto,
@@ -51,19 +52,21 @@ type Hoja = "todas" | "completa" | "tiendas";
 export default async function DespachoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ hoja?: string }>;
+  searchParams: Promise<{ hoja?: string; fecha?: string }>;
 }) {
-  const { hoja: hojaParam } = await searchParams;
+  const { hoja: hojaParam, fecha: fechaParam } = await searchParams;
   const hoja: Hoja =
     hojaParam === "completa" || hojaParam === "tiendas" ? hojaParam : "todas";
   const supabase = await createClient();
-  const fecha = hoyTegucigalpa();
+  // Hoy, o un día anterior para revisarlo o reimprimirlo (?fecha=).
+  const hoy = hoyTegucigalpa();
+  const fecha = fechaElegida(fechaParam, hoy);
 
   if (!colorDelDia(fecha)) {
     return (
       <section className="flex flex-col gap-4">
-        <Encabezado fecha={fecha} hoja={hoja} />
-        <Aviso tipo="info">Hoy es domingo: no hay despacho.</Aviso>
+        <Encabezado fecha={fecha} hoy={hoy} hoja={hoja} />
+        <Aviso tipo="info">Ese día es domingo: no hay despacho.</Aviso>
       </section>
     );
   }
@@ -122,7 +125,7 @@ export default async function DespachoPage({
   } catch {
     return (
       <section className="flex flex-col gap-4">
-        <Encabezado fecha={fecha} hoja={hoja} />
+        <Encabezado fecha={fecha} hoy={hoy} hoja={hoja} />
         <Aviso tipo="error">
           No se pudieron cargar las hojas. Revisá que haya internet y recargá
           la página.
@@ -192,7 +195,7 @@ export default async function DespachoPage({
 
   return (
     <section className="flex flex-col gap-4">
-      <Encabezado fecha={fecha} hoja={hoja} />
+      <Encabezado fecha={fecha} hoy={hoy} hoja={hoja} />
 
       {todos.length === 0 && (
         <Aviso tipo="info">Todavía no hay productos activos.</Aviso>
@@ -428,7 +431,9 @@ const OPCIONES_HOJA: { valor: Hoja; etiqueta: string; href: string }[] = [
   { valor: "todas", etiqueta: "Todas", href: "/cuadros/despacho" },
 ];
 
-function Encabezado({ fecha, hoja }: { fecha: string; hoja: Hoja }) {
+function Encabezado({ fecha, hoy, hoja }: { fecha: string; hoy: string; hoja: Hoja }) {
+  const conFecha = (href: string) =>
+    fecha === hoy ? href : `${href}${href.includes("?") ? "&" : "?"}fecha=${fecha}`;
   return (
     <div className="flex flex-col gap-3 print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -462,7 +467,7 @@ function Encabezado({ fecha, hoja }: { fecha: string; hoja: Hoja }) {
           {OPCIONES_HOJA.map((o) => (
             <Link
               key={o.valor}
-              href={o.href}
+              href={conFecha(o.href)}
               aria-current={hoja === o.valor ? "page" : undefined}
               className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors ${
                 hoja === o.valor
@@ -474,6 +479,12 @@ function Encabezado({ fecha, hoja }: { fecha: string; hoja: Hoja }) {
             </Link>
           ))}
         </div>
+        <ElegirDia
+          fecha={fecha}
+          hoy={hoy}
+          ruta="/cuadros/despacho"
+          conservar={hoja === "todas" ? {} : { hoja }}
+        />
         <p className="text-sm text-muted-foreground">
           La hoja completa es igual a INVENTARIO DIARIO del Excel. La de cada
           tienda es para tachar lo que se manda. Cada hoja sale en su propia
