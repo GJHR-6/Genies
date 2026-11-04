@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { cargarReglas } from "@/lib/sugeridos";
 import { ReglasCliente } from "./reglas-cliente";
+import { ordenarSucursales } from "@/lib/orden-sucursales";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function ReglasPage({
     <section className="flex flex-col gap-5 py-2">
       <ReglasCliente
         productos={productos.data ?? []}
-        sucursales={sucursales.data ?? []}
+        sucursales={ordenarSucursales(sucursales.data ?? [])}
         reglas={reglas}
         productoInicial={Number.isFinite(idInicial) ? idInicial : null}
       />

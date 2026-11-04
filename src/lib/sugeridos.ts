@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
+import { ordenarSucursales } from "./orden-sucursales";
 
 export type CeldaSugerido = {
   objetivo: number;
@@ -198,7 +199,8 @@ export async function cargarSugeridosDelDia(
   );
 
   const productos = productosRes.data ?? [];
-  const sucursales = (sucursalesRes.data ?? []).map(({ id, nombre }) => ({
+  // Orden del Excel (Cypress, Chalets, Century, Altara, Palenque).
+  const sucursales = ordenarSucursales(sucursalesRes.data ?? []).map(({ id, nombre }) => ({
     id,
     nombre,
   }));

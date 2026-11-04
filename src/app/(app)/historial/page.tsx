@@ -5,6 +5,7 @@ import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { cargarSugeridosDelDia } from "@/lib/sugeridos";
 import { CuadroCompleto, cargarDatosBatidas } from "../cuadros/cuadro-completo";
 import { BotonImprimir } from "../cuadros/boton-imprimir";
+import { ordenarSucursales } from "@/lib/orden-sucursales";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,12 @@ export default async function HistorialPage({
     : hoyTegucigalpa();
 
   const supabase = await createClient();
-  const { data: sucursales } = await supabase
+  const { data: sucursalesDb } = await supabase
     .from("sucursales")
     .select("id, nombre, es_principal")
     .eq("activa", true)
     .order("id");
+  const sucursales = ordenarSucursales(sucursalesDb ?? []);
 
   // La tienda solo ve su sucursal; el admin elige.
   const sucursalParam = parseInt(params.sucursal ?? "", 10);

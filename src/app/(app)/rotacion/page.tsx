@@ -12,6 +12,7 @@ import {
   type IngresoDia,
   type LoteEstimado,
 } from "@/lib/rotacion";
+import { ordenarSucursales } from "@/lib/orden-sucursales";
 
 export const dynamic = "force-dynamic";
 
@@ -136,7 +137,7 @@ export default async function RotacionPage() {
       previasRes.find((r) => r.error)?.error;
     if (error) throw new Error(error.message);
     productos = productosRes.data ?? [];
-    sucursales = sucursalesRes.data ?? [];
+    sucursales = ordenarSucursales(sucursalesRes.data ?? []);
     filasHoy = hoyRes.data ?? [];
     filasAyer = ayerRes.data ?? [];
     ingresosPrevios = previasRes.flatMap((r) => r.data ?? []);

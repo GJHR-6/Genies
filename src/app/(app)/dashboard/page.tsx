@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { resumirDia } from "@/lib/resumen-dia";
 import { DashboardCliente } from "./dashboard-cliente";
+import { ordenarSucursales } from "@/lib/orden-sucursales";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
         .eq("fecha", fecha),
     ]);
 
-  const sucursales = sucursalesRes.data ?? [];
+  const sucursales = ordenarSucursales(sucursalesRes.data ?? []);
 
   return (
     <DashboardCliente
