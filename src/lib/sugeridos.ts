@@ -37,6 +37,8 @@ export type SugeridosDelDia = {
   sinDecorar: Record<number, number>;
   /** Decorados que Principal anotó hoy (producto → unidades). */
   decorado: Record<number, number>;
+  /** RESTANTE (sobrantes) que se anotó a mano en el cuadro completo. */
+  restante: Record<number, number>;
   /** Cambios de hoy por tienda: clave `${productoId}-${sucursalId}`. */
   cambios: Record<string, number>;
   /** Pedido que anotó cada tienda hoy (misma clave; solo > 0). */
@@ -158,7 +160,7 @@ export async function cargarSugeridosDelDia(
       supabase
         .from("movimientos_diarios")
         .select(
-          "producto_id, saldo_inicial, ingreso, devolucion, saldo_final, decorado, sin_decorar, sucursales!inner(es_principal)"
+          "producto_id, saldo_inicial, ingreso, devolucion, saldo_final, decorado, sin_decorar, restante, sucursales!inner(es_principal)"
         )
         .eq("fecha", fecha)
         .eq("sucursales.es_principal", true),
@@ -208,10 +210,12 @@ export async function cargarSugeridosDelDia(
     (sucursalesRes.data ?? []).find((s) => s.es_principal)?.id ?? null;
   const sinDecorar: Record<number, number> = {};
   const decorado: Record<number, number> = {};
+  const restante: Record<number, number> = {};
   const saldoPrincipal: Record<number, number> = {};
   for (const m of principalRes.data ?? []) {
     if (m.sin_decorar > 0) sinDecorar[m.producto_id] = m.sin_decorar;
     if (m.decorado > 0) decorado[m.producto_id] = m.decorado;
+    if (m.restante !== null) restante[m.producto_id] = m.restante;
     saldoPrincipal[m.producto_id] =
       m.saldo_final ?? m.saldo_inicial + m.ingreso - m.devolucion;
   }
@@ -247,6 +251,7 @@ export async function cargarSugeridosDelDia(
     celdas,
     sinDecorar,
     decorado,
+    restante,
     cambios,
     pedidos,
     mandarOverride,

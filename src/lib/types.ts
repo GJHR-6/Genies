@@ -256,6 +256,7 @@ export type Database = {
           ingreso: number
           mandar_override: number | null
           pedido: number
+          restante: number | null
           producto_id: number
           saldo_final: number | null
           saldo_inicial: number
@@ -274,6 +275,7 @@ export type Database = {
           ingreso?: number
           mandar_override?: number | null
           pedido?: number
+          restante?: number | null
           producto_id: number
           saldo_final?: number | null
           saldo_inicial?: number
@@ -292,6 +294,7 @@ export type Database = {
           ingreso?: number
           mandar_override?: number | null
           pedido?: number
+          restante?: number | null
           producto_id?: number
           saldo_final?: number | null
           saldo_inicial?: number

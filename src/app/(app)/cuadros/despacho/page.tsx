@@ -209,7 +209,7 @@ export default async function DespachoPage({
               <EncabezadoHoja
                 titulo="Inventario diario — hoja completa"
                 fecha={fecha}
-                nota={`Por tienda: lo que se manda y CM (cambio). SALDO = INV/TOTAL + CM − lo que se manda; en rojo, lo que falta. DEC y PROD: cuánto se decora y se hornea en cada batida (39*2 = 39 en la primera y 2 en la segunda). En la fila de cada masa, las libras por batida (máximo ${MAX_LIBRAS_BATIDA} lb).`}
+                nota={`Por tienda: lo que se manda y CM (cambio). SALDO = INV/TOTAL + CM − lo que se manda; en rojo, lo que falta. DEC y PROD: cuánto se decora y se hornea en cada batida (39*2 = 39 en la primera y 2 en la segunda). RESTANTE: sobrantes, anotados a mano. En la fila de cada masa, las libras por batida (máximo ${MAX_LIBRAS_BATIDA} lb).`}
               />
               <div className="overflow-x-auto print:overflow-visible">
                 <table className="w-full min-w-[900px] border-collapse text-[12px] print:min-w-0 print:text-[9.5px]">
@@ -242,6 +242,7 @@ export default async function DespachoPage({
                         PROD
                         <div className="text-[9px] font-normal">1*2*3*4</div>
                       </th>
+                      <th className="px-1 py-1 text-center font-semibold">RESTANTE</th>
                       <th className="px-1 py-1 text-center font-semibold">Sugerido</th>
                     </tr>
                   </thead>
@@ -259,7 +260,7 @@ export default async function DespachoPage({
                             {r.nombre}
                           </td>
                           <td
-                            colSpan={3}
+                            colSpan={4}
                             className={`px-1 py-0.5 text-center font-semibold tabular-nums ${
                               r.batidas?.excedidas.length
                                 ? "text-destructive print:text-black print:underline"
@@ -312,6 +313,9 @@ export default async function DespachoPage({
                           </td>
                           <td className="px-1 py-0.5 text-center tabular-nums">
                             {formatoTandas(prod.get(r.producto.id) ?? [])}
+                          </td>
+                          <td className="px-1 py-0.5 text-center tabular-nums">
+                            {dia.restante[r.producto.id] ?? ""}
                           </td>
                           <td className="px-1 py-0.5 text-center font-semibold tabular-nums">
                             {num(totales.get(r.producto.id)?.total ?? null)}

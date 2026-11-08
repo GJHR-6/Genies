@@ -75,6 +75,7 @@ export function CuadroCompleto({
           id: dia.principalId,
           sinDecorar: dia.sinDecorar,
           decorado: dia.decorado,
+          restante: dia.restante,
           saldo: dia.saldoPrincipal,
           cambios: dia.cambios,
         }}

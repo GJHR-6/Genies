@@ -33,6 +33,8 @@ export type DatosPrincipal = {
   id: number | null;
   sinDecorar: Record<number, number>;
   decorado: Record<number, number>;
+  /** RESTANTE (sobrantes), a mano mientras se define la fórmula. */
+  restante: Record<number, number>;
   saldo: Record<number, number>;
   cambios: Record<string, number>;
 };
@@ -106,7 +108,7 @@ type Edicion =
   | { tipo: "enviar"; clave: string; valor: string }
   | { tipo: "cambio"; clave: string; valor: string }
   | { tipo: "mandar"; clave: string; valor: string }
-  | { tipo: "decorado" | "sin_decorar"; productoId: number; valor: string }
+  | { tipo: "decorado" | "sin_decorar" | "restante"; productoId: number; valor: string }
   | null;
 
 const CAMPO_NUMERO = "h-8 w-16 text-right tabular-nums";
@@ -124,6 +126,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   const [celdas, setCeldas] = useState(celdasProp);
   const [decorado, setDecorado] = useState(principal.decorado);
   const [sinDecorar, setSinDecorar] = useState(principal.sinDecorar);
+  const [restante, setRestante] = useState(principal.restante);
   const [mandarOverride, setMandarOverride] = useState(ajustesProp);
   const [cambios, setCambios] = useState(principal.cambios);
   const [ajustesBatida, setAjustesBatida] = useState(batidas.ajustes);
@@ -162,6 +165,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   useEffect(() => setCeldas(celdasProp), [celdasProp]);
   useEffect(() => setDecorado(principal.decorado), [principal.decorado]);
   useEffect(() => setSinDecorar(principal.sinDecorar), [principal.sinDecorar]);
+  useEffect(() => setRestante(principal.restante), [principal.restante]);
   useEffect(() => setMandarOverride(ajustesProp), [ajustesProp]);
   useEffect(() => setCambios(principal.cambios), [principal.cambios]);
   useEffect(() => setAjustesBatida(batidas.ajustes), [batidas.ajustes]);
@@ -203,6 +207,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
       cambio?: number;
       decorado?: number;
       sin_decorar?: number;
+      restante?: number | null;
     }
   ) => {
     const updated_by = await usuario();
@@ -250,7 +255,12 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
         );
       } else {
         if (principal.id === null) throw new Error("Sin Principal");
-        await guardarFila(principal.id, e.productoId, { [e.tipo]: e.numero ?? 0 });
+        await guardarFila(
+          principal.id,
+          e.productoId,
+          // RESTANTE vacío = null (no se anotó); DECO / SIN DECO vacío = 0.
+          e.tipo === "restante" ? { restante: e.numero } : { [e.tipo]: e.numero ?? 0 }
+        );
       }
     },
     onSuccess: (_d, e) => {
@@ -280,6 +290,12 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
               sugerido: e.numero ?? Math.max(celda.objetivo - (celda.saldo ?? 0), 0),
             },
           };
+        });
+      } else if (e.tipo === "restante") {
+        setRestante((prev) => {
+          const { [e.productoId]: _quitado, ...resto } = prev;
+          void _quitado;
+          return e.numero === null ? resto : { ...resto, [e.productoId]: e.numero };
         });
       } else {
         const poner = e.tipo === "decorado" ? setDecorado : setSinDecorar;
@@ -368,6 +384,8 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
       // Sin cambios: mismo override, o se limpió sin haber override.
       if (numero === null && !celda.esOverride) return;
       if (numero !== null && celda.esOverride && numero === celda.sugerido) return;
+    } else if (edicion.tipo === "restante") {
+      if (numero === (restante[edicion.productoId] ?? null)) return;
     } else {
       const actual = (edicion.tipo === "decorado" ? decorado : sinDecorar)[edicion.productoId] ?? 0;
       if ((numero ?? 0) === actual) return;
@@ -392,7 +410,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   }, [productos]);
 
   const edicionProps = { edicion, setEdicion, confirmar };
-  const columnas = 4 + tiendas.length * 2 + 3 + (sucursalPrincipal ? 1 : 0) + 1 + numBatidas;
+  const columnas = 4 + tiendas.length * 2 + 4 + (sucursalPrincipal ? 1 : 0) + 1 + numBatidas;
   const productoPanel = panel === null ? null : (productos.find((p) => p.id === panel) ?? null);
   /** Hay algo de DEC / PROD cambiado a mano en este producto. */
   const conAjuste = (productoId: number, tipo: AjusteBatida["tipo"]) =>
@@ -518,6 +536,12 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
               >
                 Prod
                 <span className="block font-normal normal-case">por batida</span>
+              </th>
+              <th
+                className={cn("border-l px-2 py-2 text-right font-semibold", col("produccion"))}
+                title="Sobrantes. Se anota a mano (la fórmula está pendiente)"
+              >
+                Restante
               </th>
               {sucursalPrincipal && (
                 <th
@@ -669,6 +693,18 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                             className={cn("border-l", col("produccion"))}
                           />
                         ))}
+                        {editablePrincipal ? (
+                          <CeldaPrincipal
+                            campo="restante"
+                            producto={p.id}
+                            valor={restante[p.id] ?? 0}
+                            etiqueta={`Restante de ${nombre}`}
+                            className={cn("border-l", col("produccion"))}
+                            {...edicionProps}
+                          />
+                        ) : (
+                          <Numero valor={null} className={cn("border-l", col("produccion"))} />
+                        )}
                         {sucursalPrincipal && (
                           <CeldaMandar
                             clave={`${p.id}-${sucursalPrincipal.id}`}
@@ -700,6 +736,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                       total={paraTotal.reduce((t, f) => t + f.total, 0)}
                       dec={sumarTandas(paraTotal.map((f) => efectivas.dec.get(f.p.id)))}
                       prod={sumarTandas(paraTotal.map((f) => efectivas.prod.get(f.p.id)))}
+                      restante={paraTotal.reduce((t, f) => t + (restante[f.p.id] ?? 0), 0)}
                       libras={sumarTandas(paraTotal.map((f) => librasDe(f.p.id)))}
                       numBatidas={numBatidas}
                       col={col}
@@ -743,6 +780,7 @@ function FilaTotalSeccion({
   total,
   dec,
   prod,
+  restante,
   libras,
   numBatidas,
   col,
@@ -753,6 +791,7 @@ function FilaTotalSeccion({
   total: number;
   dec: number[];
   prod: number[];
+  restante: number;
   libras: number[];
   numBatidas: number;
   col: (...grupos: Exclude<Vista, "todo">[]) => string;
@@ -788,6 +827,7 @@ function FilaTotalSeccion({
       </td>
       <Texto valor={formatoTandas(dec)} className={cn("border-l", col("produccion"))} />
       <Texto valor={formatoTandas(prod)} className={cn("border-l", col("produccion"))} />
+      <Numero valor={restante || null} className={cn("border-l font-bold", col("produccion"))} />
       {principal !== null && <Numero valor={principal} className={cn("border-l font-bold", col("despacho"))} />}
       <td className={cn("border-l px-2 py-1.5 text-right tabular-nums", col("produccion"))}>{total || ""}</td>
       <CeldasLibras libras={libras} total numBatidas={numBatidas} className={col("produccion")} />
@@ -948,7 +988,7 @@ function CeldaPrincipal({
   setEdicion,
   confirmar,
 }: EdicionProps & {
-  campo: "decorado" | "sin_decorar";
+  campo: "decorado" | "sin_decorar" | "restante";
   producto: number;
   valor: number;
   etiqueta: string;
