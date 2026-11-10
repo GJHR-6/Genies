@@ -132,8 +132,8 @@ export default async function CuadrosPage({
   const ordenExcel = [...productos].sort(compararProductos);
 
   // Cuadros por área (3 nov 2026), como la hoja de papel de las pasteleras:
-  // MÍNIMO (objetivo de Principal) · PRODUCTO · lunes a sábado con PROD. y
-  // SALDO para llenar a mano. En el día de hoy, PROD. ya trae lo que se
+  // MÍNIMO (objetivo de Principal) · PRODUCTO · lunes a sábado con PROD.
+  // para llenar a mano (el SALDO solo va en Decoración: 10 nov). En el día de hoy, PROD. ya trae lo que se
   // manda a hacer = suma del PROD de las batidas del cuadro completo
   // (reparto + lo cambiado a mano); en Decoración, la suma del DEC.
   const efectivas = batidasDelCuadro({
@@ -266,6 +266,9 @@ export default async function CuadrosPage({
         }
         const borde = "border border-border print:border-black";
         const hoyClase = "bg-primary/10 print:bg-black/10";
+        // Decoración: DEC. y SALDO por día; producción: solo PROD.
+        const conSaldo = esDecoracion;
+        const porDia = conSaldo ? 2 : 1;
         const celdasDias = (hoy: React.ReactNode, clase = "") =>
           DIAS_SEMANA.map(([n]) => (
             <Fragment key={n}>
@@ -274,7 +277,7 @@ export default async function CuadrosPage({
               >
                 {n === hoySemana ? hoy : null}
               </td>
-              <td className={`${borde} h-8 w-12 ${n === hoySemana ? hoyClase : ""}`} />
+              {conSaldo && <td className={`${borde} h-8 w-12 ${n === hoySemana ? hoyClase : ""}`} />}
             </Fragment>
           ));
         return (
@@ -313,7 +316,7 @@ export default async function CuadrosPage({
                 {DIAS_SEMANA.map(([n, nombre]) => (
                   <th
                     key={n}
-                    colSpan={2}
+                    colSpan={porDia}
                     className={`${borde} px-1 py-1 text-center font-semibold uppercase ${n === hoySemana ? hoyClase : ""}`}
                   >
                     {nombre}
@@ -327,9 +330,11 @@ export default async function CuadrosPage({
                     <th className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}>
                       {esDecoracion ? "DEC." : "PROD."}
                     </th>
-                    <th className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}>
-                      SALDO
-                    </th>
+                    {conSaldo && (
+                      <th className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}>
+                        SALDO
+                      </th>
+                    )}
                   </Fragment>
                 ))}
               </tr>
@@ -338,7 +343,7 @@ export default async function CuadrosPage({
               {secciones.map((seccion) => (
                 <Fragment key={seccion.nombre}>
                   <tr className="bg-muted/50 print:bg-black/10">
-                    <td colSpan={2 + DIAS_SEMANA.length * 2} className={`${borde} py-0.5 px-2 text-xs font-bold uppercase tracking-wide`}>
+                    <td colSpan={2 + DIAS_SEMANA.length * porDia} className={`${borde} py-0.5 px-2 text-xs font-bold uppercase tracking-wide`}>
                       {seccion.nombre}
                     </td>
                   </tr>
