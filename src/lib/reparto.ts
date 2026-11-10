@@ -9,6 +9,8 @@
  *  - Siempre en unidades enteras: método del mayor residuo; la unidad que
  *    sobra rota según el día para que no le toque siempre a la misma.
  *  - Todo arranca en la tanda 1; el admin lo parte en tandas 1–4 al editar.
+ *    Si el cuadro completo ya tiene PROD escrito por batida (p. ej. 15*12),
+ *    la producción sale en esas tandas (10 nov 2026).
  *  - Decoración: la hacen las pasteleras del área de decoración; si no hay
  *    ninguna activa, las del área del producto.
  *  - Producción y decoración pueden tener totales distintos: lo que ya está
@@ -138,17 +140,21 @@ function pastelerasDeArea(
     .sort(porOrdenPastelera);
 }
 
+/** Tandas del reparto (T1–T4); lo escrito en batidas 5–10 va a la última. */
+export const TANDAS_REPARTO = 4;
+
 function repartirProducto(
   productoId: number,
   total: number,
   tipo: TipoAsignacion,
   equipo: PasteleraReparto[],
-  rotacion: number
+  rotacion: number,
+  tanda = 1
 ): FilaReparto[] {
   if (total <= 0) return [];
   if (equipo.length === 0) {
     return [
-      { producto_id: productoId, pastelera_id: null, tipo, tanda: 1, cantidad: total },
+      { producto_id: productoId, pastelera_id: null, tipo, tanda, cantidad: total },
     ];
   }
   const partes = repartirEntero(total, equipo, rotacion);
@@ -157,10 +163,19 @@ function repartirProducto(
       producto_id: productoId,
       pastelera_id: p.id,
       tipo,
-      tanda: 1,
+      tanda,
       cantidad: partes.get(p.id) ?? 0,
     }))
     .filter((f) => f.cantidad > 0);
+}
+
+/** Batidas 1–10 del cuadro → tandas 1–4 (lo de la 5 en adelante, a la 4). */
+export function batidasATandas(batidas: readonly number[]): number[] {
+  const tandas = Array<number>(TANDAS_REPARTO).fill(0);
+  batidas.forEach((c, i) => {
+    tandas[Math.min(i, TANDAS_REPARTO - 1)] += Math.max(c, 0);
+  });
+  return tandas;
 }
 
 /** Reparto completo del día: producción y decoración. */
@@ -176,6 +191,11 @@ export function generarReparto(params: {
   areaDecoracionId: number | null;
   /** Áreas que trabajan en equipo (una hoja compartida, sin dividir). */
   areasEnEquipo?: ReadonlySet<number>;
+  /**
+   * PROD escrito por batida en el cuadro completo (producto → batidas
+   * 1–10). Esos productos se reparten en esas tandas en vez de `totales`.
+   */
+  prodPorBatida?: ReadonlyMap<number, readonly number[]>;
 }): FilaReparto[] {
   const { fecha, productos, totales, pasteleras, areaDecoracionId } = params;
   const totalesDecoracion = params.totalesDecoracion ?? totales;
@@ -189,13 +209,23 @@ export function generarReparto(params: {
     const totalDecoracion = producto.lleva_decoracion
       ? (totalesDecoracion.get(producto.id) ?? 0)
       : 0;
-    if (total <= 0 && totalDecoracion <= 0) continue;
+    const conBatidas = (params.prodPorBatida?.get(producto.id) ?? []).some((c) => c > 0);
+    if (total <= 0 && totalDecoracion <= 0 && !conBatidas) continue;
     const equipoArea = pastelerasDeArea(pasteleras, producto.area_id, areasEnEquipo);
     const rotacion = dia + producto.id;
 
-    filas.push(
-      ...repartirProducto(producto.id, total, "produccion", equipoArea, rotacion)
-    );
+    const batidas = params.prodPorBatida?.get(producto.id);
+    if (batidas) {
+      batidasATandas(batidas).forEach((cantidad, i) =>
+        filas.push(
+          ...repartirProducto(producto.id, cantidad, "produccion", equipoArea, rotacion + i, i + 1)
+        )
+      );
+    } else {
+      filas.push(
+        ...repartirProducto(producto.id, total, "produccion", equipoArea, rotacion)
+      );
+    }
     if (totalDecoracion > 0) {
       filas.push(
         ...repartirProducto(

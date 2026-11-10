@@ -6,6 +6,7 @@ import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { hoyTegucigalpa } from "@/lib/fechas";
 import { cargarSugeridosDelDia, totalesPorProducto } from "@/lib/sugeridos";
 import { generarReparto } from "@/lib/reparto";
+import { prodEscritoPorBatida } from "@/lib/batidas";
 import {
   COLUMNAS_PASTELERA,
   aPastelera,
@@ -41,14 +42,21 @@ export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
 
   const supabase = await createClient();
   try {
-    const [dia, pastelerasRes, areasRes] = await Promise.all([
+    const [dia, pastelerasRes, areasRes, ajustesRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase.from("pasteleras").select(COLUMNAS_PASTELERA),
       supabase
         .from("areas_produccion")
         .select("id, es_decoracion, activa, trabajo_en_equipo"),
+      // PROD escrito por batida en el cuadro completo: manda sobre el total.
+      supabase
+        .from("batidas_ajuste")
+        .select("producto_id, tipo, tanda, cantidad")
+        .eq("fecha", fecha)
+        .eq("tipo", "produccion"),
     ]);
     if (pastelerasRes.error) throw new Error(pastelerasRes.error.message);
+    if (ajustesRes.error) throw new Error(ajustesRes.error.message);
     if (areasRes.error) throw new Error(areasRes.error.message);
 
     // Producción = suma de sugeridos menos lo que ya está sin decorar en
@@ -72,6 +80,9 @@ export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
       pasteleras: (pastelerasRes.data ?? []).map(aPastelera),
       areaDecoracionId: areaDecoracion?.id ?? null,
       areasEnEquipo: idsAreasEnEquipo(areasRes.data ?? []),
+      prodPorBatida: prodEscritoPorBatida(
+        (ajustesRes.data ?? []).map((x) => ({ ...x, tipo: "produccion" as const }))
+      ),
     });
 
     const { data, error } = await supabase.rpc("reemplazar_asignaciones", {

@@ -195,3 +195,24 @@ export function comoAsignaciones(
     fila.map((cantidad, i) => ({ producto_id, tipo, tanda: i + 1, cantidad }))
   );
 }
+
+/**
+ * PROD escrito a mano por batida en el cuadro completo (producto → batidas
+ * 1–10). Solo los productos con algo escrito; el reparto y la pantalla de
+ * Reparto los usan en vez del total del sugerido.
+ */
+export function prodEscritoPorBatida(
+  ajustes: readonly AjusteBatida[]
+): Map<number, number[]> {
+  const porProducto = new Map<number, number[]>();
+  for (const a of ajustes) {
+    if (a.tipo !== "produccion" || a.tanda < 1 || a.tanda > MAX_BATIDAS) continue;
+    let fila = porProducto.get(a.producto_id);
+    if (!fila) {
+      fila = Array(MAX_BATIDAS).fill(0);
+      porProducto.set(a.producto_id, fila);
+    }
+    fila[a.tanda - 1] = a.cantidad;
+  }
+  return porProducto;
+}

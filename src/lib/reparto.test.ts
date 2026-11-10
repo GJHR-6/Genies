@@ -132,6 +132,30 @@ describe("generarReparto", () => {
     expect(filas.some((f) => f.producto_id === 40)).toBe(false);
   });
 
+  it("con PROD escrito por batida en el cuadro, reparte en esas tandas (15*12)", () => {
+    const filas = generarReparto({
+      fecha: "2026-11-10",
+      productos: [
+        { id: 10, area_id: 1, lleva_decoracion: false },
+        { id: 20, area_id: 2, lleva_decoracion: false },
+      ],
+      totales: new Map([
+        [10, 39],
+        [20, 4],
+      ]),
+      pasteleras,
+      areaDecoracionId: null,
+      prodPorBatida: new Map([[10, [15, 12, 0, 0, 0, 3]]]),
+    });
+    const de10 = filas.filter((f) => f.producto_id === 10);
+    const porTanda = (t: number) => de10.filter((f) => f.tanda === t).reduce((s, f) => s + f.cantidad, 0);
+    expect([porTanda(1), porTanda(2), porTanda(3), porTanda(4)]).toEqual([15, 12, 0, 3]);
+    // sin batidas escritas: como siempre, el total en la tanda 1
+    expect(filas.filter((f) => f.producto_id === 20)).toEqual([
+      { producto_id: 20, pastelera_id: 3, tipo: "produccion", tanda: 1, cantidad: 4 },
+    ]);
+  });
+
   it("decoración: usa el área de decoración si tiene pasteleras", () => {
     const filas = generarReparto({
       fecha: "2026-10-15",

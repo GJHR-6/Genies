@@ -501,16 +501,19 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
         </Aviso>
       )}
 
-      <div className="overflow-x-auto rounded-lg border print:overflow-visible print:rounded-none print:border-0">
+      {/* La tabla se desplaza dentro de su marco (alto de la pantalla) para que
+          los títulos queden fijos arriba al bajar y la columna Producto a la
+          izquierda al moverse de lado. Al imprimir, todo normal. */}
+      <div className="max-h-[80vh] overflow-auto rounded-lg border print:max-h-none print:overflow-visible print:rounded-none print:border-0">
         <table
           className={cn(
             "w-full border-collapse text-sm print:min-w-0 print:text-[9.5px]",
             vista !== "produccion" && "min-w-[900px]"
           )}
         >
-          <thead>
-            <tr className="border-b bg-muted/50 text-xs uppercase print:border-black print:bg-transparent">
-              <th className="sticky left-0 z-[1] shadow-[1px_0_0_var(--border)] bg-background px-3 py-2 text-left font-semibold print:static">
+          <thead className="sticky top-0 z-[2] bg-muted shadow-[0_1px_0_var(--border)] print:static print:bg-transparent print:shadow-none">
+            <tr className="border-b bg-muted text-xs uppercase print:border-black print:bg-transparent">
+              <th className="sticky left-0 z-[3] shadow-[1px_0_0_var(--border)] bg-muted px-3 py-2 text-left font-semibold print:static print:bg-transparent">
                 Producto
               </th>
               <th className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}>Deco</th>

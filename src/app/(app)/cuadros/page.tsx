@@ -17,7 +17,7 @@ import { Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { compararProductos } from "@/lib/orden-productos";
 import { BotonImprimir } from "./boton-imprimir";
-import { batidasDelCuadro } from "@/lib/batidas";
+import { batidasDelCuadro, formatoTandas } from "@/lib/batidas";
 import type { DatosBatidas } from "./hoja-cuadro";
 import { CuadroCompleto, cargarDatosBatidas } from "./cuadro-completo";
 
@@ -26,8 +26,8 @@ export const dynamic = "force-dynamic";
 type Cuadro = {
   titulo: string;
   encargadas: string | null;
-  /** Productos del cuadro con lo de hoy (PROD o DEC; 0 = nada). */
-  filas: { producto: ProductoSugerido; cantidad: number }[];
+  /** Productos del cuadro con lo de hoy (PROD o DEC; 0 = nada) y sus batidas. */
+  filas: { producto: ProductoSugerido; cantidad: number; batidas: readonly number[] }[];
 };
 
 /** Columnas de la semana, como la hoja de papel (1 = lunes … 6 = sábado). */
@@ -152,7 +152,11 @@ export default async function CuadrosPage({
     soloConCantidad = false
   ) =>
     lista
-      .map((producto) => ({ producto, cantidad: suma(porProducto.get(producto.id)) }))
+      .map((producto) => ({
+        producto,
+        cantidad: suma(porProducto.get(producto.id)),
+        batidas: porProducto.get(producto.id) ?? [],
+      }))
       .filter((f) => !soloConCantidad || f.cantidad > 0);
   const minimoDe = (id: number) =>
     dia.principalId === null ? null : (celdas[`${id}-${dia.principalId}`]?.objetivo ?? null);
@@ -269,6 +273,14 @@ export default async function CuadrosPage({
         // Decoración: DEC. y SALDO por día; producción: solo PROD.
         const conSaldo = esDecoracion;
         const porDia = conSaldo ? 2 : 1;
+        // Hoy: con más de una batida, como el Excel ("15*12" = 15 en la
+        // batida 1 y 12 en la 2); con una sola, el número.
+        const deHoy = (batidas: readonly number[], total: number) =>
+          batidas.filter((c) => c > 0).length > 1 ? formatoTandas(batidas) : total || "";
+        const sumaBatidas = (filas: Cuadro["filas"]) =>
+          Array.from({ length: Math.max(0, ...filas.map((f) => f.batidas.length)) }, (_, i) =>
+            filas.reduce((t, f) => t + (f.batidas[i] ?? 0), 0)
+          );
         const celdasDias = (hoy: React.ReactNode, clase = "") =>
           DIAS_SEMANA.map(([n]) => (
             <Fragment key={n}>
@@ -347,7 +359,7 @@ export default async function CuadrosPage({
                       {seccion.nombre}
                     </td>
                   </tr>
-                  {seccion.filas.map(({ producto: p, cantidad }) => (
+                  {seccion.filas.map(({ producto: p, cantidad, batidas }) => (
                     <tr key={p.id}>
                       <td className={`${borde} px-1 text-right tabular-nums`}>
                         {minimoDe(p.id) || ""}
@@ -356,7 +368,7 @@ export default async function CuadrosPage({
                         {p.nombre}
                         {p.tamano ? ` · ${p.tamano}` : ""}
                       </td>
-                      {celdasDias(cantidad || "", "text-base font-bold")}
+                      {celdasDias(deHoy(batidas, cantidad), "text-base font-bold whitespace-nowrap")}
                     </tr>
                   ))}
                   {secciones.length > 1 && seccion.filas.length > 1 && (
@@ -365,7 +377,10 @@ export default async function CuadrosPage({
                       <td className={`${borde} px-2 text-xs font-semibold first-letter:uppercase`}>
                         Total {seccion.nombre.toLowerCase()}
                       </td>
-                      {celdasDias(seccion.filas.reduce((t, f) => t + f.cantidad, 0) || "", "font-semibold")}
+                      {celdasDias(
+                        deHoy(sumaBatidas(seccion.filas), seccion.filas.reduce((t, f) => t + f.cantidad, 0)),
+                        "font-semibold whitespace-nowrap"
+                      )}
                     </tr>
                   )}
                 </Fragment>
@@ -382,15 +397,19 @@ export default async function CuadrosPage({
               <tr className="font-bold">
                 <td className={borde} />
                 <td className={`${borde} px-2 py-1`}>Total</td>
-                {celdasDias(cuadro.filas.reduce((t, f) => t + f.cantidad, 0) || "", "text-base")}
+                {celdasDias(
+                  deHoy(sumaBatidas(cuadro.filas), cuadro.filas.reduce((t, f) => t + f.cantidad, 0)),
+                  "text-base whitespace-nowrap"
+                )}
               </tr>
             </tfoot>
           </table>
           </div>
           <p className="mt-2 text-xs text-muted-foreground print:text-black/60">
             Mínimo = lo que Principal debe tener. Hoy ({color.nombre.toLowerCase()})
-            ya trae lo que hay que {esDecoracion ? "decorar" : "producir"}; los
-            demás días se llenan a mano.
+            ya trae lo que hay que {esDecoracion ? "decorar" : "producir"}, por
+            batida (15*12 = 15 en la batida 1 y 12 en la 2); los demás días se
+            llenan a mano.
           </p>
         </article>
         );

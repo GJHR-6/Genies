@@ -491,7 +491,7 @@ function TablaSeccion({
                 title={
                   seccion.tipo === "decoracion"
                     ? "Total a decorar del cuadro (suma de sugeridos)"
-                    : "A hornear según el cuadro (suma de sugeridos − sin decorar)"
+                    : "A hornear según el cuadro: PROD por batida del cuadro completo, o suma de sugeridos − sin decorar"
                 }
               >
                 Cuadro

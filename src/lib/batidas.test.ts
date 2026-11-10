@@ -7,6 +7,7 @@ import {
   librasPorBatida,
   tandasPorProducto,
 } from "./batidas";
+import { prodEscritoPorBatida } from "./batidas";
 
 describe("formatoTandas", () => {
   it("separa las batidas con * como el Excel", () => {
@@ -157,5 +158,18 @@ describe("hasta 10 batidas", () => {
 
   it("sin nada, se usa 1 batida", () => {
     expect(batidasUsadas(new Map(), new Map())).toBe(1);
+  });
+});
+
+describe("prodEscritoPorBatida", () => {
+  it("solo PROD, por batida, de los productos con algo escrito", () => {
+    const m = prodEscritoPorBatida([
+      { producto_id: 8, tipo: "produccion", tanda: 1, cantidad: 15 },
+      { producto_id: 8, tipo: "produccion", tanda: 2, cantidad: 12 },
+      { producto_id: 8, tipo: "decoracion", tanda: 1, cantidad: 16 },
+      { producto_id: 9, tipo: "decoracion", tanda: 1, cantidad: 3 },
+    ]);
+    expect(m.get(8)?.slice(0, 3)).toEqual([15, 12, 0]);
+    expect(m.has(9)).toBe(false);
   });
 });

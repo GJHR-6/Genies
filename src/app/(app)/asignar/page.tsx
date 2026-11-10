@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { colorDelDia } from "@/lib/color-dia";
 import { cargarSugeridosDelDia, totalesPorProducto } from "@/lib/sugeridos";
+import { prodEscritoPorBatida } from "@/lib/batidas";
 import {
   cargarReparto,
   type DatosReparto,
@@ -30,7 +31,7 @@ export default async function AsignarPage() {
   let totalesCuadro: TotalesCuadro = {};
   let pendientes = 0;
   try {
-    const [reparto, dia, cierresRes] = await Promise.all([
+    const [reparto, dia, cierresRes, ajustesRes] = await Promise.all([
       cargarReparto(supabase, fecha),
       cargarSugeridosDelDia(supabase, fecha),
       supabase
@@ -38,13 +39,30 @@ export default async function AsignarPage() {
         .select("sucursal_id")
         .eq("fecha", fecha)
         .eq("estado", "cerrado"),
+      supabase
+        .from("batidas_ajuste")
+        .select("producto_id, tipo, tanda, cantidad")
+        .eq("fecha", fecha)
+        .eq("tipo", "produccion"),
     ]);
     if (cierresRes.error) throw new Error(cierresRes.error.message);
+    if (ajustesRes.error) throw new Error(ajustesRes.error.message);
     datos = reparto;
+    // Con PROD escrito por batida en el cuadro completo, eso es lo que se
+    // hornea (el reparto sale en esas tandas).
+    const escrito = prodEscritoPorBatida(
+      (ajustesRes.data ?? []).map((x) => ({ ...x, tipo: "produccion" as const }))
+    );
     totalesCuadro = Object.fromEntries(
       [...totalesPorProducto(dia)].map(([id, t]) => [
         id,
-        { produccion: t.aProducir, decoracion: t.aDecorar, sinDecorar: t.sinDecorar },
+        {
+          produccion: escrito.has(id)
+            ? escrito.get(id)!.reduce((s, c) => s + c, 0)
+            : t.aProducir,
+          decoracion: t.aDecorar,
+          sinDecorar: escrito.has(id) ? 0 : t.sinDecorar,
+        },
       ])
     );
     pendientes = dia.sucursales.length - (cierresRes.data ?? []).length;
