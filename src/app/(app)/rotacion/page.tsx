@@ -4,7 +4,6 @@ import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
 import {
   estimarLotes,
-  lotesRezagados,
   accionPorDias,
   DIAS_PRIORIDAD,
   DIAS_REGRESAR,
@@ -25,6 +24,10 @@ type ProductoRezagado = {
 };
 
 const ETIQUETA_ACCION = {
+  fresco: {
+    texto: "A tiempo · no se regresa",
+    clase: "bg-exito/10 text-exito",
+  },
   prioridad: {
     texto: "Prioridad de venta",
     clase: "bg-aviso/10 text-aviso",
@@ -193,17 +196,20 @@ export default async function RotacionPage() {
     agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, m.fecha, m.ingreso);
   }
 
-  // Productos con pastel rezagado por sucursal.
+  // Todo lo que hay en cada tienda, por edad (10 nov: también lo que está a
+  // tiempo, para ver qué no se regresa).
   const porSucursal = new Map<number, ProductoRezagado[]>();
   let unidadesPrioridad = 0;
   let unidadesRegresar = 0;
+  let unidadesATiempo = 0;
   for (const [clave, saldo] of saldos) {
     if (saldo <= 0) continue;
     const [productoId, sucursalId] = clave.split("-").map(Number);
     const producto = nombreProducto.get(productoId);
     if (!producto) continue;
-    const rezagados = lotesRezagados(
-      estimarLotes(saldo, hoy, ingresos.get(clave) ?? [])
+    // Del más viejo al más nuevo.
+    const rezagados = estimarLotes(saldo, hoy, ingresos.get(clave) ?? []).sort(
+      (a, b) => b.dias - a.dias
     );
     if (rezagados.length === 0) continue;
     const lista = porSucursal.get(sucursalId) ?? [];
@@ -216,8 +222,10 @@ export default async function RotacionPage() {
     });
     porSucursal.set(sucursalId, lista);
     for (const l of rezagados) {
-      if (accionPorDias(l.dias) === "regresar") unidadesRegresar += l.unidades;
-      else unidadesPrioridad += l.unidades;
+      const accion = accionPorDias(l.dias);
+      if (accion === "regresar") unidadesRegresar += l.unidades;
+      else if (accion === "prioridad") unidadesPrioridad += l.unidades;
+      else unidadesATiempo += l.unidades;
     }
   }
   for (const lista of porSucursal.values()) {
@@ -273,7 +281,7 @@ export default async function RotacionPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border bg-card p-3">
           <p className="text-2xl font-bold tabular-nums text-destructive">
             {unidadesRegresar}
@@ -290,12 +298,19 @@ export default async function RotacionPage() {
             unidades con prioridad de venta ({DIAS_PRIORIDAD} días)
           </p>
         </div>
+        <div className="rounded-lg border bg-card p-3">
+          <p className="text-2xl font-bold tabular-nums text-exito">
+            {unidadesATiempo}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            unidades a tiempo (menos de {DIAS_PRIORIDAD} días): no se regresan
+          </p>
+        </div>
       </div>
 
       {gruposConAlerta.length === 0 && (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Sin pastel rezagado: todo el inventario a la vista tiene menos de{" "}
-          {DIAS_PRIORIDAD} días.
+          No hay inventario en tienda para mostrar.
         </p>
       )}
 
@@ -318,7 +333,6 @@ export default async function RotacionPage() {
                 </div>
                 {p.lotes.map((l) => {
                   const accion = accionPorDias(l.dias);
-                  if (accion === "fresco") return null;
                   const etiqueta = ETIQUETA_ACCION[accion];
                   return (
                     <div
@@ -338,7 +352,11 @@ export default async function RotacionPage() {
                         ·{" "}
                         {l.dias >= VENTANA_DIAS
                           ? `${VENTANA_DIAS}+ días`
-                          : `${l.dias} días`}
+                          : l.dias === 0
+                            ? "de hoy"
+                            : l.dias === 1
+                              ? "1 día"
+                              : `${l.dias} días`}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-semibold ${etiqueta.clase}`}
