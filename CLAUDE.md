@@ -129,6 +129,8 @@ La cocina no tiene tablet: se quitó `/cocina`, «Enviar a cocina / Quitar de la
 
 - **Cuadros por área, una casilla por batida** (12 nov): cada día lleva B1, B2… (tantas como se usan ese día en el cuadro, mínimo 2, hasta 10) en vez de "15*12"; hoy se llenan con el PROD (producción) o el DEC (decoración) de cada batida, los demás días a mano. Decoración lleva además SALDO al final de cada día.
 
+- ⚠️ **DATOS FICTICIOS en producción** (12 nov, para capacitar): miércoles 11 nov de Century y Palenque (inicial = final del martes, ingreso = pedido del martes, venta 30–50 %, día terminado). Deshacer con `supabase/mantenimiento/deshacer-demo-miercoles-11.sql` cuando haya datos reales o tras la capacitación.
+
 ## Navegación y lenguaje (oct 2026)
 Pantallas **independientes, no secuenciales**: el admin entra a `/hoy` (portada con tarjetas Tiendas · Sugeridos · Cuadros · Reparto, cada una con su estado y un número de paso solo orientativo; `src/lib/paso-del-dia.ts` decide qué tarjeta resaltar, con tests). Menú corto por rol en `src/components/menu-principal.tsx` (admin: Hoy · Catálogos · Rotación · Historial; principal: Inventario · Rotación · Historial; tienda sin Cocina). Grupos en `src/lib/grupos.ts`; cada pantalla usa `<EncabezadoSeccion>` (fila de botones a las demás del grupo, ícono, título, una línea de "para qué sirve") y `<Aviso>`. No usar enlaces "siguiente →/← anterior". Pasteleras vive dentro de Catálogos.
 - **Colores**: solo tokens (`primary`, `secondary`, `exito`, `aviso`, `destructive` en `globals.css`, con modo oscuro); nada de hex en componentes (los hex de `color-dia.ts` son los colores físicos del día, a propósito).
