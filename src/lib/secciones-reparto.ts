@@ -107,7 +107,10 @@ export function construirSecciones(params: {
       productos: prods,
       ...(titular
         ? { equipo: nombreHoja(titular, pasteleras, new Set([area.id])) }
-        : {}),
+        : area.trabajo_en_equipo && area.encargadas
+          ? // Compartida sin pasteleras propias: "Carolina o Silvia".
+            { equipo: area.encargadas }
+          : {}),
     });
   }
 

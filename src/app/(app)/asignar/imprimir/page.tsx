@@ -40,7 +40,25 @@ export default async function ImprimirRepartoPage() {
   // Orden del Excel (productos.orden), igual que en todas las hojas.
   const ordenProducto = (id: number) => productoPorId.get(id)?.orden ?? 99999;
 
-  const hojas: { pastelera: PasteleraDia | null; titulo: string; area: string }[] = [
+  // Áreas en equipo sin pasteleras propias ("Carolina o Silvia"): su hoja
+  // lleva lo que el reparto dejó sin pastelera de sus productos.
+  const compartidas = datos.areas.filter(
+    (a) =>
+      a.trabajo_en_equipo &&
+      a.encargadas &&
+      !datos.pasteleras.some((p) => p.activa && p.area_id === a.id)
+  );
+  const areaDeProducto = (id: number) => productoPorId.get(id)?.area_id ?? null;
+  const deCompartida = (a: (typeof datos.asignaciones)[number]) =>
+    a.pastelera_id === null && compartidas.some((c) => c.id === areaDeProducto(a.producto_id));
+
+  const hojas: {
+    pastelera: PasteleraDia | null;
+    titulo: string;
+    area: string;
+    /** Solo estas asignaciones (hojas de áreas compartidas). */
+    filtro?: (a: (typeof datos.asignaciones)[number]) => boolean;
+  }[] = [
     ...datos.pasteleras
       .filter((p) => datos.asignaciones.some((a) => a.pastelera_id === p.id && a.cantidad > 0))
       .sort(
@@ -55,8 +73,20 @@ export default async function ImprimirRepartoPage() {
         area: areaPorId.get(p.area_id)?.nombre ?? "",
       })),
   ];
-  if (datos.asignaciones.some((a) => a.pastelera_id === null && a.cantidad > 0)) {
-    hojas.push({ pastelera: null, titulo: "Sin asignar", area: "Repartir a mano" });
+  for (const c of compartidas) {
+    const filtro = (a: (typeof datos.asignaciones)[number]) =>
+      a.pastelera_id === null && areaDeProducto(a.producto_id) === c.id;
+    if (datos.asignaciones.some((a) => filtro(a) && a.cantidad > 0)) {
+      hojas.push({ pastelera: null, titulo: c.encargadas ?? c.nombre, area: c.nombre, filtro });
+    }
+  }
+  if (datos.asignaciones.some((a) => a.pastelera_id === null && a.cantidad > 0 && !deCompartida(a))) {
+    hojas.push({
+      pastelera: null,
+      titulo: "Sin asignar",
+      area: "Repartir a mano",
+      filtro: (a) => !deCompartida(a),
+    });
   }
 
   return (
@@ -91,10 +121,14 @@ export default async function ImprimirRepartoPage() {
       )}
 
       {hojas.map((hoja) => {
-        const grupos = tareasPorTanda(datos.asignaciones, hoja.pastelera?.id ?? null, ordenProducto);
+        const grupos = tareasPorTanda(
+          hoja.filtro ? datos.asignaciones.filter(hoja.filtro) : datos.asignaciones,
+          hoja.pastelera?.id ?? null,
+          ordenProducto
+        );
         return (
           <article
-            key={hoja.pastelera?.id ?? "x"}
+            key={hoja.pastelera?.id ?? `x-${hoja.titulo}`}
             className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0"
           >
             <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2 border-b pb-2 print:border-black">

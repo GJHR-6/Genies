@@ -32,6 +32,11 @@ export type AreaDia = {
   activa: boolean;
   /** true = el área no se divide: una hoja compartida (p. ej. Kenia y Dany). */
   trabajo_en_equipo: boolean;
+  /**
+   * Nombre de quienes la hacen. En un área en equipo sin pasteleras propias
+   * (p. ej. «Carolina o Silvia»: lo hace la que esté) es el nombre de la hoja.
+   */
+  encargadas?: string | null;
 };
 
 export type ProductoDia = {
@@ -136,7 +141,7 @@ export async function cargarReparto(
         .maybeSingle(),
       supabase
         .from("areas_produccion")
-        .select("id, nombre, orden, es_decoracion, activa, trabajo_en_equipo")
+        .select("id, nombre, orden, es_decoracion, activa, trabajo_en_equipo, encargadas")
         .order("orden"),
       supabase
         .from("pasteleras")

@@ -463,7 +463,7 @@ function TablaSeccion({
   const nombreColumna = (p: PasteleraDia | null) =>
     p
       ? `${seccion.equipo ?? p.nombre}${p.activa ? "" : " (inactiva)"}`
-      : "Sin asignar";
+      : (seccion.equipo ?? "Sin asignar");
 
   return (
     <article className="rounded-lg border bg-card">
