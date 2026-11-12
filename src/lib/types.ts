@@ -255,6 +255,7 @@ export type Database = {
           id: number
           ingreso: number
           mandar_override: number | null
+          nota: string | null
           pedido: number
           restante: number | null
           producto_id: number
@@ -274,6 +275,7 @@ export type Database = {
           id?: never
           ingreso?: number
           mandar_override?: number | null
+          nota?: string | null
           pedido?: number
           restante?: number | null
           producto_id: number
@@ -293,6 +295,7 @@ export type Database = {
           id?: never
           ingreso?: number
           mandar_override?: number | null
+          nota?: string | null
           pedido?: number
           restante?: number | null
           producto_id?: number

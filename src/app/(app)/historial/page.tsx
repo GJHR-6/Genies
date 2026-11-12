@@ -64,7 +64,7 @@ export default async function HistorialPage({
     // Cambio, Decorado y Sin decorar no están en v_movimientos: se leen de la tabla.
     supabase
       .from("movimientos_diarios")
-      .select("producto_id, cambio, decorado, sin_decorar")
+      .select("producto_id, cambio, decorado, sin_decorar, nota")
       .eq("fecha", fecha)
       .eq("sucursal_id", sucursalId),
     supabase
@@ -186,6 +186,7 @@ export default async function HistorialPage({
                     <th className="px-3 py-2 font-semibold">Ingreso</th>
                     <th className="px-3 py-2 font-semibold">Devolución</th>
                     <th className="px-3 py-2 font-semibold">Pedido</th>
+                    <th className="px-3 py-2 text-left font-semibold">Nota</th>
                   </>
                 ) : (
                   <>
@@ -196,6 +197,7 @@ export default async function HistorialPage({
                     <th className="px-3 py-2 font-semibold">Vendido</th>
                     <th className="px-3 py-2 font-semibold">Pedido</th>
                     <th className="px-3 py-2 font-semibold">Saldo final</th>
+                    <th className="px-3 py-2 text-left font-semibold">Nota</th>
                   </>
                 )}
               </tr>
@@ -222,6 +224,7 @@ export default async function HistorialPage({
                         <td className="px-3 py-1.5">{m.ingreso}</td>
                         <td className="px-3 py-1.5">{m.devolucion}</td>
                         <td className="px-3 py-1.5">{m.pedido}</td>
+                        <td className="px-3 py-1.5 text-left text-xs">{extra?.nota ?? ""}</td>
                       </>
                     ) : (
                       <>
@@ -232,6 +235,7 @@ export default async function HistorialPage({
                         <td className="px-3 py-1.5">{m.vendido}</td>
                         <td className="px-3 py-1.5">{m.pedido}</td>
                         <td className="px-3 py-1.5">{m.saldo_final ?? "—"}</td>
+                        <td className="px-3 py-1.5 text-left text-xs">{extra?.nota ?? ""}</td>
                       </>
                     )}
                   </tr>

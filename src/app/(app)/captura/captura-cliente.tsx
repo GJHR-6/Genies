@@ -49,6 +49,7 @@ type MovimientoInicial = {
   cambio: number;
   decorado: number;
   sin_decorar: number;
+  nota: string | null;
 };
 
 type Campo =
@@ -168,6 +169,14 @@ export function CapturaCliente({
     return inicial;
   });
   const [estados, setEstados] = useState<Record<number, EstadoFila>>({});
+  // Nota por producto (para la devolución: "3 negros, 2 rosados…").
+  const [notas, setNotas] = useState<Record<number, string>>(() =>
+    Object.fromEntries(
+      movimientosIniciales.filter((m) => m.nota).map((m) => [m.producto_id, m.nota as string])
+    )
+  );
+  const notasRef = useRef(notas);
+  const [notasAbiertas, setNotasAbiertas] = useState<Set<number>>(new Set());
   const [guardadas, setGuardadas] = useState<Set<number>>(
     () => new Set(movimientosIniciales.map((m) => m.producto_id))
   );
@@ -210,6 +219,7 @@ export function CapturaCliente({
           m.cambio,
           m.decorado,
           m.sin_decorar,
+          (m.nota ?? "").trim(),
         ]),
       ])
     )
@@ -217,7 +227,10 @@ export function CapturaCliente({
 
   const serializar = useCallback((productoId: number): string => {
     const v = valoresRef.current[productoId] ?? FILA_VACIA;
-    return JSON.stringify(CAMPOS.map((campo) => aEntero(v[campo])));
+    return JSON.stringify([
+      ...CAMPOS.map((campo) => aEntero(v[campo])),
+      (notasRef.current[productoId] ?? "").trim(),
+    ]);
   }, []);
 
   const marcarEstado = useCallback(
@@ -303,6 +316,7 @@ export function CapturaCliente({
         cambio: aEntero(v.cambio),
         decorado: aEntero(v.decorado),
         sin_decorar: aEntero(v.sin_decorar),
+        nota: (notasRef.current[productoId] ?? "").trim() || null,
         updated_at: new Date().toISOString(),
         updated_by: userId,
       };
@@ -374,10 +388,12 @@ export function CapturaCliente({
           decorado: f.decorado ? String(f.decorado) : "",
           sin_decorar: f.sin_decorar ? String(f.sin_decorar) : "",
         };
+        if (f.nota) notasRef.current = { ...notasRef.current, [f.producto_id]: f.nota };
         suciasRef.current.add(f.producto_id);
       }
       valoresRef.current = nuevos;
       setValores(nuevos);
+      setNotas(notasRef.current);
       for (const f of deHoy) guardarFilaRef.current(f.producto_id);
     }
     if (navigator.onLine) void subirOtrosDias();
@@ -416,6 +432,18 @@ export function CapturaCliente({
     timersRef.current.set(
       productoId,
       setTimeout(() => guardarFilaRef.current(productoId), 800)
+    );
+  };
+
+  const alCambiarNota = (productoId: number, texto: string) => {
+    notasRef.current = { ...notasRef.current, [productoId]: texto.slice(0, 300) };
+    setNotas(notasRef.current);
+    suciasRef.current.add(productoId);
+    const previo = timersRef.current.get(productoId);
+    if (previo) clearTimeout(previo);
+    timersRef.current.set(
+      productoId,
+      setTimeout(() => guardarFilaRef.current(productoId), 1200)
     );
   };
 
@@ -799,6 +827,36 @@ export function CapturaCliente({
                       </label>
                     ))}
                   </div>
+                )}
+                {/* Nota (devolución): lo que no entra en números. */}
+                {notas[producto.id] || notasAbiertas.has(producto.id) ? (
+                  <label className="mt-2 flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      Nota (para la devolución)
+                    </span>
+                    <textarea
+                      value={notas[producto.id] ?? ""}
+                      onChange={(e) => alCambiarNota(producto.id, e.target.value)}
+                      onBlur={() => alSalirDelCampo(producto.id)}
+                      disabled={cerrado || desactualizada}
+                      rows={2}
+                      maxLength={300}
+                      placeholder="Ej.: 3 negros, 2 rosados"
+                      className="rounded-md border bg-background px-3 py-2 text-sm"
+                      aria-label={`Nota de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
+                    />
+                  </label>
+                ) : (
+                  !cerrado &&
+                  !desactualizada && (
+                    <button
+                      type="button"
+                      onClick={() => setNotasAbiertas((s) => new Set(s).add(producto.id))}
+                      className="mt-2 min-h-9 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      + Agregar nota (devolución)
+                    </button>
+                  )
                 )}
               </div>
             );

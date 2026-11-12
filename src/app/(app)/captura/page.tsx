@@ -40,7 +40,7 @@ export default async function CapturaPage() {
       supabase
         .from("movimientos_diarios")
         .select(
-          "producto_id, saldo_inicial, ingreso, devolucion, pedido, cambio, decorado, sin_decorar"
+          "producto_id, saldo_inicial, ingreso, devolucion, pedido, cambio, decorado, sin_decorar, nota"
         )
         .eq("fecha", fecha)
         .eq("sucursal_id", sucursalId),
