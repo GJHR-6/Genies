@@ -17,7 +17,7 @@ import { Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { compararProductos } from "@/lib/orden-productos";
 import { BotonImprimir } from "./boton-imprimir";
-import { batidasDelCuadro, formatoTandas } from "@/lib/batidas";
+import { MAX_BATIDAS, batidasDelCuadro } from "@/lib/batidas";
 import type { DatosBatidas } from "./hoja-cuadro";
 import { CuadroCompleto, cargarDatosBatidas } from "./cuadro-completo";
 
@@ -275,26 +275,39 @@ export default async function CuadrosPage({
         }
         const borde = "border border-border print:border-black";
         const hoyClase = "bg-primary/10 print:bg-black/10";
-        // Decoración: DEC. y SALDO por día; producción: solo PROD.
-        const conSaldo = esDecoracion;
-        const porDia = conSaldo ? 2 : 1;
-        // Hoy: con más de una batida, como el Excel ("15*12" = 15 en la
-        // batida 1 y 12 en la 2); con una sola, el número.
-        const deHoy = (batidas: readonly number[], total: number) =>
-          batidas.filter((c) => c > 0).length > 1 ? formatoTandas(batidas) : total || "";
+        // Decoración: DEC. y SALDO por día. Producción: una casilla por
+        // batida (12 nov), tantas como se usan hoy en el cuadro (mínimo 2).
+        const usadas = Math.max(
+          0,
+          ...cuadro.filas.map((f) => {
+            let ultima = 0;
+            f.batidas.forEach((c, i) => {
+              if (c > 0) ultima = i + 1;
+            });
+            return ultima;
+          })
+        );
+        const porDia = esDecoracion ? 2 : Math.min(Math.max(usadas, 2), MAX_BATIDAS);
         const sumaBatidas = (filas: Cuadro["filas"]) =>
-          Array.from({ length: Math.max(0, ...filas.map((f) => f.batidas.length)) }, (_, i) =>
+          Array.from({ length: MAX_BATIDAS }, (_, i) =>
             filas.reduce((t, f) => t + (f.batidas[i] ?? 0), 0)
           );
-        const celdasDias = (hoy: React.ReactNode, clase = "") =>
+        // Lo que va hoy en las casillas del día.
+        const deHoy = (batidas: readonly number[], total: number): React.ReactNode[] =>
+          esDecoracion
+            ? [total || "", null]
+            : Array.from({ length: porDia }, (_, i) => batidas[i] || "");
+        const celdasDias = (hoy: React.ReactNode[] | null, clase = "") =>
           DIAS_SEMANA.map(([n]) => (
             <Fragment key={n}>
-              <td
-                className={`${borde} h-8 w-12 px-1 text-right tabular-nums ${n === hoySemana ? `${hoyClase} ${clase}` : ""}`}
-              >
-                {n === hoySemana ? hoy : null}
-              </td>
-              {conSaldo && <td className={`${borde} h-8 w-12 ${n === hoySemana ? hoyClase : ""}`} />}
+              {Array.from({ length: porDia }, (_, i) => (
+                <td
+                  key={i}
+                  className={`${borde} h-8 w-10 px-1 text-right tabular-nums ${n === hoySemana ? `${hoyClase} ${clase}` : ""}`}
+                >
+                  {n === hoySemana && hoy ? hoy[i] : null}
+                </td>
+              ))}
             </Fragment>
           ));
         return (
@@ -344,14 +357,18 @@ export default async function CuadrosPage({
               <tr>
                 {DIAS_SEMANA.map(([n]) => (
                   <Fragment key={n}>
-                    <th className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}>
-                      {esDecoracion ? "DEC." : "PROD."}
-                    </th>
-                    {conSaldo && (
-                      <th className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}>
-                        SALDO
+                    {(esDecoracion
+                      ? ["DEC.", "SALDO"]
+                      : Array.from({ length: porDia }, (_, i) => `B${i + 1}`)
+                    ).map((titulo) => (
+                      <th
+                        key={titulo}
+                        title={titulo.startsWith("B") ? `Batida ${titulo.slice(1)}` : undefined}
+                        className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}
+                      >
+                        {titulo}
                       </th>
-                    )}
+                    ))}
                   </Fragment>
                 ))}
               </tr>
@@ -412,9 +429,9 @@ export default async function CuadrosPage({
           </div>
           <p className="mt-2 text-xs text-muted-foreground print:text-black/60">
             Mínimo = lo que Principal debe tener. Hoy ({color.nombre.toLowerCase()})
-            ya trae lo que hay que {esDecoracion ? "decorar" : "producir"}, por
-            batida (15*12 = 15 en la batida 1 y 12 en la 2); los demás días se
-            llenan a mano.
+            ya trae lo que hay que {esDecoracion ? "decorar" : "producir"}
+            {esDecoracion ? "" : ", en una casilla por batida (B1, B2…)"}; los
+            demás días se llenan a mano.
           </p>
         </article>
         );
