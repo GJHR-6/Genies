@@ -275,8 +275,9 @@ export default async function CuadrosPage({
         }
         const borde = "border border-border print:border-black";
         const hoyClase = "bg-primary/10 print:bg-black/10";
-        // Decoración: DEC. y SALDO por día. Producción: una casilla por
-        // batida (12 nov), tantas como se usan hoy en el cuadro (mínimo 2).
+        // Una casilla por batida (12 nov), tantas como se usan hoy en el
+        // cuadro (mínimo 2): PROD en producción, DEC en decoración, que
+        // además lleva SALDO al final de cada día.
         const usadas = Math.max(
           0,
           ...cuadro.filas.map((f) => {
@@ -287,16 +288,16 @@ export default async function CuadrosPage({
             return ultima;
           })
         );
-        const porDia = esDecoracion ? 2 : Math.min(Math.max(usadas, 2), MAX_BATIDAS);
+        const numBatidas = Math.min(Math.max(usadas, 2), MAX_BATIDAS);
+        const porDia = esDecoracion ? numBatidas + 1 : numBatidas;
         const sumaBatidas = (filas: Cuadro["filas"]) =>
           Array.from({ length: MAX_BATIDAS }, (_, i) =>
             filas.reduce((t, f) => t + (f.batidas[i] ?? 0), 0)
           );
         // Lo que va hoy en las casillas del día.
-        const deHoy = (batidas: readonly number[], total: number): React.ReactNode[] =>
-          esDecoracion
-            ? [total || "", null]
-            : Array.from({ length: porDia }, (_, i) => batidas[i] || "");
+        const deHoy = (batidas: readonly number[]): React.ReactNode[] =>
+          // La casilla SALDO (decoración) se llena a mano.
+          [...Array.from({ length: numBatidas }, (_, i) => batidas[i] || ""), ...(esDecoracion ? [null] : [])];
         const celdasDias = (hoy: React.ReactNode[] | null, clase = "") =>
           DIAS_SEMANA.map(([n]) => (
             <Fragment key={n}>
@@ -357,10 +358,10 @@ export default async function CuadrosPage({
               <tr>
                 {DIAS_SEMANA.map(([n]) => (
                   <Fragment key={n}>
-                    {(esDecoracion
-                      ? ["DEC.", "SALDO"]
-                      : Array.from({ length: porDia }, (_, i) => `B${i + 1}`)
-                    ).map((titulo) => (
+                    {[
+                      ...Array.from({ length: numBatidas }, (_, i) => `B${i + 1}`),
+                      ...(esDecoracion ? ["SALDO"] : []),
+                    ].map((titulo) => (
                       <th
                         key={titulo}
                         title={titulo.startsWith("B") ? `Batida ${titulo.slice(1)}` : undefined}
@@ -381,7 +382,7 @@ export default async function CuadrosPage({
                       {seccion.nombre}
                     </td>
                   </tr>
-                  {seccion.filas.map(({ producto: p, cantidad, batidas }) => (
+                  {seccion.filas.map(({ producto: p, batidas }) => (
                     <tr key={p.id}>
                       <td className={`${borde} px-1 text-right tabular-nums`}>
                         {minimoDe(p.id) || ""}
@@ -390,7 +391,7 @@ export default async function CuadrosPage({
                         {p.nombre}
                         {p.tamano ? ` · ${p.tamano}` : ""}
                       </td>
-                      {celdasDias(deHoy(batidas, cantidad), "text-base font-bold whitespace-nowrap")}
+                      {celdasDias(deHoy(batidas), "text-base font-bold whitespace-nowrap")}
                     </tr>
                   ))}
                   {secciones.length > 1 && seccion.filas.length > 1 && (
@@ -400,7 +401,7 @@ export default async function CuadrosPage({
                         Total {seccion.nombre.toLowerCase()}
                       </td>
                       {celdasDias(
-                        deHoy(sumaBatidas(seccion.filas), seccion.filas.reduce((t, f) => t + f.cantidad, 0)),
+                        deHoy(sumaBatidas(seccion.filas)),
                         "font-semibold whitespace-nowrap"
                       )}
                     </tr>
@@ -420,7 +421,7 @@ export default async function CuadrosPage({
                 <td className={borde} />
                 <td className={`${borde} px-2 py-1`}>Total</td>
                 {celdasDias(
-                  deHoy(sumaBatidas(cuadro.filas), cuadro.filas.reduce((t, f) => t + f.cantidad, 0)),
+                  deHoy(sumaBatidas(cuadro.filas)),
                   "text-base whitespace-nowrap"
                 )}
               </tr>
@@ -430,8 +431,8 @@ export default async function CuadrosPage({
           <p className="mt-2 text-xs text-muted-foreground print:text-black/60">
             Mínimo = lo que Principal debe tener. Hoy ({color.nombre.toLowerCase()})
             ya trae lo que hay que {esDecoracion ? "decorar" : "producir"}
-            {esDecoracion ? "" : ", en una casilla por batida (B1, B2…)"}; los
-            demás días se llenan a mano.
+, en una casilla por batida (B1, B2…){esDecoracion ? " y el SALDO al final" : ""};
+            los demás días se llenan a mano.
           </p>
         </article>
         );
