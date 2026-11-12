@@ -93,9 +93,20 @@ function normalizar(texto: string): string {
     .replace(/\p{M}/gu, "");
 }
 
-function esErrorDeRed(error: unknown): boolean {
+/**
+ * ¿El servidor rechazó el dato (día terminado, permiso…)? Todo lo demás se
+ * trata como falta de internet: el dato queda en la tablet y se reintenta
+ * solo. (Cada navegador avisa distinto: el iPad dice «Load failed».)
+ */
+function esRechazoDelServidor(error: unknown): boolean {
   const mensaje = error instanceof Error ? error.message : String(error);
-  return /fetch|network|conexi|timeout|abort/i.test(mensaje);
+  return /violates|permission|policy|denied|ya se terminó|solo se puede|invalid input|duplicate|jwt|unauthorized/i.test(
+    mensaje
+  );
+}
+
+function esErrorDeRed(error: unknown): boolean {
+  return !esRechazoDelServidor(error);
 }
 
 function BadgeEstado({ estado }: { estado: EstadoFila | undefined }) {
@@ -103,8 +114,8 @@ function BadgeEstado({ estado }: { estado: EstadoFila | undefined }) {
   const estilos: Record<EstadoFila, { texto: string; clase: string }> = {
     guardando: { texto: "Guardando…", clase: "text-muted-foreground" },
     guardado: { texto: "Guardado ✓", clase: "text-exito" },
-    pendiente: { texto: "En la tablet · falta subir", clase: "text-aviso" },
-    error: { texto: "No se pudo guardar", clase: "text-destructive" },
+    pendiente: { texto: "Guardado en la tablet ✓", clase: "text-exito" },
+    error: { texto: "Revisá este número", clase: "text-destructive" },
   };
   const { texto, clase } = estilos[estado];
   return (
@@ -165,6 +176,8 @@ export function CapturaCliente({
   // Arranca "en línea" igual en servidor y navegador (Node también tiene un
   // `navigator` global, sin onLine); el estado real se lee al montar.
   const [enLinea, setEnLinea] = useState(true);
+  // El navegador dice "en línea" pero los datos no llegan (wifi débil).
+  const [sinSenal, setSinSenal] = useState(false);
   const [dialogoCierre, setDialogoCierre] = useState(false);
   const [avisoLive, setAvisoLive] = useState("");
   // Página vieja (abierta sin internet desde la copia de la tablet o
@@ -225,7 +238,10 @@ export function CapturaCliente({
         .upsert(vars.payload, { onConflict: "fecha,sucursal_id,producto_id" });
       if (error) throw new Error(error.message);
     },
-    retry: (intentos, error) => esErrorDeRed(error) && intentos < 3,
+    // Un reintento rápido; si sigue sin llegar, queda en la tablet (aviso
+    // tranquilo) y se reintenta solo cada 12 s y al volver el internet.
+    retry: (intentos, error) => esErrorDeRed(error) && intentos < 1,
+    retryDelay: 1000,
     onSuccess: (_datos, { productoId, payload, clave }) => {
       quitarDeCola(almacenDelNavegador(), userId, payload);
       ultimoGuardadoRef.current.set(productoId, clave);
@@ -235,6 +251,7 @@ export function CapturaCliente({
         nuevo.add(productoId);
         return nuevo;
       });
+      setSinSenal(false);
       if (serializar(productoId) !== clave) {
         // La usuaria siguió escribiendo mientras se guardaba.
         guardarFilaRef.current(productoId);
@@ -246,7 +263,8 @@ export function CapturaCliente({
     onError: (error, { productoId }) => {
       if (esErrorDeRed(error)) {
         marcarEstado(productoId, "pendiente");
-        setAvisoLive("Sin conexión, reintentando");
+        setSinSenal(true);
+        setAvisoLive("Guardado en la tablet; se sube solo cuando vuelva el internet");
         const previo = reintentosRef.current.get(productoId);
         if (previo) clearTimeout(previo);
         reintentosRef.current.set(
@@ -619,13 +637,14 @@ export function CapturaCliente({
             guarda solo.
           </p>
         )}
-        {!enLinea && !desactualizada && (
+        {(!enLinea || sinSenal) && !desactualizada && (
           <p
             role="status"
-            className="mt-2 rounded-md bg-aviso/10 px-3 py-1.5 text-xs font-medium text-aviso"
+            className="mt-2 rounded-md bg-exito/10 px-3 py-1.5 text-xs font-medium text-exito"
           >
-            Sin internet: seguí anotando. Todo queda guardado en la tablet y se
-            sube solo cuando vuelva la señal. No cierres sesión.
+            Sin internet por ahora. No te preocupés: todo lo que anotás queda
+            guardado en esta tablet y se sube solo cuando vuelva la señal. Seguí
+            anotando normal; no tenés que hacer nada (solo no cierres sesión).
           </p>
         )}
         {desactualizada && (
