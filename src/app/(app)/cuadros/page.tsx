@@ -69,6 +69,7 @@ export default async function CuadrosPage({
 
   let dia: SugeridosDelDia;
   let areas: { id: number; nombre: string; encargadas: string }[];
+  let areaDecoracionId: number | null = null;
   let cerradas = 0;
   let batidas: DatosBatidas;
   try {
@@ -76,9 +77,8 @@ export default async function CuadrosPage({
       cargarSugeridosDelDia(supabase, fecha),
       supabase
         .from("areas_produccion")
-        .select("id, nombre, encargadas, pasteleras(nombre, activa, orden)")
+        .select("id, nombre, encargadas, es_decoracion, pasteleras(nombre, activa, orden)")
         .eq("activa", true)
-        .eq("es_decoracion", false)
         .order("orden"),
       supabase
         .from("cierres_dia")
@@ -92,7 +92,10 @@ export default async function CuadrosPage({
     dia = diaCargado;
     batidas = batidasCargadas;
     // Encargadas = pasteleras activas del área (si no hay, el texto original).
-    areas = areasRes.data.map((a) => {
+    // El área Decoración no tiene cuadro de producción: sus productos solo
+    // se decoran (salen en el cuadro de Decoración).
+    areaDecoracionId = areasRes.data.find((a) => a.es_decoracion)?.id ?? null;
+    areas = areasRes.data.filter((a) => !a.es_decoracion).map((a) => {
       const activas = [...(a.pasteleras ?? [])]
         .filter((p) => p.activa)
         .sort((x, y) => x.orden - y.orden)
@@ -187,7 +190,9 @@ export default async function CuadrosPage({
     titulo: "Sin área asignada",
     encargadas: null,
     filas: filasDe(
-      ordenExcel.filter((p) => p.area_id === null || !idsPorArea.has(p.area_id)),
+      ordenExcel.filter(
+        (p) => (p.area_id === null || !idsPorArea.has(p.area_id)) && p.area_id !== areaDecoracionId
+      ),
       efectivas.prod,
       true
     ),

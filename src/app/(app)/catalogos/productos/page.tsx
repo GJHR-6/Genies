@@ -19,8 +19,8 @@ export default async function ProductosPage() {
     supabase.from("departamentos").select("id, nombre, activo").order("nombre"),
     supabase
       .from("areas_produccion")
-      .select("id, nombre, activa")
-      .eq("es_decoracion", false)
+      // Incluye Decoración: un producto con esa área solo se decora.
+      .select("id, nombre, activa, es_decoracion")
       .order("orden"),
   ]);
 

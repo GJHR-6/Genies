@@ -132,6 +132,19 @@ describe("generarReparto", () => {
     expect(filas.some((f) => f.producto_id === 40)).toBe(false);
   });
 
+  it("producto del área de decoración: solo decoración, nada de producción", () => {
+    const filas = generarReparto({
+      fecha: "2026-11-11",
+      productos: [{ id: 71, area_id: 9, lleva_decoracion: true }],
+      totales: new Map([[71, 4]]),
+      pasteleras: [...pasteleras, { id: 50, area_id: 9, porcentaje: 100, orden: 1, activa: true }],
+      areaDecoracionId: 9,
+    });
+    expect(filas).toEqual([
+      { producto_id: 71, pastelera_id: 50, tipo: "decoracion", tanda: 1, cantidad: 4 },
+    ]);
+  });
+
   it("con PROD escrito por batida en el cuadro, reparte en esas tandas (15*12)", () => {
     const filas = generarReparto({
       fecha: "2026-11-10",

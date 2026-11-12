@@ -15,6 +15,7 @@
  *    ninguna activa, las del área del producto.
  *  - Producción y decoración pueden tener totales distintos: lo que ya está
  *    sin decorar en Principal no se vuelve a hornear, pero sí se decora.
+ *  - Productos del área de decoración: solo se decoran, nunca se producen.
  *  - Áreas «en equipo» (p. ej. Kenia y Dany): no se divide; todo queda en
  *    una sola hoja compartida, a nombre de la primera pastelera del área
  *    (la titular), y cualquiera del equipo la ve y la marca en la tablet.
@@ -213,9 +214,12 @@ export function generarReparto(params: {
     if (total <= 0 && totalDecoracion <= 0 && !conBatidas) continue;
     const equipoArea = pastelerasDeArea(pasteleras, producto.area_id, areasEnEquipo);
     const rotacion = dia + producto.id;
+    const soloDecoracion = areaDecoracionId !== null && producto.area_id === areaDecoracionId;
 
     const batidas = params.prodPorBatida?.get(producto.id);
-    if (batidas) {
+    if (soloDecoracion) {
+      // Solo se decora: nada de producción.
+    } else if (batidas) {
       batidasATandas(batidas).forEach((cantidad, i) =>
         filas.push(
           ...repartirProducto(producto.id, cantidad, "produccion", equipoArea, rotacion + i, i + 1)

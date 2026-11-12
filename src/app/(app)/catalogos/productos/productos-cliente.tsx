@@ -59,7 +59,7 @@ export function ProductosCliente({
 }: {
   productos: Producto[];
   departamentos: (Opcion & { activo: boolean })[];
-  areas: (Opcion & { activa: boolean })[];
+  areas: (Opcion & { activa: boolean; es_decoracion: boolean })[];
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("activos");
@@ -235,7 +235,7 @@ function FormularioProducto({
 }: {
   producto: Producto | null;
   departamentos: (Opcion & { activo: boolean })[];
-  areas: (Opcion & { activa: boolean })[];
+  areas: (Opcion & { activa: boolean; es_decoracion: boolean })[];
   alCerrar: () => void;
 }) {
   const [datos, setDatos] = useState({
@@ -342,19 +342,24 @@ function FormularioProducto({
           <Campo
             etiqueta="Área de producción"
             htmlFor="prod-area"
-            ayuda="En qué cuadro sale el producto."
+            ayuda="En qué cuadro sale el producto. «Decoración» = solo se decora: no sale en los cuadros de producción ni en el reparto de producción."
           >
             <Selector
               id="prod-area"
               value={datos.area_id ?? ""}
-              onChange={(e) => cambiar("area_id", numeroONull(e.target.value))}
+              onChange={(e) => {
+                const id = numeroONull(e.target.value);
+                cambiar("area_id", id);
+                // Solo se decora: tiene que llevar decoración.
+                if (areas.find((a) => a.id === id)?.es_decoracion) cambiar("lleva_decoracion", true);
+              }}
             >
               <option value="">— Sin área asignada —</option>
               {areas
                 .filter((a) => a.activa || a.id === datos.area_id)
                 .map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.nombre}
+                    {a.es_decoracion ? `${a.nombre} (solo se decora, no se produce)` : a.nombre}
                   </option>
                 ))}
             </Selector>

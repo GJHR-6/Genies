@@ -31,7 +31,7 @@ export default async function AsignarPage() {
   let totalesCuadro: TotalesCuadro = {};
   let pendientes = 0;
   try {
-    const [reparto, dia, cierresRes, ajustesRes] = await Promise.all([
+    const [reparto, dia, cierresRes, ajustesRes, decoRes] = await Promise.all([
       cargarReparto(supabase, fecha),
       cargarSugeridosDelDia(supabase, fecha),
       supabase
@@ -44,9 +44,16 @@ export default async function AsignarPage() {
         .select("producto_id, tipo, tanda, cantidad")
         .eq("fecha", fecha)
         .eq("tipo", "produccion"),
+      supabase.from("areas_produccion").select("id").eq("es_decoracion", true).eq("activa", true),
     ]);
     if (cierresRes.error) throw new Error(cierresRes.error.message);
     if (ajustesRes.error) throw new Error(ajustesRes.error.message);
+    if (decoRes.error) throw new Error(decoRes.error.message);
+    // Productos del área Decoración: solo se decoran (sin producción).
+    const areaDeco = decoRes.data?.[0]?.id ?? null;
+    const soloDeco = new Set(
+      dia.productos.filter((p) => areaDeco !== null && p.area_id === areaDeco).map((p) => p.id)
+    );
     datos = reparto;
     // Con PROD escrito por batida en el cuadro completo, eso es lo que se
     // hornea (el reparto sale en esas tandas).
@@ -57,9 +64,11 @@ export default async function AsignarPage() {
       [...totalesPorProducto(dia)].map(([id, t]) => [
         id,
         {
-          produccion: escrito.has(id)
-            ? escrito.get(id)!.reduce((s, c) => s + c, 0)
-            : t.aProducir,
+          produccion: soloDeco.has(id)
+            ? 0
+            : escrito.has(id)
+              ? escrito.get(id)!.reduce((s, c) => s + c, 0)
+              : t.aProducir,
           decoracion: t.aDecorar,
           sinDecorar: escrito.has(id) ? 0 : t.sinDecorar,
         },
