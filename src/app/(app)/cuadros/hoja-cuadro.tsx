@@ -26,6 +26,12 @@ import {
 import { cn } from "@/lib/utils";
 import { PanelBatidas, type CambioBatida } from "./panel-batidas";
 
+/**
+ * Lo que se ve en lugar de "nada": 0, nunca una casilla vacía (16 nov). La
+ * raya "—" queda solo para "la tienda no lleva ese producto".
+ */
+const CERO = "0";
+
 type Sucursal = { id: number; nombre: string };
 
 /** Lo que Principal anotó hoy, para DECO / SIN DECO / INV/TOTAL y CM. */
@@ -719,7 +725,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                           />
                         )}
                         <td className={cn("border-l px-2 py-1.5 text-right font-semibold tabular-nums", col("produccion"))}>
-                          {total || ""}
+                          {total || CERO}
                         </td>
                         <CeldasLibras libras={librasDe(p.id)} numBatidas={numBatidas} className={col("produccion")} />
                       </tr>
@@ -843,7 +849,7 @@ function FilaTotalSeccion({
 function Texto({ valor, className }: { valor: string; className?: string }) {
   return (
     <td className={cn("whitespace-nowrap px-2 py-1.5 text-left tabular-nums", className)}>
-      {valor}
+      {valor || CERO}
     </td>
   );
 }
@@ -872,7 +878,7 @@ function CeldaBatidas({
         aria-label={`${etiqueta}: ${valor || "nada"}${ajustada ? " (cambiado a mano)" : ""}`}
       >
         {ajustada ? "• " : ""}
-        {valor || " "}
+        {valor || CERO}
       </button>
     </td>
   );
@@ -911,7 +917,7 @@ function CeldasLibras({
             )}
             title={excede ? `Se pasa de ${MAX_LIBRAS_BATIDA} lb en la batida ${i + 1}` : undefined}
           >
-            {libras === null ? "" : total ? lb : lb || ""}
+            {libras === null ? CERO : total ? lb : lb || CERO}
             {excede ? " ⚠" : ""}
           </td>
         );
@@ -920,7 +926,7 @@ function CeldasLibras({
   );
 }
 
-/** Número de solo lectura; vacío si no hay dato o es 0. */
+/** Número de solo lectura; 0 si no hay dato (nunca vacío). */
 function Numero({
   valor,
   className,
@@ -937,7 +943,7 @@ function Numero({
       className={cn("px-2 py-1.5 text-right tabular-nums", apagado && "text-muted-foreground", className)}
       title={titulo}
     >
-      {valor ? valor : ""}
+      {valor ? valor : CERO}
     </td>
   );
 }
@@ -1016,7 +1022,7 @@ function CeldaPrincipal({
           className={cn(BOTON_CELDA, "min-h-8")}
           aria-label={`${etiqueta}: ${valor}`}
         >
-          {valor ? valor : ""}
+          {valor ? valor : CERO}
         </button>
       )}
     </td>
@@ -1068,7 +1074,7 @@ function CeldaEditable({
           aria-label={`${etiqueta}: ${valor}${destacado ? " (cambiado a mano)" : ""}`}
         >
           {destacado ? "• " : ""}
-          {valor ? valor : destacado ? "0" : ""}
+          {valor ? valor : destacado ? "0" : CERO}
         </button>
       )}
     </td>
@@ -1138,8 +1144,8 @@ function CeldaEnviar({
         }`}
       >
         {ajustado ? "• " : ""}
-        {/* Sin pedido: casilla vacía (el espacio la mantiene del mismo alto). */}
-        {mandar ?? "\u00a0"}
+        {/* Sin pedido: 0 (nunca vacía, para que no se confunda). */}
+        {mandar ?? CERO}
       </button>
       {referencia}
     </td>

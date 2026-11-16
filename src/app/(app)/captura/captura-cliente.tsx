@@ -929,7 +929,7 @@ export function CapturaCliente({
                         onBlur={() => alSalirDelCampo(producto.id)}
                         disabled={cerrado || desactualizada}
                         placeholder="0"
-                        className="h-11 text-base tabular-nums"
+                        className="h-11 text-base tabular-nums placeholder:text-foreground"
                         aria-label={`${etiqueta} de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
                       />
                     </label>
@@ -956,7 +956,7 @@ export function CapturaCliente({
                               onBlur={() => alSalirDelCampo(producto.id)}
                               disabled={cerrado || desactualizada}
                               placeholder="0"
-                              className="h-10 text-base tabular-nums"
+                              className="h-10 text-base tabular-nums placeholder:text-foreground"
                               aria-label={`Del ingreso de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}, cuántos son del ${nombreDia(dia)}`}
                             />
                           </label>
@@ -1037,7 +1037,7 @@ export function CapturaCliente({
                           onBlur={() => alSalirDelCampo(producto.id)}
                           disabled={cerrado || desactualizada}
                           placeholder="0"
-                          className="h-11 text-base tabular-nums"
+                          className="h-11 text-base tabular-nums placeholder:text-foreground"
                           aria-label={`${etiqueta} de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
                         />
                       </label>

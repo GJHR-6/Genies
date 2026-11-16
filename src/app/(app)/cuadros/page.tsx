@@ -343,7 +343,9 @@ export default async function CuadrosPage({
         // Lo que va hoy en las casillas del día.
         const deHoy = (batidas: readonly number[]): React.ReactNode[] =>
           // La casilla SALDO (decoración) se llena a mano.
-          [...Array.from({ length: numBatidas }, (_, i) => batidas[i] || ""), ...(esDecoracion ? [null] : [])];
+          // Hoy, nada = 0 (nunca vacío); los demás días quedan en blanco
+          // para anotar a mano.
+          [...Array.from({ length: numBatidas }, (_, i) => batidas[i] || 0), ...(esDecoracion ? [null] : [])];
         const celdasDias = (hoy: React.ReactNode[] | null, clase = "") =>
           DIAS_SEMANA.map(([n]) => (
             <Fragment key={n}>
@@ -431,7 +433,7 @@ export default async function CuadrosPage({
                   {seccion.filas.map(({ producto: p, batidas }) => (
                     <tr key={p.id}>
                       <td className={`${borde} px-1 text-right tabular-nums`}>
-                        {minimoDe(p.id) || ""}
+                        {minimoDe(p.id) || 0}
                       </td>
                       <td className={`${borde} px-2 font-medium`}>
                         {p.nombre}
