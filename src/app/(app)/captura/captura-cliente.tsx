@@ -1097,8 +1097,9 @@ export function CapturaCliente({
       <Dialog open={dialogoCierre} onOpenChange={setDialogoCierre}>
         <DialogContent className="max-w-sm">
           {sinFinal.length > 0 ? (
-            // No se termina sin contar: sin inventario final no se sabe
-            // cuánto se vendió y el inicial de mañana sale mal.
+            // Aviso antes de terminar sin contar: sin inventario final no se
+            // sabe cuánto se vendió y el inicial de mañana sale mal. Igual
+            // se puede terminar (16 nov).
             <>
               <DialogHeader>
                 <DialogTitle>Falta contar el inventario final</DialogTitle>
@@ -1106,8 +1107,10 @@ export function CapturaCliente({
                   {sinFinal.length === 1
                     ? "A 1 producto con existencia le falta"
                     : `A ${sinFinal.length} productos con existencia les falta`}{" "}
-                  el Inventario final. Contá lo que quedó y anotalo; si ya no
-                  queda nada, escribí 0. Después podés terminar.
+                  el Inventario final. Sin contarlo, el sistema cree que no se
+                  vendió nada y mañana arrancás con números de más. ¿Estás
+                  segura de terminar así? Después solo administración puede
+                  corregir.
                 </DialogDescription>
               </DialogHeader>
               <ul className="max-h-40 overflow-y-auto text-sm">
@@ -1121,11 +1124,25 @@ export function CapturaCliente({
                   <li className="text-muted-foreground">y {sinFinal.length - 8} más…</li>
                 )}
               </ul>
+              {mutacionCierre.isError && (
+                <p className="text-sm text-destructive">
+                  No se pudo guardar. Revisá que haya internet e intentá de nuevo.
+                </p>
+              )}
               <DialogFooter className="gap-2">
-                <Button variant="outline" className="h-11" onClick={() => setDialogoCierre(false)}>
-                  Cerrar
+                <Button
+                  variant="outline"
+                  className="h-11 text-destructive"
+                  onClick={() => mutacionCierre.mutate()}
+                  disabled={mutacionCierre.isPending}
+                >
+                  {mutacionCierre.isPending ? "Guardando…" : "Terminar igual"}
                 </Button>
-                <Button className="h-11 bg-primary hover:bg-primary/90" onClick={verLosQueFaltan}>
+                <Button
+                  className="h-11 bg-primary hover:bg-primary/90"
+                  onClick={verLosQueFaltan}
+                  disabled={mutacionCierre.isPending}
+                >
                   Ver los que faltan
                 </Button>
               </DialogFooter>

@@ -99,13 +99,13 @@ test("muestra qué se anota al recibir y al cerrar", async ({ page }) => {
   await expect(page.getByText("Al cerrar:")).toBeVisible();
 });
 
-test("no deja terminar sin el inventario final de lo que tiene existencia", async ({ page }) => {
+test("avisa qué falta contar antes de terminar (y deja terminar igual)", async ({ page }) => {
   test.skip(esDomingo(), "Domingo: sin producción");
   await page.goto("/captura");
   await page.getByRole("button", { name: "Terminé el inventario de hoy" }).click();
   const falta = page.getByRole("dialog", { name: "Falta contar el inventario final" });
   await expect(falta).toBeVisible();
-  await expect(falta.getByRole("button", { name: "Sí, terminé" })).toHaveCount(0);
+  await expect(falta.getByRole("button", { name: "Terminar igual" })).toBeVisible();
 
   // "Ver los que faltan" deja solo esos; se cuentan (0 = no queda nada).
   await falta.getByRole("button", { name: "Ver los que faltan" }).click();
