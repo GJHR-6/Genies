@@ -1,3 +1,5 @@
+import { totalesPorProducto, type SugeridosDelDia } from "./sugeridos";
+
 /**
  * Batidas (reunión 16 oct y mensaje del 21 oct 2026).
  *
@@ -142,7 +144,7 @@ export const claveBatida = (
  */
 export function batidasDelCuadro(params: {
   productos: readonly { id: number; lleva_decoracion: boolean }[];
-  prodReparto: ReadonlyMap<number, readonly number[]>;
+  prodAutomatico: ReadonlyMap<number, readonly number[]>;
   sinDecorar: Readonly<Record<number, number>>;
   ajustes: readonly AjusteBatida[];
 }): {
@@ -158,7 +160,7 @@ export function batidasDelCuadro(params: {
   const dec = new Map<number, number[]>();
   const prod = new Map<number, number[]>();
   for (const p of params.productos) {
-    const prodFila = conAjuste(p.id, "produccion", params.prodReparto.get(p.id) ?? []);
+    const prodFila = conAjuste(p.id, "produccion", params.prodAutomatico.get(p.id) ?? []);
     const hornear = prodFila.reduce((t, c) => t + c, 0);
     const decFila = conAjuste(p.id, "decoracion", [
       Math.max(params.sinDecorar[p.id] ?? 0, 0),
@@ -168,6 +170,26 @@ export function batidasDelCuadro(params: {
     if (decFila.some((c) => c > 0)) dec.set(p.id, decFila);
   }
   return { dec, prod, ajustadas: new Set(ajuste.keys()) };
+}
+
+/**
+ * PROD automático (16 nov, sin reparto): lo que hay que producir de cada
+ * producto (sugeridos − sin decorar) va entero en la batida 1; se reparte
+ * en más batidas a mano en el cuadro completo. Los que solo se decoran
+ * (área Decoración) no se producen.
+ */
+export function prodAutomatico(
+  dia: Pick<SugeridosDelDia, "productos" | "sucursales" | "celdas" | "sinDecorar">,
+  areaDecoracionId: number | null
+): Map<number, number[]> {
+  const totales = totalesPorProducto(dia);
+  const resultado = new Map<number, number[]>();
+  for (const p of dia.productos) {
+    if (areaDecoracionId !== null && p.area_id === areaDecoracionId) continue;
+    const aProducir = totales.get(p.id)?.aProducir ?? 0;
+    if (aProducir > 0) resultado.set(p.id, [aProducir]);
+  }
+  return resultado;
 }
 
 /**

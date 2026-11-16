@@ -6,7 +6,6 @@ import {
   Store,
   TableProperties,
   TriangleAlert,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -28,7 +27,7 @@ export default async function HoyPage() {
   const fecha = hoyTegucigalpa();
   const color = colorDelDia(fecha);
 
-  const [sucursales, cierres, ajustes, plan, noEnviados] = await Promise.all([
+  const [sucursales, cierres, ajustes, noEnviados] = await Promise.all([
     supabase
       .from("sucursales")
       .select("id", { count: "exact", head: true })
@@ -39,7 +38,6 @@ export default async function HoyPage() {
       .select("id", { count: "exact", head: true })
       .eq("fecha", fecha)
       .not("sugerido_override", "is", null),
-    supabase.from("planes_dia").select("generado_at").eq("fecha", fecha).maybeSingle(),
     supabase.from("no_enviados").select("sucursal_id").is("enviado_at", null),
   ]);
 
@@ -47,13 +45,11 @@ export default async function HoyPage() {
   const tiendasCerradas = (cierres.data ?? []).filter(
     (c) => c.estado === "cerrado"
   ).length;
-  const repartoHecho = plan.data !== null;
 
   const paso = pasoDelDia({
     esDomingo: !color,
     tiendasTotal,
     tiendasCerradas,
-    repartoHecho,
   });
 
   const todasCerradas = tiendasCerradas >= tiendasTotal && tiendasTotal > 0;
@@ -76,9 +72,6 @@ export default async function HoyPage() {
         ? { texto: "Listos para imprimir", tono: "exito" }
         : { texto: "Se pueden ver; aún faltan tiendas", tono: "aviso" }
       : { texto: "Domingo: sin cuadros" },
-    reparto: repartoHecho
-      ? { texto: "Hecho: listo para imprimir", tono: "exito" }
-      : { texto: "Todavía no se hace" },
     envios: estadoEnvios(noEnviados.data ?? []),
   };
 
@@ -138,11 +131,7 @@ export default async function HoyPage() {
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {HOJAS.map((h) => (
-              <BotonHoja
-                key={h.href}
-                {...h}
-                pendiente={h.href === "/asignar/imprimir" && !repartoHecho}
-              />
+              <BotonHoja key={h.href} {...h} />
             ))}
           </div>
         </div>
@@ -170,15 +159,9 @@ const HOJAS: { href: string; titulo: string; para: string; icono: LucideIcon }[]
   },
   {
     href: "/cuadros",
-    titulo: "Cuadros de producción",
-    para: "Una hoja por área, con lo que hay que hornear y decorar.",
-    icono: ClipboardList,
-  },
-  {
-    href: "/asignar/imprimir",
     titulo: "Hoja de cada pastelera",
-    para: "Lo que le toca a cada una, por batida, con casillas para marcar.",
-    icono: Users,
+    para: "El cuadro de cada área, con lo que hay que hornear y decorar en cada batida.",
+    icono: ClipboardList,
   },
   {
     href: "/cuadros/despacho?hoja=tiendas",
@@ -193,8 +176,7 @@ function BotonHoja({
   titulo,
   para,
   icono: Icono,
-  pendiente,
-}: (typeof HOJAS)[number] & { pendiente: boolean }) {
+}: (typeof HOJAS)[number]) {
   return (
     <Link
       href={href}
@@ -206,7 +188,7 @@ function BotonHoja({
       <span className="flex flex-col">
         <span className="font-semibold">{titulo}</span>
         <span className="text-sm text-muted-foreground">
-          {pendiente ? "Primero hacé el reparto." : para}
+          {para}
         </span>
       </span>
     </Link>

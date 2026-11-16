@@ -73,7 +73,7 @@ export default async function CuadrosPage({
   let cerradas = 0;
   let batidas: DatosBatidas;
   try {
-    const [diaCargado, areasRes, cierresRes, batidasCargadas] = await Promise.all([
+    const [diaCargado, areasRes, cierresRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
       supabase
         .from("areas_produccion")
@@ -85,12 +85,11 @@ export default async function CuadrosPage({
         .select("estado")
         .eq("fecha", fecha)
         .eq("estado", "cerrado"),
-      cargarDatosBatidas(supabase, fecha),
     ]);
     if (areasRes.error) throw new Error(areasRes.error.message);
     if (cierresRes.error) throw new Error(cierresRes.error.message);
     dia = diaCargado;
-    batidas = batidasCargadas;
+    batidas = await cargarDatosBatidas(supabase, fecha, dia);
     // Encargadas = pasteleras activas del área (si no hay, el texto original).
     // El área Decoración no tiene cuadro de producción: sus productos solo
     // se decoran (salen en el cuadro de Decoración).
@@ -137,12 +136,12 @@ export default async function CuadrosPage({
   // Cuadros por área (3 nov 2026), como la hoja de papel de las pasteleras:
   // MÍNIMO (objetivo de Principal) · PRODUCTO · lunes a sábado con PROD.
   // para llenar a mano (el SALDO solo va en Decoración: 10 nov). En el día de hoy, PROD. ya trae lo que se
-  // manda a hacer = suma del PROD de las batidas del cuadro completo
-  // (reparto + lo cambiado a mano); en Decoración, la suma del DEC.
+  // manda a hacer = PROD de las batidas del cuadro completo (automático en
+  // la batida 1 + lo cambiado a mano); en Decoración, el DEC.
   const efectivas = batidasDelCuadro({
     productos,
-    prodReparto: new Map(
-      Object.entries(batidas.prodReparto).map(([id, fila]) => [Number(id), fila])
+    prodAutomatico: new Map(
+      Object.entries(batidas.prodAutomatico).map(([id, fila]) => [Number(id), fila])
     ),
     sinDecorar: dia.sinDecorar,
     ajustes: batidas.ajustes,
@@ -255,11 +254,8 @@ export default async function CuadrosPage({
       {!hayBatidas && (
         <Aviso tipo="info" className="print:hidden">
           Los cuadros de cada área salen con lo que se manda a producir (PROD
-          de las batidas). Todavía no hay nada: hacé el reparto o escribí PROD
-          en el cuadro completo.{" "}
-          <Link href="/asignar" className="font-semibold underline">
-            Hacer el reparto
-          </Link>
+          de las batidas del cuadro completo). Todavía no hay nada que producir
+          hoy: se llena a medida que las tiendas anotan su inventario.
         </Aviso>
       )}
 

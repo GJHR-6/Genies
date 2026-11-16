@@ -40,11 +40,11 @@ export type DatosPrincipal = {
 };
 
 /**
- * Para DEC / PROD por batida (1–10): lo que se hornea según el reparto
+ * Para DEC / PROD por batida (1–10): lo que se hornea (automático en la batida 1)
  * (T1–T4), las casillas cambiadas a mano y las libras de masa por unidad.
  */
 export type DatosBatidas = {
-  prodReparto: Record<number, number[]>;
+  prodAutomatico: Record<number, number[]>;
   ajustes: AjusteBatida[];
   libras: Record<number, number>;
 };
@@ -170,19 +170,19 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   useEffect(() => setCambios(principal.cambios), [principal.cambios]);
   useEffect(() => setAjustesBatida(batidas.ajustes), [batidas.ajustes]);
 
-  // DEC 1 = sin decorar, DEC 2 = lo que se hornea, PROD = reparto; lo
+  // DEC 1 = sin decorar, DEC 2 = lo que se hornea, PROD 1 = lo que hay que producir; lo
   // cambiado a mano manda.
   const efectivas = useMemo(
     () =>
       batidasDelCuadro({
         productos,
-        prodReparto: new Map(
-          Object.entries(batidas.prodReparto).map(([id, fila]) => [Number(id), fila])
+        prodAutomatico: new Map(
+          Object.entries(batidas.prodAutomatico).map(([id, fila]) => [Number(id), fila])
         ),
         sinDecorar,
         ajustes: ajustesBatida,
       }),
-    [productos, batidas.prodReparto, sinDecorar, ajustesBatida]
+    [productos, batidas.prodAutomatico, sinDecorar, ajustesBatida]
   );
   const librasDe = (productoId: number) =>
     librasProducto(batidas.libras, efectivas.prod, productoId);
@@ -481,7 +481,8 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
           <p className="text-muted-foreground">
             <span className="font-semibold text-foreground">DEC y PROD por batida</span>{" "}
             (21*6 = 21 en la primera y 6 en la segunda). Dec 1 = lo que está sin
-            decorar; Dec 2 = lo que se hornea; Prod sale del reparto. Tocá un
+            decorar; Dec 2 = lo que se hornea; Prod 1 = lo que hay que producir
+            (sugeridos − sin decorar). Tocá un
             producto para cambiar sus batidas (hasta {MAX_BATIDAS}). Las libras
             salen de Prod; en rojo, la batida que pasa de {MAX_LIBRAS_BATIDA} lb.
           </p>
@@ -535,7 +536,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
               </th>
               <th
                 className={cn("border-l px-2 py-2 text-left font-semibold", col("produccion"))}
-                title="Cuánto se hornea en cada batida (del reparto)"
+                title="Cuánto se hornea en cada batida"
               >
                 Prod
                 <span className="block font-normal normal-case">por batida</span>
@@ -762,7 +763,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
           }}
           numBatidas={numBatidas}
           agregarBatida={agregarBatida}
-          prodReparto={batidas.prodReparto[productoPanel.id] ?? []}
+          prodAutomatico={batidas.prodAutomatico[productoPanel.id] ?? []}
           sinDecorar={sinDecorar[productoPanel.id] ?? 0}
           ajustes={ajustesBatida}
           librasPorUnidad={batidas.libras[productoPanel.id] ?? null}

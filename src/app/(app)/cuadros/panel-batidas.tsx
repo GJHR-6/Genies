@@ -27,13 +27,13 @@ export type CambioBatida = { tipo: Clase; tanda: number; cantidad: number | null
 /**
  * Panel para escribir DEC y PROD de un producto, batida por batida (hasta
  * 10). Las casillas vacías usan lo automático (en gris): DEC 1 = sin
- * decorar, DEC 2 = lo que se hornea, PROD = reparto.
+ * decorar, DEC 2 = lo que se hornea, PROD = lo que hay que producir, en la batida 1.
  */
 export function PanelBatidas({
   producto,
   numBatidas,
   agregarBatida,
-  prodReparto,
+  prodAutomatico,
   sinDecorar,
   ajustes,
   librasPorUnidad,
@@ -44,7 +44,7 @@ export function PanelBatidas({
   producto: { id: number; nombre: string; lleva_decoracion: boolean };
   numBatidas: number;
   agregarBatida: () => void;
-  prodReparto: readonly number[];
+  prodAutomatico: readonly number[];
   sinDecorar: number;
   ajustes: readonly AjusteBatida[];
   librasPorUnidad: number | null;
@@ -79,7 +79,7 @@ export function PanelBatidas({
       });
     const r = batidasDelCuadro({
       productos: [producto],
-      prodReparto: new Map([[producto.id, prodReparto]]),
+      prodAutomatico: new Map([[producto.id, prodAutomatico]]),
       sinDecorar: { [producto.id]: sinDecorar },
       ajustes: escritos,
     });
@@ -87,7 +87,7 @@ export function PanelBatidas({
       dec: r.dec.get(producto.id) ?? [],
       prod: r.prod.get(producto.id) ?? [],
     };
-  }, [borrador, producto, prodReparto, sinDecorar]);
+  }, [borrador, producto, prodAutomatico, sinDecorar]);
 
   const guardar = () => {
     const cambios: CambioBatida[] = [];
@@ -132,8 +132,8 @@ export function PanelBatidas({
           <DialogTitle>{producto.nombre}</DialogTitle>
           <DialogDescription>
             Cuánto se decora y se hornea en cada batida. En gris, lo automático
-            (Dec 1 = lo que está sin decorar; Dec 2 = lo que se hornea; Prod =
-            reparto). Escribí un número para cambiarlo; borralo para volver a
+            (Dec 1 = lo que está sin decorar; Dec 2 = lo que se hornea; Prod 1
+            = lo que hay que producir). Escribí un número para cambiarlo; borralo para volver a
             lo automático.
           </DialogDescription>
         </DialogHeader>

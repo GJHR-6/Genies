@@ -17,7 +17,7 @@ import {
   librasPorBatida,
   MAX_BATIDAS,
   MAX_LIBRAS_BATIDA,
-  tandasPorProducto,
+  prodAutomatico,
   type AjusteBatida,
   type BatidasMasa,
 } from "@/lib/batidas";
@@ -39,7 +39,7 @@ export const dynamic = "force-dynamic";
  *     SALDO de CM que la dueña pidió agregar (20 oct 2026).
  *     A la derecha, como en el Excel (21 oct 2026): DEC y PROD por batida
  *     ("39*2" = 39 en la primera y 2 en la segunda; DEC 1 = sin decorar,
- *     DEC 2 = lo que se hornea, PROD = reparto, con lo cambiado a mano en
+ *     DEC 2 = lo que se hornea, PROD 1 = lo que hay que producir, con lo cambiado a mano en
  *     el cuadro completo) y
  *     el Sugerido; en la fila de cada masa, las libras por batida (máximo
  *     100 lb).
@@ -72,24 +72,16 @@ export default async function DespachoPage({
   }
 
   let dia: SugeridosDelDia;
-  let asignaciones: {
-    producto_id: number;
-    tipo: "produccion" | "decoracion";
-    tanda: number;
-    cantidad: number;
-  }[];
+  let areaDecoracionId: number | null;
   let libras: Record<number, number | null>;
   let ajustes: AjusteBatida[];
   let pendientes: { id: number; fecha: string; sucursal_id: number; producto_id: number; cantidad: number }[];
   const desde = new Date(`${fecha}T12:00:00Z`);
   desde.setUTCDate(desde.getUTCDate() - DIAS_PENDIENTES);
   try {
-    const [d, asignacionesRes, librasRes, ajustesRes, pendientesRes] = await Promise.all([
+    const [d, decoracionRes, librasRes, ajustesRes, pendientesRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
-      supabase
-        .from("asignaciones")
-        .select("producto_id, tipo, tanda, cantidad")
-        .eq("fecha", fecha),
+      supabase.from("areas_produccion").select("id").eq("es_decoracion", true).maybeSingle(),
       supabase.from("productos").select("id, libras").eq("activo", true),
       supabase
         .from("batidas_ajuste")
@@ -104,14 +96,11 @@ export default async function DespachoPage({
         .gte("fecha", desde.toISOString().slice(0, 10))
         .order("fecha"),
     ]);
-    const error = asignacionesRes.error ?? librasRes.error ?? ajustesRes.error ?? pendientesRes.error;
+    const error = decoracionRes.error ?? librasRes.error ?? ajustesRes.error ?? pendientesRes.error;
     if (error) throw new Error(error.message);
     dia = d;
     pendientes = pendientesRes.data ?? [];
-    asignaciones = (asignacionesRes.data ?? []).map((a) => ({
-      ...a,
-      tipo: a.tipo === "decoracion" ? "decoracion" : "produccion",
-    }));
+    areaDecoracionId = decoracionRes.data?.id ?? null;
     ajustes = (ajustesRes.data ?? []).map((a) => ({
       ...a,
       tipo: a.tipo === "decoracion" ? "decoracion" : "produccion",
@@ -155,7 +144,7 @@ export default async function DespachoPage({
   const totales = totalesPorProducto(dia);
   const { dec, prod } = batidasDelCuadro({
     productos: todos,
-    prodReparto: tandasPorProducto(asignaciones, "produccion"),
+    prodAutomatico: prodAutomatico(dia, areaDecoracionId),
     sinDecorar: dia.sinDecorar,
     ajustes,
   });

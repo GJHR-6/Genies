@@ -7,7 +7,7 @@ import {
   librasPorBatida,
   tandasPorProducto,
 } from "./batidas";
-import { prodEscritoPorBatida } from "./batidas";
+import { prodAutomatico, prodEscritoPorBatida } from "./batidas";
 
 describe("formatoTandas", () => {
   it("separa las batidas con * como el Excel", () => {
@@ -101,13 +101,13 @@ describe("batidasDelCuadro", () => {
     { id: 1, lleva_decoracion: true },
     { id: 2, lleva_decoracion: false },
   ];
-  const prodReparto = new Map([
+  const prodAutomatico = new Map([
     [1, [20, 5, 0, 0]],
     [2, [8, 0, 0, 0]],
   ]);
 
   it("DEC 1 = sin decorar, DEC 2 = lo que se hornea (si lleva decoración)", () => {
-    const r = batidasDelCuadro({ productos, prodReparto, sinDecorar: { 1: 7, 2: 3 }, ajustes: [] });
+    const r = batidasDelCuadro({ productos, prodAutomatico, sinDecorar: { 1: 7, 2: 3 }, ajustes: [] });
     expect(r.dec.get(1)).toEqual([7, 25, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(r.dec.get(2)).toEqual([3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(r.prod.get(1)).toEqual([20, 5, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -116,7 +116,7 @@ describe("batidasDelCuadro", () => {
   it("lo escrito a mano manda; DEC 2 usa el PROD ajustado", () => {
     const r = batidasDelCuadro({
       productos,
-      prodReparto,
+      prodAutomatico,
       sinDecorar: {},
       ajustes: [
         { producto_id: 1, tipo: "produccion", tanda: 2, cantidad: 10 },
@@ -132,7 +132,7 @@ describe("batidasDelCuadro", () => {
   it("un 0 escrito a mano borra lo automático", () => {
     const r = batidasDelCuadro({
       productos,
-      prodReparto,
+      prodAutomatico,
       sinDecorar: { 1: 7 },
       ajustes: [
         { producto_id: 1, tipo: "decoracion", tanda: 1, cantidad: 0 },
@@ -147,7 +147,7 @@ describe("hasta 10 batidas", () => {
   it("una batida escrita a mano después de la 4 se suma a DEC 2", () => {
     const r = batidasDelCuadro({
       productos: [{ id: 1, lleva_decoracion: true }],
-      prodReparto: new Map([[1, [10, 0, 0, 0]]]),
+      prodAutomatico: new Map([[1, [10, 0, 0, 0]]]),
       sinDecorar: {},
       ajustes: [{ producto_id: 1, tipo: "produccion", tanda: 9, cantidad: 6 }],
     });
@@ -171,5 +171,33 @@ describe("prodEscritoPorBatida", () => {
     ]);
     expect(m.get(8)?.slice(0, 3)).toEqual([15, 12, 0]);
     expect(m.has(9)).toBe(false);
+  });
+});
+
+describe("prodAutomatico", () => {
+  const prod = (id: number, area_id: number | null) => ({
+    id,
+    nombre: `P${id}`,
+    tamano: null,
+    categoria: null,
+    departamento_id: null,
+    area_id,
+    orden_area: null,
+    orden: id,
+    lleva_decoracion: false,
+  });
+  const celda = (sugerido: number) => ({ objetivo: sugerido, saldo: 0, sugerido, esOverride: false, conCaptura: true });
+
+  it("lo que hay que producir (sugeridos − sin decorar) va en la batida 1; lo de Decoración no se produce", () => {
+    const resultado = prodAutomatico(
+      {
+        productos: [prod(1, 1), prod(2, 9), prod(3, 1)],
+        sucursales: [{ id: 10, nombre: "A" }, { id: 11, nombre: "B" }],
+        celdas: { "1-10": celda(5), "1-11": celda(7), "2-10": celda(4), "3-10": celda(2) },
+        sinDecorar: { 1: 3, 3: 5 },
+      },
+      9
+    );
+    expect(resultado).toEqual(new Map([[1, [9]]]));
   });
 });

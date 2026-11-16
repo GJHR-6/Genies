@@ -5,7 +5,6 @@ const base: EstadoDelDia = {
   esDomingo: false,
   tiendasTotal: 6,
   tiendasCerradas: 6,
-  repartoHecho: false,
 };
 
 describe("pasoDelDia", () => {
@@ -20,19 +19,10 @@ describe("pasoDelDia", () => {
     expect(pasoDelDia({ ...base, tiendasCerradas: 5 }).titulo).toContain("Falta 1 tienda");
   });
 
-  it("todas cerraron sin reparto: sugiere revisar sugeridos", () => {
-    expect(pasoDelDia(base).destacada).toBe("sugeridos");
-  });
-
-  it("reparto hecho: todo listo para imprimir, sin resaltar nada", () => {
-    const p = pasoDelDia({ ...base, repartoHecho: true });
-    expect(p.destacada).toBeNull();
+  it("todas terminaron: resalta Cuadros", () => {
+    const p = pasoDelDia(base);
+    expect(p.destacada).toBe("cuadros");
     expect(p.tono).toBe("exito");
-    expect(p.titulo).toContain("imprimir");
-  });
-
-  it("faltan tiendas manda aunque ya haya reparto", () => {
-    expect(pasoDelDia({ ...base, tiendasCerradas: 5, repartoHecho: true }).destacada).toBe("tiendas");
   });
 });
 

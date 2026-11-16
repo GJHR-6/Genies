@@ -4,8 +4,6 @@ export type EstadoDelDia = {
   esDomingo: boolean;
   tiendasTotal: number;
   tiendasCerradas: number;
-  /** Ya se hizo el reparto de hoy (las hojas por pastelera). */
-  repartoHecho: boolean;
 };
 
 export type PasoDelDia = {
@@ -44,21 +42,11 @@ export function pasoDelDia(e: EstadoDelDia): PasoDelDia {
     };
   }
 
-  if (!e.repartoHecho) {
-    return {
-      destacada: "sugeridos",
-      titulo: "Todas las tiendas terminaron",
-      mensaje:
-        "Revisá los sugeridos, imprimí la hoja completa y los cuadros, y después hacé el reparto entre las pasteleras.",
-      tono: "exito",
-    };
-  }
-
   return {
-    destacada: null,
-    titulo: "Todo listo para imprimir",
+    destacada: "cuadros",
+    titulo: "Todas las tiendas terminaron",
     mensaje:
-      "Imprimí las hojas que falten y entregáselas a cocina y a empaque. Si cambiás un sugerido, volvé a hacer el reparto antes de imprimir.",
+      "Revisá los sugeridos, completá el cuadro completo (DECO, SIN DECO y las batidas) e imprimí las hojas para cocina y empaque.",
     tono: "exito",
   };
 }

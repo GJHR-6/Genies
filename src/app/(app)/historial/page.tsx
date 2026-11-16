@@ -97,10 +97,9 @@ export default async function HistorialPage({
   // (RLS), así que para ella queda la tabla de su inventario.
   const verCuadro = esAdmin && esPrincipal;
   const datosCuadro = verCuadro
-    ? await Promise.all([
-        cargarSugeridosDelDia(supabase, fecha),
-        cargarDatosBatidas(supabase, fecha),
-      ]).catch(() => null)
+    ? await cargarSugeridosDelDia(supabase, fecha)
+        .then(async (d) => [d, await cargarDatosBatidas(supabase, fecha, d)] as const)
+        .catch(() => null)
     : null;
 
   return (

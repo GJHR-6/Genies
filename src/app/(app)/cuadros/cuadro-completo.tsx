@@ -1,36 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
 import { formatoLargo } from "@/lib/fechas";
-import { tandasPorProducto } from "@/lib/batidas";
+import { prodAutomatico } from "@/lib/batidas";
 import { compararProductos } from "@/lib/orden-productos";
 import type { SugeridosDelDia } from "@/lib/sugeridos";
 import { ChipColorDia } from "@/components/color-dia";
 import { HojaCuadro, type DatosBatidas } from "./hoja-cuadro";
 
 /**
- * PROD por batida (del reparto), lo cambiado a mano en DEC / PROD y libras
- * de un día, para el cuadro completo. Lo usan Cuadros y el Historial de
- * Principal.
+ * PROD automático (lo que hay que producir, en la batida 1), lo cambiado a
+ * mano en DEC / PROD y libras de un día, para el cuadro completo. Lo usan
+ * Cuadros, las hojas de despacho y el Historial de Principal.
  */
 export async function cargarDatosBatidas(
   supabase: SupabaseClient<Database>,
-  fecha: string
+  fecha: string,
+  dia: SugeridosDelDia
 ): Promise<DatosBatidas> {
-  const [asignacionesRes, librasRes, ajustesRes] = await Promise.all([
-    supabase.from("asignaciones").select("producto_id, tipo, tanda, cantidad").eq("fecha", fecha),
+  const [librasRes, ajustesRes, decoracionRes] = await Promise.all([
     supabase.from("productos").select("id, libras").eq("activo", true),
     supabase.from("batidas_ajuste").select("producto_id, tipo, tanda, cantidad").eq("fecha", fecha),
+    supabase.from("areas_produccion").select("id").eq("es_decoracion", true).maybeSingle(),
   ]);
-  const error = asignacionesRes.error ?? librasRes.error ?? ajustesRes.error;
+  const error = librasRes.error ?? ajustesRes.error ?? decoracionRes.error;
   if (error) throw new Error(error.message);
   const tipo = (t: string) => (t === "decoracion" ? ("decoracion" as const) : ("produccion" as const));
   return {
-    prodReparto: Object.fromEntries(
-      tandasPorProducto(
-        (asignacionesRes.data ?? []).map((a) => ({ ...a, tipo: tipo(a.tipo) })),
-        "produccion"
-      )
-    ),
+    prodAutomatico: Object.fromEntries(prodAutomatico(dia, decoracionRes.data?.id ?? null)),
     ajustes: (ajustesRes.data ?? []).map((a) => ({ ...a, tipo: tipo(a.tipo) })),
     libras: Object.fromEntries(
       (librasRes.data ?? [])
