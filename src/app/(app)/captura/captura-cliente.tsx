@@ -12,12 +12,14 @@ import { createClient } from "@/lib/supabase/client";
 import {
   almacenDelNavegador,
   firmaFila,
+  normalizarAnterior,
   leerCola,
   ponerEnCola,
   quitarDeCola,
   type FilaPendiente,
 } from "@/lib/cola-offline";
 import { hoyTegucigalpa } from "@/lib/fechas";
+import { diasProduccionAnteriores } from "@/lib/rotacion";
 import { cuandoFue } from "@/lib/no-enviados";
 import { AvisoColorDia, ChipColorDia } from "@/components/color-dia";
 import { ModoSinInternet } from "@/components/modo-sin-internet";
@@ -51,6 +53,7 @@ type MovimientoInicial = {
   sin_decorar: number;
   nota: string | null;
   saldo_final: number | null;
+  ingreso_anterior: unknown;
 };
 
 type Campo =
@@ -85,6 +88,13 @@ const CAMPOS: Campo[] = [
 ];
 
 const CLAVE_ORDEN = "genies:orden-inventario";
+
+const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+/** "Sáb 14" para una fecha ISO. */
+function nombreDia(fechaIso: string): string {
+  const d = new Date(`${fechaIso}T12:00:00Z`);
+  return `${DIAS_CORTOS[d.getUTCDay()]} ${d.getUTCDate()}`;
+}
 
 /** Inventario final: vacío = no se contó (null), no 0. */
 function finalONulo(valor: string): number | null {
@@ -162,6 +172,8 @@ export function CapturaCliente({
   noEnviados,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  // Días que se pueden elegir cuando parte del ingreso es de otro día.
+  const diasAnteriores = useMemo(() => diasProduccionAnteriores(fecha), [fecha]);
 
   const [valores, setValores] = useState<Record<number, ValoresFila>>(() => {
     const inicial: Record<number, ValoresFila> = {};
@@ -178,6 +190,18 @@ export function CapturaCliente({
     }
     return inicial;
   });
+  // Del ingreso, lo que es de otros días (fecha de producción → unidades),
+  // para que la rotación lo marque con su color.
+  const [anteriores, setAnteriores] = useState<Record<number, Record<string, string>>>(() =>
+    Object.fromEntries(
+      movimientosIniciales
+        .map((m) => [m.producto_id, normalizarAnterior(m.ingreso_anterior as Record<string, unknown> | null)] as const)
+        .filter(([, a]) => a)
+        .map(([id, a]) => [id, Object.fromEntries(Object.entries(a!).map(([f, n]) => [f, String(n)]))])
+    )
+  );
+  const anterioresRef = useRef(anteriores);
+  const [anterioresAbiertos, setAnterioresAbiertos] = useState<Set<number>>(new Set());
   const [estados, setEstados] = useState<Record<number, EstadoFila>>({});
   // Nota por producto (para la devolución: "3 negros, 2 rosados…").
   const [notas, setNotas] = useState<Record<number, string>>(() =>
@@ -231,6 +255,7 @@ export function CapturaCliente({
           m.sin_decorar,
           (m.nota ?? "").trim(),
           esPrincipal ? null : m.saldo_final,
+          esPrincipal ? null : normalizarAnterior(m.ingreso_anterior as Record<string, unknown> | null),
         ]),
       ])
     )
@@ -242,6 +267,7 @@ export function CapturaCliente({
       ...CAMPOS.map((campo) => aEntero(v[campo])),
       (notasRef.current[productoId] ?? "").trim(),
       esPrincipal ? null : finalONulo(v.saldo_final),
+      esPrincipal ? null : normalizarAnterior(anterioresRef.current[productoId]),
     ]);
   }, [esPrincipal]);
 
@@ -330,7 +356,12 @@ export function CapturaCliente({
         sin_decorar: aEntero(v.sin_decorar),
         nota: (notasRef.current[productoId] ?? "").trim() || null,
         // Principal no cuenta inventario final aquí: no se toca.
-        ...(esPrincipal ? {} : { saldo_final: finalONulo(v.saldo_final) }),
+        ...(esPrincipal
+          ? {}
+          : {
+              saldo_final: finalONulo(v.saldo_final),
+              ingreso_anterior: normalizarAnterior(anterioresRef.current[productoId]),
+            }),
         updated_at: new Date().toISOString(),
         updated_by: userId,
       };
@@ -404,11 +435,19 @@ export function CapturaCliente({
           saldo_final: f.saldo_final != null ? String(f.saldo_final) : "",
         };
         if (f.nota) notasRef.current = { ...notasRef.current, [f.producto_id]: f.nota };
+        const ant = normalizarAnterior(f.ingreso_anterior);
+        if (ant) {
+          anterioresRef.current = {
+            ...anterioresRef.current,
+            [f.producto_id]: Object.fromEntries(Object.entries(ant).map(([d, n]) => [d, String(n)])),
+          };
+        }
         suciasRef.current.add(f.producto_id);
       }
       valoresRef.current = nuevos;
       setValores(nuevos);
       setNotas(notasRef.current);
+      setAnteriores(anterioresRef.current);
       for (const f of deHoy) guardarFilaRef.current(f.producto_id);
     }
     if (navigator.onLine) void subirOtrosDias();
@@ -442,6 +481,22 @@ export function CapturaCliente({
     setValores(valoresRef.current);
     suciasRef.current.add(productoId);
 
+    const previo = timersRef.current.get(productoId);
+    if (previo) clearTimeout(previo);
+    timersRef.current.set(
+      productoId,
+      setTimeout(() => guardarFilaRef.current(productoId), 800)
+    );
+  };
+
+  const alCambiarAnterior = (productoId: number, dia: string, crudo: string) => {
+    const limpio = crudo.replace(/\D/g, "").slice(0, 5);
+    anterioresRef.current = {
+      ...anterioresRef.current,
+      [productoId]: { ...(anterioresRef.current[productoId] ?? {}), [dia]: limpio },
+    };
+    setAnteriores(anterioresRef.current);
+    suciasRef.current.add(productoId);
     const previo = timersRef.current.get(productoId);
     if (previo) clearTimeout(previo);
     timersRef.current.set(
@@ -758,6 +813,10 @@ export function CapturaCliente({
             const v = valores[producto.id] ?? FILA_VACIA;
             // En Principal todos los productos anotan Decorado / Sin decorar.
             const conDecoracion = esPrincipal;
+            const deOtroDia = Object.values(anteriores[producto.id] ?? {}).reduce(
+              (t, n) => t + aEntero(n),
+              0
+            );
             // Vendido hoy (tiendas): solo si contaron el inventario final.
             const final = finalONulo(v.saldo_final);
             const vendido =
@@ -827,6 +886,52 @@ export function CapturaCliente({
                     </label>
                   ))}
                 </div>
+                {!esPrincipal &&
+                  (Object.keys(anteriores[producto.id] ?? {}).some((d) => anteriores[producto.id][d]) ||
+                  anterioresAbiertos.has(producto.id) ? (
+                    <fieldset className="mt-2 rounded-md border border-dashed p-2">
+                      <legend className="px-1 text-xs text-muted-foreground">
+                        Del ingreso, ¿cuántos son de otro día?
+                      </legend>
+                      <div className="grid grid-cols-3 gap-2">
+                        {diasAnteriores.map((dia) => (
+                          <label key={dia} className="flex flex-col gap-1">
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <ChipColorDia fecha={dia} />
+                              {nombreDia(dia)}
+                            </span>
+                            <Input
+                              inputMode="numeric"
+                              value={anteriores[producto.id]?.[dia] ?? ""}
+                              onChange={(e) => alCambiarAnterior(producto.id, dia, e.target.value)}
+                              onBlur={() => alSalirDelCampo(producto.id)}
+                              disabled={cerrado || desactualizada}
+                              placeholder="0"
+                              className="h-10 text-base tabular-nums"
+                              aria-label={`Del ingreso de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}, cuántos son del ${nombreDia(dia)}`}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      {deOtroDia > aEntero(v.ingreso) && (
+                        <p className="mt-1 text-xs text-destructive">
+                          Son más que el ingreso ({aEntero(v.ingreso)}): revisá los números.
+                        </p>
+                      )}
+                    </fieldset>
+                  ) : (
+                    !cerrado &&
+                    !desactualizada &&
+                    aEntero(v.ingreso) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setAnterioresAbiertos((s) => new Set(s).add(producto.id))}
+                        className="mt-2 block min-h-9 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                      >
+                        + Algunos del ingreso son de otro día
+                      </button>
+                    )
+                  ))}
                 {!esPrincipal && (
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <label className="flex flex-col gap-1">

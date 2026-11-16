@@ -4,6 +4,7 @@ import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
 import {
   estimarLotes,
+  ingresoPorProduccion,
   accionPorDias,
   DIAS_PRIORIDAD,
   DIAS_REGRESAR,
@@ -12,6 +13,7 @@ import {
   type LoteEstimado,
 } from "@/lib/rotacion";
 import { ordenarSucursales } from "@/lib/orden-sucursales";
+import { normalizarAnterior } from "@/lib/cola-offline";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +93,7 @@ export default async function RotacionPage() {
     ingreso: number;
     devolucion: number;
     saldo_final: number | null;
+    ingreso_anterior: unknown;
   }[];
   let filasAyer: typeof filasHoy;
   let ingresosPrevios: {
@@ -98,6 +101,7 @@ export default async function RotacionPage() {
     sucursal_id: number;
     producto_id: number;
     ingreso: number;
+    ingreso_anterior: unknown;
   }[];
   try {
     // Una consulta por día para no exceder el límite de filas por petición.
@@ -115,19 +119,19 @@ export default async function RotacionPage() {
         supabase
           .from("movimientos_diarios")
           .select(
-            "sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final"
+            "sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final, ingreso_anterior"
           )
           .eq("fecha", hoy),
         supabase
           .from("movimientos_diarios")
           .select(
-            "sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final"
+            "sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final, ingreso_anterior"
           )
           .eq("fecha", ayer),
         ...previas.map((f) =>
           supabase
             .from("movimientos_diarios")
-            .select("fecha, sucursal_id, producto_id, ingreso")
+            .select("fecha, sucursal_id, producto_id, ingreso, ingreso_anterior")
             .eq("fecha", f)
             .gt("ingreso", 0)
         ),
@@ -176,24 +180,28 @@ export default async function RotacionPage() {
 
   // Ingresos de la ventana por producto × sucursal (para fechar el saldo).
   const ingresos = new Map<string, IngresoDia[]>();
+  // Lo que la tienda dijo que es de otro día va con la fecha (color) de ese día.
   const agregarIngreso = (
     clave: string,
     fecha: string,
-    ingreso: number
+    ingreso: number,
+    anterior: unknown
   ): void => {
     if (ingreso <= 0) return;
     const lista = ingresos.get(clave) ?? [];
-    lista.push({ fecha, ingreso });
+    lista.push(
+      ...ingresoPorProduccion(fecha, ingreso, normalizarAnterior(anterior as Record<string, unknown> | null))
+    );
     ingresos.set(clave, lista);
   };
   for (const m of filasHoy) {
-    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, hoy, m.ingreso);
+    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, hoy, m.ingreso, m.ingreso_anterior);
   }
   for (const m of filasAyer) {
-    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, ayer, m.ingreso);
+    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, ayer, m.ingreso, m.ingreso_anterior);
   }
   for (const m of ingresosPrevios) {
-    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, m.fecha, m.ingreso);
+    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, m.fecha, m.ingreso, m.ingreso_anterior);
   }
 
   // Todo lo que hay en cada tienda, por edad (10 nov: también lo que está a

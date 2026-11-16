@@ -27,6 +27,8 @@ export type FilaPendiente = {
    * Sin la clave (Principal) no se toca lo que haya en la base.
    */
   saldo_final?: number | null;
+  /** Del ingreso, lo que es de otros días: fecha → unidades; null = todo de hoy. */
+  ingreso_anterior?: Record<string, number> | null;
   updated_at: string;
   updated_by: string;
 };
@@ -41,9 +43,23 @@ export const claveCola = (userId: string) => `${PREFIJO}${userId}`;
 export const claveFila = (f: Pick<FilaPendiente, "fecha" | "sucursal_id" | "producto_id">) =>
   `${f.fecha}|${f.sucursal_id}|${f.producto_id}`;
 
+/**
+ * Ingreso de otros días sin vacíos ni ceros, con las fechas en orden;
+ * null si no queda nada (para comparar y guardar siempre igual).
+ */
+export function normalizarAnterior(
+  anterior: Record<string, unknown> | null | undefined
+): Record<string, number> | null {
+  const limpio = Object.entries(anterior ?? {})
+    .map(([f, n]) => [f, typeof n === "number" ? n : parseInt(String(n), 10)] as const)
+    .filter(([, n]) => Number.isFinite(n) && n > 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return limpio.length ? Object.fromEntries(limpio) : null;
+}
+
 /** Los números de la fila, para saber si lo confirmado es lo último anotado. */
 export const firmaFila = (f: FilaPendiente) =>
-  JSON.stringify([f.ingreso, f.devolucion, f.pedido, f.cambio, f.decorado, f.sin_decorar, (f.nota ?? "").trim(), f.saldo_final ?? null]);
+  JSON.stringify([f.ingreso, f.devolucion, f.pedido, f.cambio, f.decorado, f.sin_decorar, (f.nota ?? "").trim(), f.saldo_final ?? null, normalizarAnterior(f.ingreso_anterior)]);
 
 function esFila(x: unknown): x is FilaPendiente {
   if (!x || typeof x !== "object") return false;
