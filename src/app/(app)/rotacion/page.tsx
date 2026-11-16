@@ -96,13 +96,7 @@ export default async function RotacionPage() {
     ingreso_anterior: unknown;
   }[];
   let filasAyer: typeof filasHoy;
-  let ingresosPrevios: {
-    fecha: string;
-    sucursal_id: number;
-    producto_id: number;
-    ingreso: number;
-    ingreso_anterior: unknown;
-  }[];
+  let ingresosPrevios: (typeof filasHoy[number] & { fecha: string })[];
   try {
     // Una consulta por día para no exceder el límite de filas por petición.
     const [productosRes, sucursalesRes, hoyRes, ayerRes, ...previasRes] =
@@ -131,9 +125,10 @@ export default async function RotacionPage() {
         ...previas.map((f) =>
           supabase
             .from("movimientos_diarios")
-            .select("fecha, sucursal_id, producto_id, ingreso, ingreso_anterior")
+            .select(
+              "fecha, sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final, ingreso_anterior"
+            )
             .eq("fecha", f)
-            .gt("ingreso", 0)
         ),
       ]);
     const error =
@@ -162,9 +157,15 @@ export default async function RotacionPage() {
 
   const nombreProducto = new Map(productos.map((p) => [p.id, p]));
 
-  // Saldo actual por producto × sucursal: la captura de hoy o, si aún no
-  // hay, el saldo final de ayer.
+  // Saldo actual: la fila más reciente de cada producto × sucursal (16 nov:
+  // los lunes no hay domingo, así que se busca el último día anotado).
   const saldos = new Map<string, number>();
+  for (const m of [...ingresosPrevios].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
+    saldos.set(
+      `${m.producto_id}-${m.sucursal_id}`,
+      m.saldo_final ?? Math.max(m.saldo_inicial + m.ingreso - m.devolucion, 0)
+    );
+  }
   for (const m of filasAyer) {
     const saldo =
       m.saldo_final ??
