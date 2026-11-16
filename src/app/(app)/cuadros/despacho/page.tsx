@@ -1,62 +1,35 @@
-import { Fragment } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, fechaElegida, formatoLargo } from "@/lib/fechas";
 import { ElegirDia } from "@/components/elegir-dia";
 import {
   cargarSugeridosDelDia,
-  totalesPorProducto,
   type ProductoSugerido,
   type SugeridosDelDia,
 } from "@/lib/sugeridos";
-import {
-  batidasDelCuadro,
-  comoAsignaciones,
-  formatoLibras,
-  formatoTandas,
-  librasPorBatida,
-  MAX_BATIDAS,
-  MAX_LIBRAS_BATIDA,
-  prodAutomatico,
-  type AjusteBatida,
-  type BatidasMasa,
-} from "@/lib/batidas";
 import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
 import { Aviso } from "@/components/encabezado-seccion";
 import { ordenarProductos } from "@/lib/orden-productos";
-import { aMandar, filaHojaCompleta, type FilaHojaCompleta } from "@/lib/hoja-completa";
+import { aMandar } from "@/lib/hoja-completa";
 import { BotonImprimir } from "../boton-imprimir";
 import { cuandoFue, DIAS_PENDIENTES } from "@/lib/no-enviados";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Hojas de despacho (reunión 16 oct 2026):
- *  1. Hoja completa, igual que INVENTARIO DIARIO del Excel (la que se le
- *     da a la muchacha que empaca): DECO, SIN DECO e INV/TOTAL de
- *     Principal, lo que se manda y el CM (cambio) de cada tienda, y el
- *     SALDO de CM que la dueña pidió agregar (20 oct 2026).
- *     A la derecha, como en el Excel (21 oct 2026): DEC y PROD por batida
- *     ("39*2" = 39 en la primera y 2 en la segunda; DEC 1 = sin decorar,
- *     DEC 2 = lo que se hornea, PROD 1 = lo que hay que producir, con lo cambiado a mano en
- *     el cuadro completo) y
- *     el Sugerido; en la fila de cada masa, las libras por batida (máximo
- *     100 lb).
- *  2. Una hoja por tienda: lo que le toca y su saldo, para tachar lo
- *     enviado y anotar lo que quedó pendiente (la tienda lo vuelve a
- *     pedir en la tarde).
+ * Hojas de despacho (reunión 16 oct 2026): una hoja por tienda con lo que
+ * le toca y su saldo, para tachar lo enviado; abajo, lo que quedó pendiente
+ * de días anteriores. La "hoja completa" (INVENTARIO DIARIO) se quitó el
+ * 16 nov: era lo mismo que el cuadro completo de /cuadros, que se imprime
+ * solo con "Cuadro completo".
  */
-type Hoja = "todas" | "completa" | "tiendas";
-
 export default async function DespachoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ hoja?: string; fecha?: string }>;
+  searchParams: Promise<{ fecha?: string }>;
 }) {
-  const { hoja: hojaParam, fecha: fechaParam } = await searchParams;
-  const hoja: Hoja =
-    hojaParam === "completa" || hojaParam === "tiendas" ? hojaParam : "todas";
+  const { fecha: fechaParam } = await searchParams;
   const supabase = await createClient();
   // Hoy, o un día anterior para revisarlo o reimprimirlo (?fecha=).
   const hoy = hoyTegucigalpa();
@@ -65,28 +38,19 @@ export default async function DespachoPage({
   if (!colorDelDia(fecha)) {
     return (
       <section className="flex flex-col gap-4">
-        <Encabezado fecha={fecha} hoy={hoy} hoja={hoja} />
+        <Encabezado fecha={fecha} hoy={hoy} />
         <Aviso tipo="info">Ese día es domingo: no hay despacho.</Aviso>
       </section>
     );
   }
 
   let dia: SugeridosDelDia;
-  let areaDecoracionId: number | null;
-  let libras: Record<number, number | null>;
-  let ajustes: AjusteBatida[];
   let pendientes: { id: number; fecha: string; sucursal_id: number; producto_id: number; cantidad: number }[];
   const desde = new Date(`${fecha}T12:00:00Z`);
   desde.setUTCDate(desde.getUTCDate() - DIAS_PENDIENTES);
   try {
-    const [d, decoracionRes, librasRes, ajustesRes, pendientesRes] = await Promise.all([
+    const [d, pendientesRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
-      supabase.from("areas_produccion").select("id").eq("es_decoracion", true).maybeSingle(),
-      supabase.from("productos").select("id, libras").eq("activo", true),
-      supabase
-        .from("batidas_ajuste")
-        .select("producto_id, tipo, tanda, cantidad")
-        .eq("fecha", fecha),
       // Lo que no salió días anteriores y sigue pendiente (va en la hoja de la tienda).
       supabase
         .from("no_enviados")
@@ -96,25 +60,13 @@ export default async function DespachoPage({
         .gte("fecha", desde.toISOString().slice(0, 10))
         .order("fecha"),
     ]);
-    const error = decoracionRes.error ?? librasRes.error ?? ajustesRes.error ?? pendientesRes.error;
-    if (error) throw new Error(error.message);
+    if (pendientesRes.error) throw new Error(pendientesRes.error.message);
     dia = d;
     pendientes = pendientesRes.data ?? [];
-    areaDecoracionId = decoracionRes.data?.id ?? null;
-    ajustes = (ajustesRes.data ?? []).map((a) => ({
-      ...a,
-      tipo: a.tipo === "decoracion" ? "decoracion" : "produccion",
-    }));
-    libras = Object.fromEntries(
-      (librasRes.data ?? []).map((p) => [
-        p.id,
-        p.libras === null ? null : Number(p.libras),
-      ])
-    );
   } catch {
     return (
       <section className="flex flex-col gap-4">
-        <Encabezado fecha={fecha} hoy={hoy} hoja={hoja} />
+        <Encabezado fecha={fecha} hoy={hoy} />
         <Aviso tipo="error">
           No se pudieron cargar las hojas. Revisá que haya internet y recargá
           la página.
@@ -136,280 +88,102 @@ export default async function DespachoPage({
   const productos = todos.filter((p) =>
     sucursales.some((s) => pedido(p.id, s.id) > 0)
   );
-  // En la hoja completa Principal no es columna: es el INV/TOTAL.
-  const tiendas = sucursales.filter((s) => s.id !== dia.principalId);
-
-  // DEC / PROD por batida (igual que el cuadro completo), Sugerido y
-  // libras por masa (con el PROD ya ajustado).
-  const totales = totalesPorProducto(dia);
-  const { dec, prod } = batidasDelCuadro({
-    productos: todos,
-    prodAutomatico: prodAutomatico(dia, areaDecoracionId),
-    sinDecorar: dia.sinDecorar,
-    ajustes,
-  });
-  const batidas = new Map<string, BatidasMasa>(
-    librasPorBatida(
-      comoAsignaciones(prod, "produccion"),
-      todos.map((p) => ({ ...p, libras: libras[p.id] ?? null })),
-      MAX_LIBRAS_BATIDA,
-      MAX_BATIDAS
-    ).map((b) => [b.masa, b])
-  );
-
-  // Filas de la hoja completa con encabezado de sección, como el Excel.
-  type Renglon =
-    | { tipo: "seccion"; nombre: string; batidas: BatidasMasa | undefined }
-    | { tipo: "producto"; producto: ProductoSugerido; fila: FilaHojaCompleta };
-  const renglones: Renglon[] = [];
-  let seccionActual: string | null = null;
-  for (const p of todos) {
-    const seccion = p.categoria ?? "OTROS";
-    if (seccion !== seccionActual) {
-      renglones.push({
-        tipo: "seccion",
-        nombre: seccion,
-        batidas: batidas.get(seccion),
-      });
-      seccionActual = seccion;
-    }
-    renglones.push({
-      tipo: "producto",
-      producto: p,
-      fila: filaHojaCompleta(dia, p, tiendas),
-    });
-  }
-
-  const num = (n: number | null) => (n === null || n === 0 ? "" : n);
 
   return (
     <section className="flex flex-col gap-4">
-      <Encabezado fecha={fecha} hoy={hoy} hoja={hoja} />
+      <Encabezado fecha={fecha} hoy={hoy} />
 
       {todos.length === 0 && (
         <Aviso tipo="info">Todavía no hay productos activos.</Aviso>
       )}
 
-      {todos.length > 0 && (
-        <>
-          {/* 1. Hoja completa: réplica de INVENTARIO DIARIO + SALDO */}
-          {hoja !== "tiendas" && (
-            <article className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0">
-              <EncabezadoHoja
-                titulo="Inventario diario — hoja completa"
-                fecha={fecha}
-                nota={`Por tienda: lo que se manda y CM (cambio). SALDO = INV/TOTAL + CM − lo que se manda; en rojo, lo que falta. DEC y PROD: cuánto se decora y se hornea en cada batida (39*2 = 39 en la primera y 2 en la segunda). RESTANTE: sobrantes, anotados a mano. En la fila de cada masa, las libras por batida (máximo ${MAX_LIBRAS_BATIDA} lb).`}
-              />
-              <div className="overflow-x-auto print:overflow-visible">
-                <table className="w-full min-w-[900px] border-collapse text-[12px] print:min-w-0 print:text-[9.5px]">
-                  <thead>
-                    <tr className="border-b-2 border-border print:border-black">
-                      <th className="py-1 pr-2 text-left font-semibold">PRODUCTO</th>
-                      <th className="px-1 py-1 text-center font-semibold">DECO</th>
-                      <th className="px-1 py-1 text-center font-semibold">SIN DECO</th>
-                      <th className="border-r px-1 py-1 text-center font-semibold print:border-black">
-                        INV/ TOTAL
-                      </th>
-                      {tiendas.map((t) => (
-                        <Fragment key={t.id}>
-                          <th className="px-1 py-1 text-center font-semibold uppercase">
-                            {t.nombre}
-                          </th>
-                          <th className="border-r px-1 py-1 text-center font-semibold print:border-black">
-                            CM
-                          </th>
-                        </Fragment>
-                      ))}
-                      <th className="border-r px-1 py-1 text-center font-semibold print:border-black">
-                        SALDO
-                      </th>
-                      <th className="px-1 py-1 text-center font-semibold">
-                        DEC
-                        <div className="text-[9px] font-normal">1*2*3*4</div>
-                      </th>
-                      <th className="px-1 py-1 text-center font-semibold">
-                        PROD
-                        <div className="text-[9px] font-normal">1*2*3*4</div>
-                      </th>
-                      <th className="px-1 py-1 text-center font-semibold">RESTANTE</th>
-                      <th className="px-1 py-1 text-center font-semibold">Sugerido</th>
-                    </tr>
-                  </thead>
+      {sucursales.map((s) => {
+        const suyos = productos.filter((p) => pedido(p.id, s.id) > 0);
+        const deAntes = pendientes.filter((n) => n.sucursal_id === s.id);
+        if (suyos.length === 0 && deAntes.length === 0) return null;
+        return (
+          <article
+            key={s.id}
+            className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0"
+          >
+            <EncabezadoHoja
+              titulo={`Despacho — ${s.nombre}`}
+              fecha={fecha}
+              nota="Tachá lo que se mandó. Lo que no se mandó se anota en el sistema (Hoy → Lo que no se mandó) y queda pendiente hasta que se manda; no se manda doble. Saldo = lo que la tienda tenía en su inventario de hoy."
+            />
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b-2 border-border print:border-black">
+                  <th className="py-1 pr-2 text-left font-semibold">Producto</th>
+                  <th className="px-2 py-1 text-right font-semibold">Saldo</th>
+                  <th className="px-2 py-1 text-right font-semibold">Mandar</th>
+                  <th className="w-20 px-2 py-1 text-center font-semibold">Enviado</th>
+                  <th className="w-24 px-2 py-1 text-center font-semibold">
+                    No se mandó
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {suyos.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="border-b border-border/60 print:border-black/40"
+                  >
+                    <td className="py-1.5 pr-2 font-medium">{nombre(p)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      {celdas[`${p.id}-${s.id}`]?.saldo ?? "—"}
+                    </td>
+                    <td className="px-2 py-1.5 text-right text-base font-bold tabular-nums">
+                      {pedido(p.id, s.id)}
+                    </td>
+                    <td className="px-2 py-1.5 text-center">☐</td>
+                    <td className="px-2 py-1.5 text-center">______</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-border font-semibold print:border-black">
+                  <td className="py-1.5 pr-2">Total</td>
+                  <td />
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {suyos.reduce((t, p) => t + pedido(p.id, s.id), 0)}
+                  </td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            </table>
+            {deAntes.length > 0 && (
+              <div className="mt-4">
+                <h3 className="mb-1 text-sm font-bold">
+                  Pendiente de días anteriores (no se mandó)
+                </h3>
+                <table className="w-full border-collapse text-sm">
                   <tbody>
-                    {renglones.map((r, i) =>
-                      r.tipo === "seccion" ? (
-                        <tr
-                          key={`s-${i}`}
-                          className="border-b border-border bg-muted/50 print:border-black/60 print:bg-black/10"
-                        >
-                          <td
-                            colSpan={5 + tiendas.length * 2}
-                            className="py-0.5 pr-2 font-bold uppercase"
-                          >
-                            {r.nombre}
+                    {deAntes.map((n) => {
+                      const prod = todos.find((p) => p.id === n.producto_id);
+                      return (
+                        <tr key={n.id} className="border-b border-border/60 print:border-black/40">
+                          <td className="py-1.5 pr-2 font-medium">
+                            {prod ? nombre(prod) : `Producto ${n.producto_id}`}
+                            <span className="ml-2 text-xs text-muted-foreground print:text-black/60">
+                              {cuandoFue(n.fecha, fecha)}
+                            </span>
                           </td>
-                          <td
-                            colSpan={4}
-                            className={`px-1 py-0.5 text-center font-semibold tabular-nums ${
-                              r.batidas?.excedidas.length
-                                ? "text-destructive print:text-black print:underline"
-                                : ""
-                            }`}
-                            title={
-                              r.batidas?.excedidas.length
-                                ? `Se pasa de ${MAX_LIBRAS_BATIDA} lb en la batida ${r.batidas.excedidas.join(", ")}`
-                                : undefined
-                            }
-                          >
-                            {r.batidas ? formatoLibras(r.batidas.libras) : ""}
-                            {r.batidas?.excedidas.length ? " ⚠" : ""}
+                          <td className="w-20 px-2 py-1.5 text-right text-base font-bold tabular-nums">
+                            {n.cantidad}
                           </td>
+                          <td className="w-20 px-2 py-1.5 text-center">☐</td>
                         </tr>
-                      ) : (
-                        <tr
-                          key={r.producto.id}
-                          className="border-b border-border/60 print:border-black/30"
-                        >
-                          <td className="py-0.5 pr-2">{nombre(r.producto)}</td>
-                          <td className="px-1 py-0.5 text-center tabular-nums">
-                            {num(r.fila.deco)}
-                          </td>
-                          <td className="px-1 py-0.5 text-center tabular-nums">
-                            {num(r.fila.sinDeco)}
-                          </td>
-                          <td className="border-r px-1 py-0.5 text-center font-semibold tabular-nums print:border-black">
-                            {num(r.fila.invTotal)}
-                          </td>
-                          {r.fila.tiendas.map((t) => (
-                            <Fragment key={t.sucursalId}>
-                              <td className="px-1 py-0.5 text-center tabular-nums">
-                                {t.mandar ?? ""}
-                              </td>
-                              <td className="border-r px-1 py-0.5 text-center tabular-nums print:border-black">
-                                {num(t.cm)}
-                              </td>
-                            </Fragment>
-                          ))}
-                          <td
-                            className={`border-r px-1 py-0.5 text-center font-bold tabular-nums print:border-black ${
-                              r.fila.saldo < 0 ? "text-destructive print:text-black" : ""
-                            }`}
-                          >
-                            {r.fila.saldo === 0 ? "" : r.fila.saldo}
-                          </td>
-                          <td className="px-1 py-0.5 text-center tabular-nums">
-                            {formatoTandas(dec.get(r.producto.id) ?? [])}
-                          </td>
-                          <td className="px-1 py-0.5 text-center tabular-nums">
-                            {formatoTandas(prod.get(r.producto.id) ?? [])}
-                          </td>
-                          <td className="px-1 py-0.5 text-center tabular-nums">
-                            {dia.restante[r.producto.id] ?? ""}
-                          </td>
-                          <td className="px-1 py-0.5 text-center font-semibold tabular-nums">
-                            {num(totales.get(r.producto.id)?.total ?? null)}
-                          </td>
-                        </tr>
-                      )
-                    )}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-              <Firmas />
-            </article>
-          )}
-
-          {/* 2. Una hoja por tienda */}
-          {hoja !== "completa" &&
-            sucursales.map((s) => {
-            const suyos = productos.filter((p) => pedido(p.id, s.id) > 0);
-            const deAntes = pendientes.filter((n) => n.sucursal_id === s.id);
-            if (suyos.length === 0 && deAntes.length === 0) return null;
-            return (
-              <article
-                key={s.id}
-                className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0"
-              >
-                <EncabezadoHoja
-                  titulo={`Despacho — ${s.nombre}`}
-                  fecha={fecha}
-                  nota="Tachá lo que se mandó. Lo que no se mandó se anota en el sistema (Hoy → Lo que no se mandó) y queda pendiente hasta que se manda; no se manda doble. Saldo = lo que la tienda tenía en su inventario de hoy."
-                />
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-border print:border-black">
-                      <th className="py-1 pr-2 text-left font-semibold">Producto</th>
-                      <th className="px-2 py-1 text-right font-semibold">Saldo</th>
-                      <th className="px-2 py-1 text-right font-semibold">Mandar</th>
-                      <th className="w-20 px-2 py-1 text-center font-semibold">Enviado</th>
-                      <th className="w-24 px-2 py-1 text-center font-semibold">
-                        No se mandó
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {suyos.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="border-b border-border/60 print:border-black/40"
-                      >
-                        <td className="py-1.5 pr-2 font-medium">{nombre(p)}</td>
-                        <td className="px-2 py-1.5 text-right tabular-nums">
-                          {celdas[`${p.id}-${s.id}`]?.saldo ?? "—"}
-                        </td>
-                        <td className="px-2 py-1.5 text-right text-base font-bold tabular-nums">
-                          {pedido(p.id, s.id)}
-                        </td>
-                        <td className="px-2 py-1.5 text-center">☐</td>
-                        <td className="px-2 py-1.5 text-center">______</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-border font-semibold print:border-black">
-                      <td className="py-1.5 pr-2">Total</td>
-                      <td />
-                      <td className="px-2 py-1.5 text-right tabular-nums">
-                        {suyos.reduce((t, p) => t + pedido(p.id, s.id), 0)}
-                      </td>
-                      <td colSpan={2} />
-                    </tr>
-                  </tfoot>
-                </table>
-                {deAntes.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="mb-1 text-sm font-bold">
-                      Pendiente de días anteriores (no se mandó)
-                    </h3>
-                    <table className="w-full border-collapse text-sm">
-                      <tbody>
-                        {deAntes.map((n) => {
-                          const prod = todos.find((p) => p.id === n.producto_id);
-                          return (
-                            <tr key={n.id} className="border-b border-border/60 print:border-black/40">
-                              <td className="py-1.5 pr-2 font-medium">
-                                {prod ? nombre(prod) : `Producto ${n.producto_id}`}
-                                <span className="ml-2 text-xs text-muted-foreground print:text-black/60">
-                                  {cuandoFue(n.fecha, fecha)}
-                                </span>
-                              </td>
-                              <td className="w-20 px-2 py-1.5 text-right text-base font-bold tabular-nums">
-                                {n.cantidad}
-                              </td>
-                              <td className="w-20 px-2 py-1.5 text-center">☐</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                <Firmas />
-              </article>
-            );
-          })}
-        </>
-      )}
+            )}
+            <Firmas />
+          </article>
+        );
+      })}
     </section>
   );
 }
@@ -418,20 +192,12 @@ function nombre(p: ProductoSugerido) {
   return `${p.nombre}${p.tamano ? ` · ${p.tamano}` : ""}`;
 }
 
-const OPCIONES_HOJA: { valor: Hoja; etiqueta: string; href: string }[] = [
-  { valor: "completa", etiqueta: "Hoja completa", href: "/cuadros/despacho?hoja=completa" },
-  { valor: "tiendas", etiqueta: "Hoja de cada tienda", href: "/cuadros/despacho?hoja=tiendas" },
-  { valor: "todas", etiqueta: "Todas", href: "/cuadros/despacho" },
-];
-
-function Encabezado({ fecha, hoy, hoja }: { fecha: string; hoy: string; hoja: Hoja }) {
-  const conFecha = (href: string) =>
-    fecha === hoy ? href : `${href}${href.includes("?") ? "&" : "?"}fecha=${fecha}`;
+function Encabezado({ fecha, hoy }: { fecha: string; hoy: string }) {
   return (
     <div className="flex flex-col gap-3 print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">Hojas de despacho</h1>
+          <h1 className="text-xl font-bold">Hoja de cada tienda</h1>
           <p className="text-sm text-muted-foreground first-letter:uppercase">
             {formatoLargo(fecha)}
           </p>
@@ -443,47 +209,15 @@ function Encabezado({ fecha, hoy, hoja }: { fecha: string; hoy: string; hoja: Ho
           >
             ← Hoy
           </Link>
-          <BotonImprimir
-            texto={
-              hoja === "completa"
-                ? "Imprimir hoja completa"
-                : hoja === "tiendas"
-                  ? "Imprimir hojas de tiendas"
-                  : "Imprimir todo"
-            }
-          />
+          <BotonImprimir texto="Imprimir hojas de tiendas" />
         </div>
       </div>
-      <div className="flex flex-col gap-1.5">
-        <p className="text-sm font-medium">¿Qué querés imprimir?</p>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Qué hojas ver">
-          {OPCIONES_HOJA.map((o) => (
-            <Link
-              key={o.valor}
-              href={conFecha(o.href)}
-              aria-current={hoja === o.valor ? "page" : undefined}
-              className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors ${
-                hoja === o.valor
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-background hover:bg-accent"
-              }`}
-            >
-              {o.etiqueta}
-            </Link>
-          ))}
-        </div>
-        <ElegirDia
-          fecha={fecha}
-          hoy={hoy}
-          ruta="/cuadros/despacho"
-          conservar={hoja === "todas" ? {} : { hoja }}
-        />
-        <p className="text-sm text-muted-foreground">
-          La hoja completa es igual a INVENTARIO DIARIO del Excel. La de cada
-          tienda es para tachar lo que se manda. Cada hoja sale en su propia
-          página.
-        </p>
-      </div>
+      <ElegirDia fecha={fecha} hoy={hoy} ruta="/cuadros/despacho" />
+      <p className="text-sm text-muted-foreground">
+        Una hoja por tienda, para tachar lo que se manda. Cada una sale en su
+        propia página. El cuadro completo (como el Excel) se imprime desde
+        Cuadros.
+      </p>
     </div>
   );
 }

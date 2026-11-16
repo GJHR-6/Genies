@@ -42,15 +42,25 @@ const DIAS_SEMANA = [
 /** Renglones vacíos al final, para anotar a mano. */
 const RENGLONES_EXTRA = 2;
 
+/** Qué se ve (y se imprime): el cuadro completo, las hojas por área o todo. */
+type Ver = "todo" | "completo" | "areas";
+const OPCIONES_VER: { valor: Ver; etiqueta: string }[] = [
+  { valor: "completo", etiqueta: "Cuadro completo" },
+  { valor: "areas", etiqueta: "Hoja de cada pastelera" },
+  { valor: "todo", etiqueta: "Todo" },
+];
+
 export default async function CuadrosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fecha?: string }>;
+  searchParams: Promise<{ fecha?: string; ver?: string }>;
 }) {
   const supabase = await createClient();
+  const params = await searchParams;
   // Hoy, o un día anterior para revisarlo o reimprimirlo (?fecha=).
   const hoy = hoyTegucigalpa();
-  const fecha = fechaElegida((await searchParams).fecha, hoy);
+  const fecha = fechaElegida(params.fecha, hoy);
+  const ver: Ver = params.ver === "completo" || params.ver === "areas" ? params.ver : "todo";
   const color = colorDelDia(fecha);
 
   // Domingo: no hay producción, no se generan cuadros.
@@ -214,13 +224,52 @@ export default async function CuadrosPage({
         <Button asChild size="lg" variant="outline" className="print:hidden">
           <Link href={fecha === hoy ? "/cuadros/despacho" : `/cuadros/despacho?fecha=${fecha}`}>
             <Truck />
-            Hojas de despacho
+            Hoja de cada tienda
           </Link>
         </Button>
-        <BotonImprimir />
+        <BotonImprimir
+          texto={
+            ver === "completo"
+              ? "Imprimir cuadro completo"
+              : ver === "areas"
+                ? "Imprimir hojas de pasteleras"
+                : "Imprimir todo"
+          }
+        />
       </EncabezadoSeccion>
 
-      <ElegirDia fecha={fecha} hoy={hoy} ruta="/cuadros" />
+      <div className="flex flex-col gap-1.5 print:hidden">
+        <p className="text-sm font-medium">¿Qué querés ver e imprimir?</p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Qué cuadros ver">
+          {OPCIONES_VER.map((o) => {
+            const query = new URLSearchParams();
+            if (o.valor !== "todo") query.set("ver", o.valor);
+            if (fecha !== hoy) query.set("fecha", fecha);
+            const href = query.size ? `/cuadros?${query}` : "/cuadros";
+            return (
+              <Link
+                key={o.valor}
+                href={href}
+                aria-current={ver === o.valor ? "page" : undefined}
+                className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors ${
+                  ver === o.valor
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-background hover:bg-accent"
+                }`}
+              >
+                {o.etiqueta}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      <ElegirDia
+        fecha={fecha}
+        hoy={hoy}
+        ruta="/cuadros"
+        conservar={ver === "todo" ? {} : { ver }}
+      />
       {fecha !== hoy && (
         <Aviso tipo="info" className="print:hidden">
           Estás viendo un día anterior. Lo que cambies acá se guarda en ese día.
@@ -244,14 +293,15 @@ export default async function CuadrosPage({
       )}
 
       <p className="text-sm text-muted-foreground print:hidden">
-        Primero el cuadro completo, igual que la hoja del Excel: ahí se llena
-        lo que hay en Principal y lo que va a cada tienda. Después, una hoja por
-        área. Al imprimir, cada cuadro va en su propia página.
+        El cuadro completo es igual a INVENTARIO DIARIO del Excel: ahí se llena
+        lo que hay en Principal, lo que va a cada tienda y las batidas. La hoja
+        de cada pastelera es el cuadro de su área. Al imprimir, cada cuadro va
+        en su propia página.
       </p>
 
-      <CuadroCompleto fecha={fecha} dia={dia} batidas={batidas} />
+      {ver !== "areas" && <CuadroCompleto fecha={fecha} dia={dia} batidas={batidas} />}
 
-      {!hayBatidas && (
+      {ver !== "completo" && !hayBatidas && (
         <Aviso tipo="info" className="print:hidden">
           Los cuadros de cada área salen con lo que se manda a producir (PROD
           de las batidas del cuadro completo). Todavía no hay nada que producir
@@ -259,7 +309,7 @@ export default async function CuadrosPage({
         </Aviso>
       )}
 
-      {conTrabajo.map((cuadro) => {
+      {(ver === "completo" ? [] : conTrabajo).map((cuadro) => {
         const esDecoracion = cuadro.titulo === "Decoración";
         // Secciones (VAINILLA, CHOCOLATE…) en el orden del Excel.
         const secciones: { nombre: string; filas: Cuadro["filas"] }[] = [];

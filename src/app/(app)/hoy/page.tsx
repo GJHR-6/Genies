@@ -152,19 +152,19 @@ function estadoEnvios(pendientes: { sucursal_id: number }[]): EstadoTarjeta {
 
 const HOJAS: { href: string; titulo: string; para: string; icono: LucideIcon }[] = [
   {
-    href: "/cuadros/despacho?hoja=completa",
-    titulo: "Hoja completa",
+    href: "/cuadros?ver=completo",
+    titulo: "Cuadro completo",
     para: "Inventario diario como en el Excel, con DEC, PROD y libras por batida.",
     icono: TableProperties,
   },
   {
-    href: "/cuadros",
+    href: "/cuadros?ver=areas",
     titulo: "Hoja de cada pastelera",
     para: "El cuadro de cada área, con lo que hay que hornear y decorar en cada batida.",
     icono: ClipboardList,
   },
   {
-    href: "/cuadros/despacho?hoja=tiendas",
+    href: "/cuadros/despacho",
     titulo: "Hoja de cada tienda",
     para: "Lo que se le manda a cada tienda, para tachar al empacar.",
     icono: Store,
