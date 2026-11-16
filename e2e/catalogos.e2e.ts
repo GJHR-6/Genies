@@ -14,7 +14,6 @@ const SECCIONES = [
   ["Objetivos por tienda", /\/catalogos\/reglas$/],
   ["Pasteleras", /\/pasteleras$/],
   ["Áreas de producción", /\/catalogos\/areas$/],
-  ["Departamentos", /\/catalogos\/departamentos$/],
   ["Usuarios", /\/catalogos\/usuarios$/],
 ] as const;
 
@@ -91,20 +90,14 @@ test("Objetivos: cambiar uno, guardarlo y quitarlo", async ({ page }) => {
   await expect(celda).toHaveValue("");
 });
 
-test("Departamentos: crear uno y desactivarlo", async ({ page }) => {
-  const nombre = `${PREFIJO}Departamento`;
-  await page.goto("/catalogos/departamentos");
-  await page.getByRole("button", { name: "Nuevo departamento" }).click();
-  const dialogo = page.getByRole("dialog", { name: "Nuevo departamento" });
-  await dialogo.getByLabel("Nombre").fill(nombre);
-  await dialogo.getByRole("button", { name: "Guardar" }).click();
-
-  const tarjeta = page.getByRole("button", { name: new RegExp(nombre) });
-  await expect(tarjeta).toContainText("Activo");
-  await tarjeta.click();
-  await page.getByRole("dialog").getByRole("switch", { name: /^Activo/ }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Guardar" }).click();
-  await expect(tarjeta).toContainText("Inactivo");
+test("Departamentos y porcentajes ya no se muestran", async ({ page }) => {
+  await page.goto("/catalogos");
+  await expect(page.getByRole("heading", { name: "Departamentos", exact: true })).toHaveCount(0);
+  await page.goto("/catalogos/productos");
+  await expect(page.getByRole("combobox", { name: "Filtrar por departamento" })).toHaveCount(0);
+  await page.goto("/pasteleras");
+  await expect(page.getByRole("textbox", { name: /^Porcentaje de / })).toHaveCount(0);
+  await expect(page.getByText(/^Suma \d+ %$/)).toHaveCount(0);
 });
 
 test("Usuarios: crear una cuenta de tienda que puede entrar", async ({ page, browser }) => {

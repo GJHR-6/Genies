@@ -109,7 +109,7 @@ export default async function DespachoPage({
             <EncabezadoHoja
               titulo={`Despacho — ${s.nombre}`}
               fecha={fecha}
-              nota="Tachá lo que se mandó. Lo que no se mandó se anota en el sistema (Hoy → Lo que no se mandó) y queda pendiente hasta que se manda; no se manda doble. Saldo = lo que la tienda tenía en su inventario de hoy."
+              nota="Marcá lo que se mandó. Lo que no salió se anota solo en el sistema (Hoy → Lo que no se mandó), no en esta hoja: así queda pendiente y no se manda doble. Saldo = lo que la tienda tenía en su inventario de hoy."
             />
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -118,9 +118,6 @@ export default async function DespachoPage({
                   <th className="px-2 py-1 text-right font-semibold">Saldo</th>
                   <th className="px-2 py-1 text-right font-semibold">Mandar</th>
                   <th className="w-20 px-2 py-1 text-center font-semibold">Enviado</th>
-                  <th className="w-24 px-2 py-1 text-center font-semibold">
-                    No se mandó
-                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -137,7 +134,6 @@ export default async function DespachoPage({
                       {pedido(p.id, s.id)}
                     </td>
                     <td className="px-2 py-1.5 text-center">☐</td>
-                    <td className="px-2 py-1.5 text-center">______</td>
                   </tr>
                 ))}
               </tbody>
@@ -148,7 +144,7 @@ export default async function DespachoPage({
                   <td className="px-2 py-1.5 text-right tabular-nums">
                     {suyos.reduce((t, p) => t + pedido(p.id, s.id), 0)}
                   </td>
-                  <td colSpan={2} />
+                  <td />
                 </tr>
               </tfoot>
             </table>

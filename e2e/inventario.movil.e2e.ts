@@ -93,6 +93,38 @@ test("el buscador filtra la lista", async ({ page }) => {
   await expect(page.getByText(/Ningún producto coincide/)).toBeVisible();
 });
 
+test("muestra qué se anota al recibir y al cerrar", async ({ page }) => {
+  await page.goto("/captura");
+  await expect(page.getByText("Al recibir:")).toBeVisible();
+  await expect(page.getByText("Al cerrar:")).toBeVisible();
+});
+
+test("no deja terminar sin el inventario final de lo que tiene existencia", async ({ page }) => {
+  test.skip(esDomingo(), "Domingo: sin producción");
+  await page.goto("/captura");
+  await page.getByRole("button", { name: "Terminé el inventario de hoy" }).click();
+  const falta = page.getByRole("dialog", { name: "Falta contar el inventario final" });
+  await expect(falta).toBeVisible();
+  await expect(falta.getByRole("button", { name: "Sí, terminé" })).toHaveCount(0);
+
+  // "Ver los que faltan" deja solo esos; se cuentan (0 = no queda nada).
+  await falta.getByRole("button", { name: "Ver los que faltan" }).click();
+  await expect(page.getByText(/Solo los que faltan contar/)).toBeVisible();
+  await expect(falta).toHaveCount(0);
+  const finales = page.getByRole("textbox", { name: /^Inventario final de / });
+  await expect(finales.first()).toBeVisible();
+  const n = await finales.count();
+  expect(n).toBeGreaterThan(0);
+  for (let i = 0; i < n; i++) {
+    await finales.nth(i).fill("0");
+  }
+  // Que se guarden antes de seguir (cada producto dice "Guardado ✓").
+  await expect(page.getByText("Guardado ✓")).toHaveCount(n, { timeout: 30_000 });
+  await expect(page.getByText("¡ya están todos!", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Ver todos" }).click();
+  await expect(page.getByText(/Solo los que faltan contar/)).toHaveCount(0);
+});
+
 test("«Terminé el inventario de hoy» cierra el día y ya no deja editar", async ({ page }) => {
   test.skip(esDomingo(), "Domingo: sin producción");
   await page.goto("/captura");

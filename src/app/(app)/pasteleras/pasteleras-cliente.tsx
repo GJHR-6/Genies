@@ -12,7 +12,6 @@ import {
   type AreaDia,
   type PasteleraDia,
 } from "@/lib/asignaciones";
-import { repartirEntero, sumaPorcentajesPorArea } from "@/lib/reparto";
 
 type Props = { areas: AreaDia[]; pastelerasIniciales: PasteleraDia[] };
 
@@ -75,35 +74,17 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
       ),
   });
 
-  const sumas = sumaPorcentajesPorArea(pasteleras);
-
-  const repartirParejo = async (areaId: number) => {
-    const activas = pasteleras
-      .filter((p) => p.area_id === areaId && p.activa)
-      .sort((a, b) => a.orden - b.orden || a.id - b.id);
-    if (activas.length === 0) return;
-    // Porcentajes enteros que suman exactamente 100.
-    const partes = repartirEntero(
-      100,
-      activas.map((p) => ({ id: p.id, porcentaje: 1 }))
-    );
-    for (const p of activas) {
-      const porcentaje = partes.get(p.id) ?? 0;
-      if (porcentaje !== p.porcentaje) {
-        await actualizar.mutateAsync({ id: p.id, cambios: { porcentaje } });
-      }
-    }
-  };
+  // El porcentaje ya no se muestra (16 nov): sin reparto, cada área es de
+  // su pastelera y su cuadro es la hoja de ella. Sigue en la base.
 
   return (
     <section className="flex flex-col gap-4">
       <EncabezadoCatalogo actual="pasteleras" />
 
       <p className="text-sm text-muted-foreground">
-        En cada área el trabajo se divide entre sus pasteleras según su
-        porcentaje. Los porcentajes de las pasteleras activas de un área deben
-        sumar 100 %. Las áreas marcadas «En equipo» (en Catálogos → Áreas) no
-        se dividen: sale una sola hoja para todas y el porcentaje no se usa.
+        Quién trabaja en cada área. El cuadro de cada área sale a nombre de sus
+        pasteleras activas. Las áreas marcadas «En equipo» (en Catálogos →
+        Áreas) salen con el nombre de todas, sin dividir.
       </p>
 
       {error && (
@@ -124,8 +105,6 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
             const lista = pasteleras
               .filter((p) => p.area_id === area.id)
               .sort((a, b) => Number(b.activa) - Number(a.activa) || a.orden - b.orden || a.id - b.id);
-            const suma = sumas.get(area.id) ?? 0;
-            const cuadra = Math.abs(suma - 100) < 0.01;
             return (
               <article key={area.id} className="rounded-lg border bg-card p-4">
                 <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -137,35 +116,11 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
                       </span>
                     )}
                   </h2>
-                  <div className="flex items-center gap-2">
-                    {area.trabajo_en_equipo ? (
-                      <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-secondary-foreground">
-                        En equipo · una sola hoja
-                      </span>
-                    ) : (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
-                        lista.some((p) => p.activa)
-                          ? cuadra
-                            ? "bg-exito/10 text-exito"
-                            : "bg-aviso/10 text-aviso"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      Suma {suma} %
+                  {area.trabajo_en_equipo && (
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-secondary-foreground">
+                      En equipo · una sola hoja
                     </span>
-                    )}
-                    {!area.trabajo_en_equipo && lista.filter((p) => p.activa).length > 1 && (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() => void repartirParejo(area.id)}
-                        disabled={actualizar.isPending}
-                      >
-                        Repartir parejo
-                      </Button>
-                    )}
-                  </div>
+                  )}
                 </header>
 
                 <ul className="flex flex-col gap-2">
@@ -184,7 +139,7 @@ export function PastelerasCliente({ areas, pastelerasIniciales }: Props) {
 
                 <FormAgregar
                   areaId={area.id}
-                  porcentajeSugerido={Math.max(0, 100 - suma)}
+                  porcentajeSugerido={lista.some((p) => p.activa) ? 0 : 100}
                   onAgregar={(vars) => agregar.mutate(vars)}
                   ocupado={agregar.isPending}
                 />
@@ -207,7 +162,6 @@ function FilaPastelera({
   guardar: (c: Cambios) => void;
 }) {
   const [nombre, setNombre] = useState(pastelera.nombre);
-  const [porcentaje, setPorcentaje] = useState(String(pastelera.porcentaje));
 
   return (
     <li
@@ -226,22 +180,6 @@ function FilaPastelera({
         className="h-9 w-36"
         aria-label="Nombre"
       />
-      <div className="flex items-center gap-1">
-        <Input
-          inputMode="decimal"
-          value={porcentaje}
-          onChange={(e) => setPorcentaje(e.target.value.replace(/[^\d.]/g, "").slice(0, 6))}
-          onBlur={() => {
-            const n = Number(porcentaje);
-            if (porcentaje !== "" && Number.isFinite(n) && n >= 0 && n <= 100 && n !== pastelera.porcentaje) {
-              guardar({ porcentaje: Math.round(n * 100) / 100 });
-            } else setPorcentaje(String(pastelera.porcentaje));
-          }}
-          className="h-9 w-20 text-right tabular-nums"
-          aria-label={`Porcentaje de ${pastelera.nombre}`}
-        />
-        <span className="text-sm text-muted-foreground">%</span>
-      </div>
       <select
         value={pastelera.area_id}
         onChange={(e) => guardar({ area_id: Number(e.target.value) })}

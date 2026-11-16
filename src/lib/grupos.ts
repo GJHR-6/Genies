@@ -3,7 +3,6 @@ import {
   ChefHat,
   ClipboardList,
   HandHeart,
-  Layers,
   PackageX,
   Printer,
   Store,
@@ -94,14 +93,8 @@ export const GRUPO_CATALOGOS = {
       icono: ChefHat,
       color: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
     },
-    {
-      clave: "departamentos",
-      href: "/catalogos/departamentos",
-      titulo: "Departamentos",
-      descripcion: "Las secciones en que se agrupan los productos.",
-      icono: Layers,
-      color: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
-    },
+    // Departamentos se ocultó el 16 nov (no se usa: mandan las áreas y las
+    // secciones). Los datos siguen en la tabla `departamentos`.
     {
       clave: "usuarios",
       href: "/catalogos/usuarios",

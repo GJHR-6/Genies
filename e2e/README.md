@@ -29,7 +29,7 @@ No hay otra base. Para que sea seguro:
 2. Primera vez: `npx playwright install chromium-headless-shell`
 3. `npm run e2e` (levanta la app sola en el puerto 3100).
    - Ver el reporte: `npx playwright show-report`
-   - Solo uno: `npm run e2e -- e2e/reparto.e2e.ts`
+   - Solo uno: `npm run e2e -- e2e/hoy.e2e.ts`
 4. Si una corrida se cortó a la mitad (Ctrl+C, se apagó la compu):
    `npm run e2e:limpiar`
 
@@ -37,7 +37,6 @@ No hay otra base. Para que sea seguro:
 
 | Archivo | Qué prueba |
 |---|---|
-| `inventario.movil.e2e.ts` | Encargada en celular: anotar, guardado solo, sin internet, buscador, terminar el día, permisos |
-| `hoy.e2e.ts` | Portada Hoy, pantallas en cualquier orden, cerrar/abrir el día de una tienda, cambiar un sugerido, cuadros |
-| `reparto.e2e.ts` | Hacer el reparto → hojas por pastelera → Hoy dice "listo para imprimir" |
-| `catalogos.e2e.ts` | Portada de catálogos, crear/editar producto y departamento, objetivos, crear una cuenta que entra, permisos de Principal |
+| `inventario.movil.e2e.ts` | Encargada en celular: anotar, guardado solo, sin internet, buscador, ayuda «al recibir / al cerrar», no terminar sin inventario final, terminar el día, permisos |
+| `hoy.e2e.ts` | Portada Hoy (4 tarjetas, sin Reparto), pantallas en cualquier orden, cerrar/abrir el día de una tienda, cambiar un sugerido, hojas para imprimir, qué ver en Cuadros, hoja de cada tienda |
+| `catalogos.e2e.ts` | Portada de catálogos (sin Departamentos), crear/editar producto, objetivos, sin porcentajes en Pasteleras, crear una cuenta que entra, permisos de Principal |

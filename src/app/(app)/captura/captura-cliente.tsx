@@ -602,6 +602,19 @@ export function CapturaCliente({
     }
   };
 
+  // Productos que la tienda tiene que contar al cerrar: con existencia
+  // (inicial + ingreso − devolución) y sin inventario final anotado.
+  const faltaFinal = (p: Producto) =>
+    !esPrincipal &&
+    (valores[p.id]?.saldo_final ?? "") === "" &&
+    (saldosAnteriores[p.id] ?? 0) +
+      aEntero(valores[p.id]?.ingreso ?? "") -
+      aEntero(valores[p.id]?.devolucion ?? "") >
+      0;
+  // "Ver los que faltan": la lista se fija al tocarlo, para que un producto
+  // no desaparezca mientras se escribe su número.
+  const [soloFaltan, setSoloFaltan] = useState<Set<number> | null>(null);
+
   const grupos = useMemo(() => {
     // Cada palabra debe aparecer en nombre, tamaño o categoría:
     // "choco 10" encuentra "CHOCOLATE · 10X2".
@@ -615,9 +628,10 @@ export function CapturaCliente({
             return palabras.every((w) => texto.includes(w));
           })
         : productos;
+    const filtrados = soloFaltan ? visibles.filter((p) => soloFaltan.has(p.id)) : visibles;
     if (ordenAZ) {
       const etiqueta = (p: Producto) => `${p.nombre} ${p.tamano ?? ""}`;
-      const ordenados = [...visibles].sort((a, b) =>
+      const ordenados = [...filtrados].sort((a, b) =>
         etiqueta(a).localeCompare(etiqueta(b), "es", { numeric: true })
       );
       return ordenados.length > 0
@@ -625,24 +639,24 @@ export function CapturaCliente({
         : [];
     }
     const porCategoria = new Map<string, Producto[]>();
-    for (const p of visibles) {
+    for (const p of filtrados) {
       const cat = p.categoria ?? "Sin categoría";
       const lista = porCategoria.get(cat);
       if (lista) lista.push(p);
       else porCategoria.set(cat, [p]);
     }
     return [...porCategoria.entries()];
-  }, [productos, busqueda, ordenAZ]);
+  }, [productos, busqueda, ordenAZ, soloFaltan]);
 
   const total = productos.length;
   const capturados = guardadas.size;
   const sinCapturar = total - capturados;
-  // Productos con existencia que no tienen inventario final contado.
-  const sinFinal = productos.filter(
-    (p) =>
-      (valores[p.id]?.saldo_final ?? "") === "" &&
-      (saldosAnteriores[p.id] ?? 0) + aEntero(valores[p.id]?.ingreso ?? "") > 0
-  ).length;
+  const sinFinal = productos.filter(faltaFinal);
+  const verLosQueFaltan = () => {
+    setSoloFaltan(new Set(sinFinal.map((p) => p.id)));
+    setBusqueda("");
+    setDialogoCierre(false);
+  };
 
   return (
     <section className="flex flex-col gap-3">
@@ -667,6 +681,20 @@ export function CapturaCliente({
           <p className="mt-1.5 text-xs text-muted-foreground">
             Ya está anotado en Principal y te lo mandan en cuanto se pueda: no
             hace falta volver a pedirlo.
+          </p>
+        </div>
+      )}
+
+      {/* Ayuda corta para las tiendas: qué se anota y cuándo. */}
+      {!esPrincipal && !cerrado && (
+        <div className="rounded-xl border bg-muted/40 px-4 py-2.5 text-sm">
+          <p>
+            <span className="font-semibold">Al recibir:</span> Ingreso (y
+            Devolución si hay).
+          </p>
+          <p>
+            <span className="font-semibold">Al cerrar:</span> contá y anotá el
+            Inventario final y el Pedido para mañana. Si no queda nada, escribí 0.
           </p>
         </div>
       )}
@@ -802,6 +830,22 @@ export function CapturaCliente({
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Ningún producto coincide con &ldquo;{busqueda}&rdquo;.
         </p>
+      )}
+
+      {soloFaltan && (
+        <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-aviso/30 bg-aviso/10 px-4 py-2.5 text-sm">
+          <span>
+            Solo los que faltan contar
+            {sinFinal.length > 0 ? ` (quedan ${sinFinal.length})` : ": ¡ya están todos!"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSoloFaltan(null)}
+            className="min-h-9 font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            Ver todos
+          </button>
+        </div>
       )}
 
       {grupos.map(([categoria, lista]) => (
@@ -1052,6 +1096,42 @@ export function CapturaCliente({
 
       <Dialog open={dialogoCierre} onOpenChange={setDialogoCierre}>
         <DialogContent className="max-w-sm">
+          {sinFinal.length > 0 ? (
+            // No se termina sin contar: sin inventario final no se sabe
+            // cuánto se vendió y el inicial de mañana sale mal.
+            <>
+              <DialogHeader>
+                <DialogTitle>Falta contar el inventario final</DialogTitle>
+                <DialogDescription>
+                  {sinFinal.length === 1
+                    ? "A 1 producto con existencia le falta"
+                    : `A ${sinFinal.length} productos con existencia les falta`}{" "}
+                  el Inventario final. Contá lo que quedó y anotalo; si ya no
+                  queda nada, escribí 0. Después podés terminar.
+                </DialogDescription>
+              </DialogHeader>
+              <ul className="max-h-40 overflow-y-auto text-sm">
+                {sinFinal.slice(0, 8).map((p) => (
+                  <li key={p.id}>
+                    {p.nombre}
+                    {p.tamano ? ` · ${p.tamano}` : ""}
+                  </li>
+                ))}
+                {sinFinal.length > 8 && (
+                  <li className="text-muted-foreground">y {sinFinal.length - 8} más…</li>
+                )}
+              </ul>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" className="h-11" onClick={() => setDialogoCierre(false)}>
+                  Cerrar
+                </Button>
+                <Button className="h-11 bg-primary hover:bg-primary/90" onClick={verLosQueFaltan}>
+                  Ver los que faltan
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
           <DialogHeader>
             <DialogTitle>¿Terminaste el inventario?</DialogTitle>
             <DialogDescription>
@@ -1059,8 +1139,6 @@ export function CapturaCliente({
               {sinCapturar > 0
                 ? ` Los ${sinCapturar} que no anotaste quedan en 0.`
                 : " ¡Anotaste todos!"}{" "}
-              {!esPrincipal && sinFinal > 0 &&
-                `Hay ${sinFinal} con existencia y sin inventario final: sin contarlos no se sabe cuánto vendiste. `}
               Después ya no vas a poder cambiar números; solo administración
               puede corregir.
             </DialogDescription>
@@ -1087,6 +1165,8 @@ export function CapturaCliente({
               {mutacionCierre.isPending ? "Guardando…" : "Sí, terminé"}
             </Button>
           </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </section>

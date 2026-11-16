@@ -54,22 +54,15 @@ const FILTROS: { valor: Filtro; etiqueta: string }[] = [
 
 export function ProductosCliente({
   productos,
-  departamentos,
   areas,
 }: {
   productos: Producto[];
-  departamentos: (Opcion & { activo: boolean })[];
   areas: (Opcion & { activa: boolean; es_decoracion: boolean })[];
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("activos");
-  const [departamento, setDepartamento] = useState("");
   const [editando, setEditando] = useState<Producto | "nuevo" | null>(null);
 
-  const nombreDepto = useMemo(
-    () => new Map(departamentos.map((d) => [d.id, d.nombre])),
-    [departamentos]
-  );
   const nombreArea = useMemo(
     () => new Map(areas.map((a) => [a.id, a.nombre])),
     [areas]
@@ -81,14 +74,12 @@ export function ProductosCliente({
       if (filtro === "activos" && !p.activo) return false;
       if (filtro === "inactivos" && p.activo) return false;
       if (filtro === "temporada" && !p.temporada) return false;
-      if (departamento && String(p.departamento_id) !== departamento)
-        return false;
       if (!q) return true;
       return `${p.nombre} ${p.tamano ?? ""} ${p.categoria ?? ""}`
         .toLowerCase()
         .includes(q);
     });
-  }, [productos, busqueda, filtro, departamento]);
+  }, [productos, busqueda, filtro]);
 
   return (
     <>
@@ -105,19 +96,6 @@ export function ProductosCliente({
           onCambio={setBusqueda}
           placeholder="Buscar por nombre o tamaño…"
         />
-        <Selector
-          value={departamento}
-          onChange={(e) => setDepartamento(e.target.value)}
-          className="bg-card sm:max-w-56"
-          aria-label="Filtrar por departamento"
-        >
-          <option value="">Todos los departamentos</option>
-          {departamentos.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.nombre}
-            </option>
-          ))}
-        </Selector>
         <div className="flex gap-1 rounded-full bg-card p-1 sm:ml-auto">
           {FILTROS.map((f) => (
             <button
@@ -168,11 +146,6 @@ export function ProductosCliente({
                     )}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-                    {p.departamento_id && (
-                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
-                        {nombreDepto.get(p.departamento_id)}
-                      </span>
-                    )}
                     <span
                       className={cn(
                         "rounded-full px-2 py-0.5",
@@ -217,7 +190,6 @@ export function ProductosCliente({
           <FormularioProducto
             key={editando === "nuevo" ? "nuevo" : editando.id}
             producto={editando === "nuevo" ? null : editando}
-            departamentos={departamentos}
             areas={areas}
             alCerrar={() => setEditando(null)}
           />
@@ -229,12 +201,10 @@ export function ProductosCliente({
 
 function FormularioProducto({
   producto,
-  departamentos,
   areas,
   alCerrar,
 }: {
   producto: Producto | null;
-  departamentos: (Opcion & { activo: boolean })[];
   areas: (Opcion & { activa: boolean; es_decoracion: boolean })[];
   alCerrar: () => void;
 }) {
@@ -321,28 +291,10 @@ function FormularioProducto({
               className="h-10"
             />
           </Campo>
-          <Campo etiqueta="Departamento" htmlFor="prod-depto">
-            <Selector
-              id="prod-depto"
-              value={datos.departamento_id ?? ""}
-              onChange={(e) =>
-                cambiar("departamento_id", numeroONull(e.target.value))
-              }
-            >
-              <option value="">— Sin departamento —</option>
-              {departamentos
-                .filter((d) => d.activo || d.id === datos.departamento_id)
-                .map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.nombre}
-                  </option>
-                ))}
-            </Selector>
-          </Campo>
           <Campo
             etiqueta="Área de producción"
             htmlFor="prod-area"
-            ayuda="En qué cuadro sale el producto. «Decoración» = solo se decora: no sale en los cuadros de producción ni en el reparto de producción."
+            ayuda="En qué cuadro sale el producto. «Decoración» = solo se decora: no sale en los cuadros de producción ."
           >
             <Selector
               id="prod-area"

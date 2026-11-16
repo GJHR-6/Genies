@@ -9,12 +9,13 @@ test.beforeAll(async () => {
   await vaciarDiaPrueba();
 });
 
-const TARJETAS = ["Tiendas", "Sugeridos", "Cuadros", "Reparto"] as const;
+// Sin reparto (16 nov): la hoja de cada pastelera es el cuadro de su área.
+const TARJETAS = ["Tiendas", "Sugeridos", "Cuadros", "Lo que no se mandó"] as const;
 const DESTINO: Record<(typeof TARJETAS)[number], RegExp> = {
   Tiendas: /\/dashboard$/,
   Sugeridos: /\/sugeridos$/,
   Cuadros: /\/cuadros$/,
-  Reparto: /\/asignar$/,
+  "Lo que no se mandó": /\/envios$/,
 };
 
 /** Tarjeta de la portada por su título (el nombre accesible incluye todo su texto). */
@@ -34,6 +35,7 @@ test("el admin entra a «Hoy» con las 4 tarjetas y una sugerencia", async ({ pa
   for (const t of TARJETAS) {
     await expect(tarjeta(page, t)).toBeVisible();
   }
+  await expect(tarjeta(page, "Reparto")).toHaveCount(0);
   await expect(page.getByText("Sigue aquí").or(page.getByText("Hoy es domingo"))).toBeVisible();
 
   const menu = page.getByRole("navigation", { name: "Menú principal" });
@@ -59,8 +61,8 @@ test("desde cualquier pantalla del día se salta a otra sin pasar por las demás
   await page.goto("/cuadros");
   await botonesHoy(page).getByRole("link", { name: "Tiendas" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await botonesHoy(page).getByRole("link", { name: "Reparto" }).click();
-  await expect(page).toHaveURL(/\/asignar$/);
+  await botonesHoy(page).getByRole("link", { name: "Lo que no se mandó" }).click();
+  await expect(page).toHaveURL(/\/envios$/);
   await botonesHoy(page).getByRole("link", { name: "Sugeridos" }).click();
   await expect(page).toHaveURL(/\/sugeridos$/);
   await expect(botonesHoy(page).getByRole("link", { name: "Sugeridos" })).toHaveAttribute(
@@ -117,12 +119,44 @@ test("Sugeridos: cambiar un número a mano y volver al calculado", async ({ page
   await expect(ajustada).toHaveCount(0);
 });
 
-test("Cuadros: muestra las hojas por área y el botón de imprimir", async ({ page }) => {
+test("Hoy: las hojas para imprimir abren cada una lo suyo", async ({ page }) => {
+  test.skip(esDomingo(), "Domingo: sin hojas");
+  await page.goto("/hoy");
+  const hoja = (href: string) => page.getByRole("main").locator(`a[href="${href}"]`);
+  await expect(hoja("/cuadros?ver=completo")).toContainText("Cuadro completo");
+  await expect(hoja("/cuadros?ver=areas")).toContainText("Hoja de cada pastelera");
+  await expect(hoja("/cuadros/despacho")).toContainText("Hoja de cada tienda");
+  await expect(page.getByText("Hoja completa")).toHaveCount(0);
+});
+
+test("Cuadros: se elige qué ver e imprimir", async ({ page }) => {
   test.skip(esDomingo(), "Domingo: sin cuadros");
-  await page.goto("/cuadros");
-  await expect(page.getByRole("button", { name: "Imprimir cuadros" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /^Cuadro de producción — / }).first()).toBeVisible();
-  const encabezados = page.locator("article thead").first();
-  await expect(encabezados).toContainText(SUCURSAL_PRUEBA);
-  await expect(encabezados).toContainText("Total");
+  const completo = page.getByRole("heading", { name: "Cuadro completo (como el Excel)" });
+  const deArea = page.getByRole("heading", { name: /^Cuadro de producción — / }).first();
+
+  await page.goto("/cuadros?ver=completo");
+  await expect(page.getByRole("button", { name: "Imprimir cuadro completo" })).toBeVisible();
+  await expect(completo).toBeVisible();
+  await expect(page.locator("article thead").first()).toContainText(SUCURSAL_PRUEBA);
+  await expect(deArea).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Hoja de cada pastelera" }).click();
+  await expect(page).toHaveURL(/\/cuadros\?ver=areas$/);
+  await expect(page.getByRole("button", { name: "Imprimir hojas de pasteleras" })).toBeVisible();
+  await expect(deArea).toBeVisible();
+  await expect(completo).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Todo", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Imprimir todo" })).toBeVisible();
+  await expect(completo).toBeVisible();
+  await expect(deArea).toBeVisible();
+});
+
+test("Hoja de cada tienda: sin hoja completa ni casilla «No se mandó» en el papel", async ({ page }) => {
+  test.skip(esDomingo(), "Domingo: sin despacho");
+  await page.goto("/cuadros/despacho");
+  await expect(page.getByRole("heading", { level: 1, name: "Hoja de cada tienda" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Imprimir hojas de tiendas" })).toBeVisible();
+  await expect(page.getByText("Inventario diario — hoja completa")).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "No se mandó" })).toHaveCount(0);
 });

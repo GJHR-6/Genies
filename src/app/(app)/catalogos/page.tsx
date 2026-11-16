@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function CatalogosPage() {
   const supabase = await createClient();
 
-  const [productos, reglas, pasteleras, areas, departamentos, usuarios] =
+  const [productos, reglas, pasteleras, areas, usuarios] =
     await Promise.all([
       supabase
         .from("productos")
@@ -24,10 +24,6 @@ export default async function CatalogosPage() {
         .from("areas_produccion")
         .select("id", { count: "exact", head: true })
         .eq("activa", true),
-      supabase
-        .from("departamentos")
-        .select("id", { count: "exact", head: true })
-        .eq("activo", true),
       supabase.from("perfiles").select("user_id", { count: "exact", head: true }),
     ]);
 
@@ -36,7 +32,6 @@ export default async function CatalogosPage() {
     reglas: { texto: `${reglas.count ?? 0} objetivos` },
     pasteleras: { texto: `${pasteleras.count ?? 0} activas` },
     areas: { texto: `${areas.count ?? 0} áreas` },
-    departamentos: { texto: `${departamentos.count ?? 0} activos` },
     usuarios: { texto: `${usuarios.count ?? 0} cuentas` },
   };
 

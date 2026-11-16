@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export default async function ProductosPage() {
   const supabase = await createClient();
 
-  const [productos, departamentos, areas] = await Promise.all([
+  const [productos, areas] = await Promise.all([
     supabase
       .from("productos")
       .select(
@@ -16,7 +16,6 @@ export default async function ProductosPage() {
       .order("categoria")
       .order("nombre")
       .order("tamano"),
-    supabase.from("departamentos").select("id, nombre, activo").order("nombre"),
     supabase
       .from("areas_produccion")
       // Incluye Decoración: un producto con esa área solo se decora.
@@ -28,7 +27,6 @@ export default async function ProductosPage() {
     <section className="flex flex-col gap-5 py-2">
       <ProductosCliente
         productos={productos.data ?? []}
-        departamentos={departamentos.data ?? []}
         areas={areas.data ?? []}
       />
     </section>
