@@ -114,7 +114,7 @@ La cocina no tiene tablet: se quitó `/cocina`, «Enviar a cocina / Quitar de la
 - **Por batidas** (10 nov): si el cuadro completo tiene PROD escrito por batida (`batidas_ajuste`, `prodEscritoPorBatida` en `src/lib/batidas.ts`), el reparto (`generarReparto` con `prodPorBatida`; batidas 5–10 van a la T4) sale en esas tandas y la columna "Cuadro" de /asignar usa esa suma; sin PROD escrito, como antes (sugerido − sin decorar en T1). Los cuadros por área muestran hoy "15*12" cuando hay más de una batida (también en los totales). El cuadro completo tiene títulos fijos arriba al bajar (marco de 80vh con scroll propio; al imprimir, normal).
 
 - **Rotación** (10 nov): además de prioridad (2 días) y regresar (3+), muestra lo que está a tiempo ("A tiempo · no se regresa", verde) y un tercer contador. Cargados del Excel -4 los días 5–6 (Chalets), 7 (todas + Principal) y 8 (todas menos Chalets).
-- ⚠️ **DATOS DE DEMO en producción** (10 nov): ingreso extra del domingo 8 nov en 10 productos de Century para que la rotación muestre "prioridad de venta". Deshacer después de la demo con `supabase/mantenimiento/deshacer-demo-rotacion-century.sql`.
+- Datos de demo de rotación (ingreso extra del domingo 8 nov en Century): **deshechos el 16 nov**.
 
 - **Solo decoración** (11 nov): un producto con área = el área de decoración (`es_decoracion`) solo se decora: no sale en cuadros de producción ni en "Sin área asignada", el reparto no le asigna producción (test en `reparto.test.ts`), y en /asignar su "Cuadro" de producción es 0. Elegible en Catálogos → Productos ("Decoración (solo se decora, no se produce)"; marca "lleva decoración" sola). CHOCOLATE CRISPIE 6 y 8 quedaron así.
 
@@ -129,7 +129,7 @@ La cocina no tiene tablet: se quitó `/cocina`, «Enviar a cocina / Quitar de la
 
 - **Cuadros por área, una casilla por batida** (12 nov): cada día lleva B1, B2… (tantas como se usan ese día en el cuadro, mínimo 2, hasta 10) en vez de "15*12"; hoy se llenan con el PROD (producción) o el DEC (decoración) de cada batida, los demás días a mano. Decoración lleva además SALDO al final de cada día.
 
-- ⚠️ **DATOS FICTICIOS en producción** (12 nov, para capacitar): miércoles 11 nov de Century y Palenque (inicial = final del martes, ingreso = pedido del martes, venta 30–50 %, día terminado). Deshacer con `supabase/mantenimiento/deshacer-demo-miercoles-11.sql` cuando haya datos reales o tras la capacitación.
+- Datos ficticios del miércoles 11 nov (Century y Palenque, para capacitar): **borrados el 16 nov**; se recalculó el inicial del 12 y 13 (`saldo_anterior`). Quedan sin tocar las filas que anotaron las tiendas el 12 (Century 13, Palenque 8) y el 13 (Century 27).
 
 - **Inventario final en las tiendas** (15 nov): `/captura` (no Principal) tiene "Inventario final (al cerrar)" → `movimientos_diarios.saldo_final` (vacío = no se contó = null, no 0) y "Vendido hoy" = inicial + ingreso − devolución − final (igual que `v_movimientos`; rojo si da negativo). Sin contarlo, el sistema supone que no se vendió nada (saldo inflado, sugerido bajo). Principal no manda la clave `saldo_final` (no se toca). Va en la cola sin internet (`firmaFila` lo incluye). El diálogo de terminar avisa cuántos productos con existencia quedan sin contar.
 
