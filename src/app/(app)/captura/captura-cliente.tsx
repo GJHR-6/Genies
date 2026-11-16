@@ -656,6 +656,8 @@ export function CapturaCliente({
     setSoloFaltan(new Set(sinFinal.map((p) => p.id)));
     setBusqueda("");
     setDialogoCierre(false);
+    // Arriba, donde está el aviso de cuántos faltan y el primero de ellos.
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -835,15 +837,18 @@ export function CapturaCliente({
       {soloFaltan && (
         <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-aviso/30 bg-aviso/10 px-4 py-2.5 text-sm">
           <span>
-            Solo los que faltan contar
-            {sinFinal.length > 0 ? ` (quedan ${sinFinal.length})` : ": ¡ya están todos!"}
+            {sinFinal.length > 0
+              ? sinFinal.length === 1
+                ? "Te falta 1 por contar"
+                : `Te faltan ${sinFinal.length} por contar`
+              : "¡Listo! Ya contaste todos"}
           </span>
           <button
             type="button"
             onClick={() => setSoloFaltan(null)}
             className="min-h-9 font-semibold text-primary underline-offset-4 hover:underline"
           >
-            Ver todos
+            Ver toda la lista
           </button>
         </div>
       )}
@@ -1102,15 +1107,13 @@ export function CapturaCliente({
             // se puede terminar (16 nov).
             <>
               <DialogHeader>
-                <DialogTitle>Falta contar el inventario final</DialogTitle>
+                <DialogTitle>¡Ya casi! Te faltan unos por contar</DialogTitle>
                 <DialogDescription>
                   {sinFinal.length === 1
-                    ? "A 1 producto con existencia le falta"
-                    : `A ${sinFinal.length} productos con existencia les falta`}{" "}
-                  el Inventario final. Sin contarlo, el sistema cree que no se
-                  vendió nada y mañana arrancás con números de más. ¿Estás
-                  segura de terminar así? Después solo administración puede
-                  corregir.
+                    ? "A este producto le falta"
+                    : `A estos ${sinFinal.length} productos les falta`}{" "}
+                  el Inventario final (lo que quedó al cerrar). Si no quedó
+                  nada, poné 0.
                 </DialogDescription>
               </DialogHeader>
               <ul className="max-h-40 overflow-y-auto text-sm">
@@ -1132,18 +1135,18 @@ export function CapturaCliente({
               <DialogFooter className="gap-2">
                 <Button
                   variant="outline"
-                  className="h-11 text-destructive"
+                  className="h-11"
                   onClick={() => mutacionCierre.mutate()}
                   disabled={mutacionCierre.isPending}
                 >
-                  {mutacionCierre.isPending ? "Guardando…" : "Terminar igual"}
+                  {mutacionCierre.isPending ? "Guardando…" : "Terminar así"}
                 </Button>
                 <Button
                   className="h-11 bg-primary hover:bg-primary/90"
                   onClick={verLosQueFaltan}
                   disabled={mutacionCierre.isPending}
                 >
-                  Ver los que faltan
+                  Contarlos ahora
                 </Button>
               </DialogFooter>
             </>

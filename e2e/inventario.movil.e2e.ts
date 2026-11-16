@@ -103,13 +103,13 @@ test("avisa qué falta contar antes de terminar (y deja terminar igual)", async 
   test.skip(esDomingo(), "Domingo: sin producción");
   await page.goto("/captura");
   await page.getByRole("button", { name: "Terminé el inventario de hoy" }).click();
-  const falta = page.getByRole("dialog", { name: "Falta contar el inventario final" });
+  const falta = page.getByRole("dialog", { name: "¡Ya casi! Te faltan unos por contar" });
   await expect(falta).toBeVisible();
-  await expect(falta.getByRole("button", { name: "Terminar igual" })).toBeVisible();
+  await expect(falta.getByRole("button", { name: "Terminar así" })).toBeVisible();
 
-  // "Ver los que faltan" deja solo esos; se cuentan (0 = no queda nada).
-  await falta.getByRole("button", { name: "Ver los que faltan" }).click();
-  await expect(page.getByText(/Solo los que faltan contar/)).toBeVisible();
+  // "Contarlos ahora" deja solo esos; se cuentan (0 = no queda nada).
+  await falta.getByRole("button", { name: "Contarlos ahora" }).click();
+  await expect(page.getByText(/^Te falta/)).toBeVisible();
   await expect(falta).toHaveCount(0);
   const finales = page.getByRole("textbox", { name: /^Inventario final de / });
   await expect(finales.first()).toBeVisible();
@@ -120,9 +120,9 @@ test("avisa qué falta contar antes de terminar (y deja terminar igual)", async 
   }
   // Que se guarden antes de seguir (cada producto dice "Guardado ✓").
   await expect(page.getByText("Guardado ✓")).toHaveCount(n, { timeout: 30_000 });
-  await expect(page.getByText("¡ya están todos!", { exact: false })).toBeVisible();
-  await page.getByRole("button", { name: "Ver todos" }).click();
-  await expect(page.getByText(/Solo los que faltan contar/)).toHaveCount(0);
+  await expect(page.getByText("¡Listo! Ya contaste todos")).toBeVisible();
+  await page.getByRole("button", { name: "Ver toda la lista" }).click();
+  await expect(page.getByText("¡Listo! Ya contaste todos")).toHaveCount(0);
 });
 
 test("«Terminé el inventario de hoy» cierra el día y ya no deja editar", async ({ page }) => {
