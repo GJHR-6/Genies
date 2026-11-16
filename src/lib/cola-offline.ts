@@ -22,6 +22,11 @@ export type FilaPendiente = {
   sin_decorar: number;
   /** Nota de la tienda (devolución…); vacía = null. */
   nota?: string | null;
+  /**
+   * Inventario final contado al cerrar (solo tiendas); null = no se contó.
+   * Sin la clave (Principal) no se toca lo que haya en la base.
+   */
+  saldo_final?: number | null;
   updated_at: string;
   updated_by: string;
 };
@@ -38,7 +43,7 @@ export const claveFila = (f: Pick<FilaPendiente, "fecha" | "sucursal_id" | "prod
 
 /** Los números de la fila, para saber si lo confirmado es lo último anotado. */
 export const firmaFila = (f: FilaPendiente) =>
-  JSON.stringify([f.ingreso, f.devolucion, f.pedido, f.cambio, f.decorado, f.sin_decorar, (f.nota ?? "").trim()]);
+  JSON.stringify([f.ingreso, f.devolucion, f.pedido, f.cambio, f.decorado, f.sin_decorar, (f.nota ?? "").trim(), f.saldo_final ?? null]);
 
 function esFila(x: unknown): x is FilaPendiente {
   if (!x || typeof x !== "object") return false;

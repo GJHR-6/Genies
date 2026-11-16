@@ -50,6 +50,7 @@ type MovimientoInicial = {
   decorado: number;
   sin_decorar: number;
   nota: string | null;
+  saldo_final: number | null;
 };
 
 type Campo =
@@ -58,7 +59,9 @@ type Campo =
   | "pedido"
   | "cambio"
   | "decorado"
-  | "sin_decorar";
+  | "sin_decorar"
+  // Inventario final: vacío = no se contó (no es 0).
+  | "saldo_final";
 type ValoresFila = Record<Campo, string>;
 type EstadoFila = "guardando" | "guardado" | "pendiente" | "error";
 
@@ -69,6 +72,7 @@ const FILA_VACIA: ValoresFila = {
   cambio: "",
   decorado: "",
   sin_decorar: "",
+  saldo_final: "",
 };
 
 const CAMPOS: Campo[] = [
@@ -81,6 +85,11 @@ const CAMPOS: Campo[] = [
 ];
 
 const CLAVE_ORDEN = "genies:orden-inventario";
+
+/** Inventario final: vacío = no se contó (null), no 0. */
+function finalONulo(valor: string): number | null {
+  return valor === "" ? null : aEntero(valor);
+}
 
 function aEntero(valor: string): number {
   const n = parseInt(valor, 10);
@@ -164,6 +173,7 @@ export function CapturaCliente({
         cambio: m.cambio ? String(m.cambio) : "",
         decorado: m.decorado ? String(m.decorado) : "",
         sin_decorar: m.sin_decorar ? String(m.sin_decorar) : "",
+        saldo_final: m.saldo_final !== null ? String(m.saldo_final) : "",
       };
     }
     return inicial;
@@ -220,6 +230,7 @@ export function CapturaCliente({
           m.decorado,
           m.sin_decorar,
           (m.nota ?? "").trim(),
+          esPrincipal ? null : m.saldo_final,
         ]),
       ])
     )
@@ -230,8 +241,9 @@ export function CapturaCliente({
     return JSON.stringify([
       ...CAMPOS.map((campo) => aEntero(v[campo])),
       (notasRef.current[productoId] ?? "").trim(),
+      esPrincipal ? null : finalONulo(v.saldo_final),
     ]);
-  }, []);
+  }, [esPrincipal]);
 
   const marcarEstado = useCallback(
     (productoId: number, estado: EstadoFila) => {
@@ -317,6 +329,8 @@ export function CapturaCliente({
         decorado: aEntero(v.decorado),
         sin_decorar: aEntero(v.sin_decorar),
         nota: (notasRef.current[productoId] ?? "").trim() || null,
+        // Principal no cuenta inventario final aquí: no se toca.
+        ...(esPrincipal ? {} : { saldo_final: finalONulo(v.saldo_final) }),
         updated_at: new Date().toISOString(),
         updated_by: userId,
       };
@@ -387,6 +401,7 @@ export function CapturaCliente({
           cambio: f.cambio ? String(f.cambio) : "",
           decorado: f.decorado ? String(f.decorado) : "",
           sin_decorar: f.sin_decorar ? String(f.sin_decorar) : "",
+          saldo_final: f.saldo_final != null ? String(f.saldo_final) : "",
         };
         if (f.nota) notasRef.current = { ...notasRef.current, [f.producto_id]: f.nota };
         suciasRef.current.add(f.producto_id);
@@ -567,6 +582,12 @@ export function CapturaCliente({
   const total = productos.length;
   const capturados = guardadas.size;
   const sinCapturar = total - capturados;
+  // Productos con existencia que no tienen inventario final contado.
+  const sinFinal = productos.filter(
+    (p) =>
+      (valores[p.id]?.saldo_final ?? "") === "" &&
+      (saldosAnteriores[p.id] ?? 0) + aEntero(valores[p.id]?.ingreso ?? "") > 0
+  ).length;
 
   return (
     <section className="flex flex-col gap-3">
@@ -737,6 +758,12 @@ export function CapturaCliente({
             const v = valores[producto.id] ?? FILA_VACIA;
             // En Principal todos los productos anotan Decorado / Sin decorar.
             const conDecoracion = esPrincipal;
+            // Vendido hoy (tiendas): solo si contaron el inventario final.
+            const final = finalONulo(v.saldo_final);
+            const vendido =
+              final === null
+                ? null
+                : (saldosAnteriores[producto.id] ?? 0) + aEntero(v.ingreso) - aEntero(v.devolucion) - final;
             return (
               <div
                 key={producto.id}
@@ -800,6 +827,41 @@ export function CapturaCliente({
                     </label>
                   ))}
                 </div>
+                {!esPrincipal && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">
+                          Inventario final (al cerrar)
+                        </span>
+                        <Input
+                          inputMode="numeric"
+                          value={v.saldo_final}
+                          onChange={(e) => alCambiar(producto.id, "saldo_final", e.target.value)}
+                          onBlur={() => alSalirDelCampo(producto.id)}
+                          disabled={cerrado || desactualizada}
+                          placeholder="Sin contar"
+                          className="h-11 text-base tabular-nums"
+                          aria-label={`Inventario final de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
+                        />
+                      </label>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Vendido hoy</span>
+                        <div
+                          className={`flex h-11 items-center rounded-md border border-dashed bg-muted px-3 text-base font-semibold tabular-nums ${
+                            vendido !== null && vendido < 0 ? "text-destructive" : ""
+                          }`}
+                          title="Inicial + Ingreso − Devolución − Inventario final. No se escribe."
+                        >
+                          {vendido === null ? "—" : vendido}
+                        </div>
+                        {vendido !== null && vendido < 0 && (
+                          <span className="text-xs text-destructive">
+                            Quedó más de lo que había: revisá los números.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                )}
                 {conDecoracion && (
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     {(
@@ -892,6 +954,8 @@ export function CapturaCliente({
               {sinCapturar > 0
                 ? ` Los ${sinCapturar} que no anotaste quedan en 0.`
                 : " ¡Anotaste todos!"}{" "}
+              {!esPrincipal && sinFinal > 0 &&
+                `Hay ${sinFinal} con existencia y sin inventario final: sin contarlos no se sabe cuánto vendiste. `}
               Después ya no vas a poder cambiar números; solo administración
               puede corregir.
             </DialogDescription>
