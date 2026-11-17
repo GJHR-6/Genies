@@ -521,6 +521,23 @@ export function CapturaCliente({
     const nueva = { ...fila, [campo]: limpio };
     valoresRef.current = { ...valoresRef.current, [productoId]: nueva };
     setValores(valoresRef.current);
+    // Ingreso, devolución o cambio en 0 o vacío: su "¿De qué día?" se
+    // cierra y se borra (no puede haber días de algo que no hay).
+    if ((CAMPOS_DIA as readonly string[]).includes(campo) && aEntero(limpio) === 0) {
+      const c = campo as CampoDia;
+      setAnterioresAbiertos((s) => {
+        if (!s.has(`${c}-${productoId}`)) return s;
+        const n = new Set(s);
+        n.delete(`${c}-${productoId}`);
+        return n;
+      });
+      if (anterioresRef.current[c][productoId]) {
+        const resto = { ...anterioresRef.current[c] };
+        delete resto[productoId];
+        anterioresRef.current = { ...anterioresRef.current, [c]: resto };
+        setAnteriores(anterioresRef.current);
+      }
+    }
     suciasRef.current.add(productoId);
 
     const previo = timersRef.current.get(productoId);
@@ -981,7 +998,7 @@ export function CapturaCliente({
                     const cantidad = aEntero(v[campo]);
                     const porDia = anteriores[campo][producto.id] ?? {};
                     const anotados = diasAnteriores.filter((d) => aEntero(porDia[d] ?? "") > 0);
-                    if (cantidad === 0 && anotados.length === 0) return null;
+                    if (cantidad === 0) return null;
                     const clave = `${campo}-${producto.id}`;
                     const abierto = anterioresAbiertos.has(clave);
                     const suma = Object.values(porDia).reduce((t, n) => t + aEntero(n), 0);
