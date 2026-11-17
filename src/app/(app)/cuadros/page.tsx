@@ -28,7 +28,13 @@ type Cuadro = {
   titulo: string;
   encargadas: string | null;
   /** Productos del cuadro con lo de hoy (PROD o DEC; 0 = nada) y sus batidas. */
-  filas: { producto: ProductoSugerido; cantidad: number; batidas: readonly number[] }[];
+  filas: {
+    producto: ProductoSugerido;
+    cantidad: number;
+    batidas: readonly number[];
+    /** Sección propia (si no, la del producto): «PARA DECORAR». */
+    seccion?: string;
+  }[];
 };
 
 /** Columnas de la semana, como la hoja de papel (1 = lunes … 6 = sábado). */
@@ -177,23 +183,36 @@ export default async function CuadrosPage({
     dia.principalId === null ? null : (celdas[`${id}-${dia.principalId}`]?.objetivo ?? null);
   const hoySemana = diaSemana(fecha);
 
+  // Lo que decora una pastelera (Catálogos → Productos → «¿Quién lo
+  // decora?», 17 nov) sale al final de su hoja, en «Para decorar», con el
+  // DEC por batida; no en el cuadro general de Decoración.
+  const idsAreas = new Set(areas.map((a) => a.id));
+  const decoraPastelera = (p: ProductoSugerido) =>
+    p.area_decoracion_id !== null && idsAreas.has(p.area_decoracion_id);
   const cuadros: Cuadro[] = areas.map((a) => ({
     titulo: a.nombre,
     encargadas: a.encargadas,
-    filas: filasDe(
-      ordenExcel.filter((p) => p.area_id === a.id),
-      efectivas.prod
-    ),
+    filas: [
+      ...filasDe(
+        ordenExcel.filter((p) => p.area_id === a.id),
+        efectivas.prod
+      ),
+      ...filasDe(
+        ordenExcel.filter((p) => p.lleva_decoracion && p.area_decoracion_id === a.id),
+        efectivas.dec
+      ).map((f) => ({ ...f, seccion: "PARA DECORAR" })),
+    ],
   }));
 
   // Decoración no es un área: los productos que llevan decoración y lo que
-  // haya en DEC.
+  // haya en DEC (salvo lo que decora una pastelera en su hoja).
   cuadros.push({
     titulo: "Decoración",
     encargadas: null,
-    filas: filasDe(ordenExcel, efectivas.dec).filter(
-      (f) => f.producto.lleva_decoracion || f.cantidad > 0
-    ),
+    filas: filasDe(
+      ordenExcel.filter((p) => !decoraPastelera(p)),
+      efectivas.dec
+    ).filter((f) => f.producto.lleva_decoracion || f.cantidad > 0),
   });
 
   // Incluye los de un área desactivada en Catálogos, para que no se pierdan.
@@ -317,7 +336,7 @@ export default async function CuadrosPage({
         // Secciones (VAINILLA, CHOCOLATE…) en el orden del Excel.
         const secciones: { nombre: string; filas: Cuadro["filas"] }[] = [];
         for (const f of cuadro.filas) {
-          const nombre = f.producto.categoria ?? "OTROS";
+          const nombre = f.seccion ?? f.producto.categoria ?? "OTROS";
           const ultima = secciones[secciones.length - 1];
           if (ultima?.nombre === nombre) ultima.filas.push(f);
           else secciones.push({ nombre, filas: [f] });

@@ -8,6 +8,7 @@ const producto = (id: number, lleva_decoracion: boolean): ProductoSugerido => ({
   categoria: null,
   departamento_id: null,
   area_id: 1,
+  area_decoracion_id: null,
   orden_area: id,
   orden: id,
   lleva_decoracion,

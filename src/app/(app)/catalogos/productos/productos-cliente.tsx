@@ -34,6 +34,7 @@ type Producto = {
   categoria: string | null;
   departamento_id: number | null;
   area_id: number | null;
+  area_decoracion_id: number | null;
   orden_area: number | null;
   orden: number | null;
   temporada: boolean;
@@ -159,7 +160,9 @@ export function ProductosCliente({
                     {p.lleva_decoracion && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
                         <Sparkles className="size-3" />
-                        Decorar
+                        {p.area_decoracion_id
+                          ? `Decora: ${nombreArea.get(p.area_decoracion_id) ?? "otra área"}`
+                          : "Decorar"}
                       </span>
                     )}
                     {p.temporada && (
@@ -214,6 +217,7 @@ function FormularioProducto({
     categoria: producto?.categoria ?? "",
     departamento_id: producto?.departamento_id ?? null,
     area_id: producto?.area_id ?? null,
+    area_decoracion_id: producto?.area_decoracion_id ?? null,
     orden_area: producto?.orden_area?.toString() ?? "",
     orden: producto?.orden?.toString() ?? "",
     temporada: producto?.temporada ?? false,
@@ -294,7 +298,7 @@ function FormularioProducto({
           <Campo
             etiqueta="Área de producción"
             htmlFor="prod-area"
-            ayuda="En qué cuadro sale el producto. «Decoración» = solo se decora: no sale en los cuadros de producción ."
+            ayuda="En qué cuadro sale el producto. «Decoración» = solo se decora: no sale en los cuadros de producción."
           >
             <Selector
               id="prod-area"
@@ -316,6 +320,28 @@ function FormularioProducto({
                 ))}
             </Selector>
           </Campo>
+          {datos.lleva_decoracion && (
+            <Campo
+              etiqueta="¿Quién lo decora?"
+              htmlFor="prod-decora"
+              ayuda="Si lo decora una pastelera, le sale en su hoja en «Para decorar» (y no en el cuadro de Decoración)."
+            >
+              <Selector
+                id="prod-decora"
+                value={datos.area_decoracion_id ?? ""}
+                onChange={(e) => cambiar("area_decoracion_id", numeroONull(e.target.value))}
+              >
+                <option value="">— El cuadro de Decoración —</option>
+                {areas
+                  .filter((a) => !a.es_decoracion && (a.activa || a.id === datos.area_decoracion_id))
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nombre}
+                    </option>
+                  ))}
+              </Selector>
+            </Campo>
+          )}
           <Campo
             etiqueta="Posición en la lista"
             htmlFor="prod-orden"

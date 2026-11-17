@@ -428,6 +428,7 @@ export type Database = {
         Row: {
           activo: boolean
           area_id: number | null
+          area_decoracion_id: number | null
           categoria: string | null
           departamento_id: number | null
           id: number
@@ -442,6 +443,7 @@ export type Database = {
         Insert: {
           activo?: boolean
           area_id?: number | null
+          area_decoracion_id?: number | null
           categoria?: string | null
           departamento_id?: number | null
           id?: never
@@ -456,6 +458,7 @@ export type Database = {
         Update: {
           activo?: boolean
           area_id?: number | null
+          area_decoracion_id?: number | null
           categoria?: string | null
           departamento_id?: number | null
           id?: never

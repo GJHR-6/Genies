@@ -17,6 +17,8 @@ export type ProductoSugerido = {
   categoria: string | null;
   departamento_id: number | null;
   area_id: number | null;
+  /** Quién lo decora (área); null = cuadro general de Decoración. */
+  area_decoracion_id: number | null;
   orden_area: number | null;
   /** Posición en el Excel (manda el orden en todas las pantallas). */
   orden: number | null;
@@ -137,7 +139,7 @@ export async function cargarSugeridosDelDia(
       supabase
         .from("productos")
         .select(
-          "id, nombre, tamano, categoria, departamento_id, area_id, orden_area, orden, lleva_decoracion"
+          "id, nombre, tamano, categoria, departamento_id, area_id, area_decoracion_id, orden_area, orden, lleva_decoracion"
         )
         .eq("activo", true)
         .order("orden", { nullsFirst: false })

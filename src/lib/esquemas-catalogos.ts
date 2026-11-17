@@ -26,6 +26,8 @@ export const esquemaProducto = z.object({
   categoria: textoOpcional,
   departamento_id: idOpcional,
   area_id: idOpcional,
+  /** Quién lo decora (área de una pastelera); null = cuadro general de Decoración. */
+  area_decoracion_id: idOpcional.optional(),
   orden_area: z.number().int().min(0).max(32000).nullable(),
   /** Posición en la lista (orden del Excel); manda en todas las pantallas. */
   orden: z.number().int().min(0).max(32000).nullable().optional(),

@@ -160,7 +160,9 @@ La cocina no tiene tablet: se quitó `/cocina`, «Enviar a cocina / Quitar de la
 
 - **Quién hace qué** (17 nov, del usuario): Producción 1 = Kenia **bate** y Dany **hornea** (equipo). Producción 2 = Melissa, pasteles pequeños. **Johanna** = engrasadora y multiusos («comodín», sabe hacer de todo), sin área fija: quedó `activa = false` (la base exige `area_id`) y `areas_produccion.encargadas` de Producción 2 = «Melissa».
 
-- **Terciopelo** (17 nov): TERCIOPELO 6 y 8 (y sus porciones) pasaron a Producción 1 (Kenia hornea); la decoración la hace Jenny, pero la app todavía no asigna quién decora cada producto (sale en el cuadro general de Decoración). QUESADILLA DE TRIGO ya estaba en Producción 2 (Melissa).
+- **Terciopelo** (17 nov): TERCIOPELO 6 y 8 (y sus porciones) pasaron a Producción 1 (Kenia hornea); la decoración la hace Jenny (`area_decoracion_id` = Producción 6). QUESADILLA DE TRIGO ya estaba en Producción 2 (Melissa).
+
+- **Quién decora cada producto** (17 nov, migración `0026_area_decoracion.sql` aplicada): `productos.area_decoracion_id` (null = cuadro general de Decoración). En Catálogos → Productos, «¿Quién lo decora?» (solo si lleva decoración; chip «Decora: …» en la lista). En `/cuadros`, esos productos salen al final de la hoja de esa área en la sección «PARA DECORAR» (filas con `seccion`, DEC por batida) y no en el cuadro de Decoración. Primer caso: TERCIOPELO 6 y 8 → Jenny.
 
 ## Navegación y lenguaje (oct 2026)
 Pantallas **independientes, no secuenciales**: el admin entra a `/hoy` (portada con tarjetas Tiendas · Sugeridos · Cuadros · Reparto, cada una con su estado y un número de paso solo orientativo; `src/lib/paso-del-dia.ts` decide qué tarjeta resaltar, con tests). Menú corto por rol en `src/components/menu-principal.tsx` (admin: Hoy · Catálogos · Rotación · Historial; principal: Inventario · Rotación · Historial; tienda sin Cocina). Grupos en `src/lib/grupos.ts`; cada pantalla usa `<EncabezadoSeccion>` (fila de botones a las demás del grupo, ícono, título, una línea de "para qué sirve") y `<Aviso>`. No usar enlaces "siguiente →/← anterior". Pasteleras vive dentro de Catálogos.

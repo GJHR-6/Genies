@@ -182,6 +182,7 @@ describe("prodAutomatico", () => {
     categoria: null,
     departamento_id: null,
     area_id,
+    area_decoracion_id: null,
     orden_area: null,
     orden: id,
     lleva_decoracion: false,
