@@ -20,6 +20,7 @@ import { BotonImprimir } from "./boton-imprimir";
 import { MAX_BATIDAS, batidasDelCuadro } from "@/lib/batidas";
 import type { DatosBatidas } from "./hoja-cuadro";
 import { CuadroCompleto, cargarDatosBatidas } from "./cuadro-completo";
+import { esPorcion } from "@/lib/porciones";
 
 export const dynamic = "force-dynamic";
 
@@ -164,6 +165,8 @@ export default async function CuadrosPage({
     soloConCantidad = false
   ) =>
     lista
+      // Las porciones solo las ve administración (cuadro completo).
+      .filter((producto) => !esPorcion(producto))
       .map((producto) => ({
         producto,
         cantidad: suma(porProducto.get(producto.id)),
