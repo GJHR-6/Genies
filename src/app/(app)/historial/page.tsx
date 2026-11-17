@@ -6,6 +6,8 @@ import { cargarSugeridosDelDia } from "@/lib/sugeridos";
 import { CuadroCompleto, cargarDatosBatidas } from "../cuadros/cuadro-completo";
 import { BotonImprimir } from "../cuadros/boton-imprimir";
 import { ordenarSucursales } from "@/lib/orden-sucursales";
+import { normalizarAnterior } from "@/lib/cola-offline";
+import { ChipColorDia } from "@/components/color-dia";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +66,9 @@ export default async function HistorialPage({
     // Cambio, Decorado y Sin decorar no están en v_movimientos: se leen de la tabla.
     supabase
       .from("movimientos_diarios")
-      .select("producto_id, cambio, decorado, sin_decorar, nota")
+      .select(
+        "producto_id, cambio, decorado, sin_decorar, nota, ingreso_anterior, devolucion_anterior, cambio_anterior"
+      )
       .eq("fecha", fecha)
       .eq("sucursal_id", sucursalId),
     supabase
@@ -228,9 +232,18 @@ export default async function HistorialPage({
                     ) : (
                       <>
                         <td className="px-3 py-1.5">{m.saldo_inicial}</td>
-                        <td className="px-3 py-1.5">{m.ingreso}</td>
-                        <td className="px-3 py-1.5">{m.devolucion}</td>
-                        <td className="px-3 py-1.5">{extra?.cambio ?? 0}</td>
+                        <td className="px-3 py-1.5">
+                          {m.ingreso}
+                          <DeQueDia valor={extra?.ingreso_anterior} />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {m.devolucion}
+                          <DeQueDia valor={extra?.devolucion_anterior} />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {extra?.cambio ?? 0}
+                          <DeQueDia valor={extra?.cambio_anterior} />
+                        </td>
                         <td className="px-3 py-1.5">{m.vendido}</td>
                         <td className="px-3 py-1.5">{m.pedido}</td>
                         <td className="px-3 py-1.5">{m.saldo_final ?? "—"}</td>
@@ -245,5 +258,32 @@ export default async function HistorialPage({
         </div>
       )}
     </section>
+  );
+}
+
+const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+/**
+ * De qué día (color) son parte del ingreso, la devolución o el cambio, como
+ * lo anotó la tienda: "2 del [AMARILLO] vie 13". Nada si no lo anotó.
+ */
+function DeQueDia({ valor }: { valor: unknown }) {
+  const porDia = normalizarAnterior(valor as Record<string, unknown> | null);
+  if (!porDia) return null;
+  return (
+    <span className="mt-0.5 flex flex-col items-end gap-0.5">
+      {Object.entries(porDia).map(([fecha, n]) => {
+        const d = new Date(`${fecha}T12:00:00Z`);
+        return (
+          <span key={fecha} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <span>{n} del</span>
+            <ChipColorDia fecha={fecha} className="scale-90" />
+            <span>
+              {DIAS_CORTOS[d.getUTCDay()]} {d.getUTCDate()}
+            </span>
+          </span>
+        );
+      })}
+    </span>
   );
 }
