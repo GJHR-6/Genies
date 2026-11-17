@@ -29,6 +29,9 @@ export type FilaPendiente = {
   saldo_final?: number | null;
   /** Del ingreso, lo que es de otros días: fecha → unidades; null = todo de hoy. */
   ingreso_anterior?: Record<string, number> | null;
+  /** De qué día es lo devuelto y lo mandado a cambio (fecha → unidades). */
+  devolucion_anterior?: Record<string, number> | null;
+  cambio_anterior?: Record<string, number> | null;
   updated_at: string;
   updated_by: string;
 };
@@ -59,7 +62,7 @@ export function normalizarAnterior(
 
 /** Los números de la fila, para saber si lo confirmado es lo último anotado. */
 export const firmaFila = (f: FilaPendiente) =>
-  JSON.stringify([f.ingreso, f.devolucion, f.pedido, f.cambio, f.decorado, f.sin_decorar, (f.nota ?? "").trim(), f.saldo_final ?? null, normalizarAnterior(f.ingreso_anterior)]);
+  JSON.stringify([f.ingreso, f.devolucion, f.pedido, f.cambio, f.decorado, f.sin_decorar, (f.nota ?? "").trim(), f.saldo_final ?? null, normalizarAnterior(f.ingreso_anterior), normalizarAnterior(f.devolucion_anterior), normalizarAnterior(f.cambio_anterior)]);
 
 function esFila(x: unknown): x is FilaPendiente {
   if (!x || typeof x !== "object") return false;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   claveCola,
+  firmaFila,
   leerCola,
   ponerEnCola,
   quitarDeCola,
@@ -77,5 +78,15 @@ describe("cola sin internet", () => {
     expect(leerCola(roto, "u1")).toEqual([]);
     expect(ponerEnCola(roto, "u1", fila())).toBe(false);
     expect(ponerEnCola(null, "u1", fila())).toBe(false);
+  });
+
+  it("la firma cambia si cambia de qué día es el ingreso, la devolución o el cambio", () => {
+    const base = fila();
+    const firma = firmaFila(base);
+    expect(firmaFila({ ...base, ingreso_anterior: { "2026-11-14": 2 } })).not.toBe(firma);
+    expect(firmaFila({ ...base, devolucion_anterior: { "2026-11-14": 1 } })).not.toBe(firma);
+    expect(firmaFila({ ...base, cambio_anterior: { "2026-11-13": 1 } })).not.toBe(firma);
+    // Vacíos o ceros = no se dijo nada.
+    expect(firmaFila({ ...base, cambio_anterior: { "2026-11-13": 0 } })).toBe(firma);
   });
 });

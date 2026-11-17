@@ -257,6 +257,8 @@ export type Database = {
           mandar_override: number | null
           nota: string | null
           ingreso_anterior: Json | null
+          devolucion_anterior: Json | null
+          cambio_anterior: Json | null
           pedido: number
           restante: number | null
           producto_id: number
@@ -278,6 +280,8 @@ export type Database = {
           mandar_override?: number | null
           nota?: string | null
           ingreso_anterior?: Json | null
+          devolucion_anterior?: Json | null
+          cambio_anterior?: Json | null
           pedido?: number
           restante?: number | null
           producto_id: number
@@ -299,6 +303,8 @@ export type Database = {
           mandar_override?: number | null
           nota?: string | null
           ingreso_anterior?: Json | null
+          devolucion_anterior?: Json | null
+          cambio_anterior?: Json | null
           pedido?: number
           restante?: number | null
           producto_id?: number

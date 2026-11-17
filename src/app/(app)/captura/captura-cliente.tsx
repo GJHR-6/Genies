@@ -54,7 +54,38 @@ type MovimientoInicial = {
   nota: string | null;
   saldo_final: number | null;
   ingreso_anterior: unknown;
+  devolucion_anterior: unknown;
+  cambio_anterior: unknown;
 };
+
+/** Campos que pueden decir de qué día (color) son los pasteles. */
+const CAMPOS_DIA = ["ingreso", "devolucion", "cambio"] as const;
+type CampoDia = (typeof CAMPOS_DIA)[number];
+const columnaDia = (c: CampoDia) => `${c}_anterior` as const;
+/** Textos del desplegable de cada campo. */
+const TEXTO_DIA: Record<CampoDia, { abrir: string; titulo: string; nombre: string; el: string }> = {
+  ingreso: {
+    abrir: "¿Algo del ingreso es de otro día?",
+    titulo: "Del ingreso, ¿cuántos son de otro día?",
+    nombre: "ingreso",
+    el: "el ingreso",
+  },
+  devolucion: {
+    abrir: "¿De qué día es la devolución?",
+    titulo: "De la devolución, ¿de qué día son?",
+    nombre: "devolución",
+    el: "la devolución",
+  },
+  cambio: {
+    abrir: "¿De qué día es el cambio?",
+    titulo: "Del cambio, ¿de qué día son?",
+    nombre: "cambio",
+    el: "el cambio",
+  },
+};
+type PorDia = Record<string, string>;
+const aTexto = (a: Record<string, number> | null): PorDia | null =>
+  a ? Object.fromEntries(Object.entries(a).map(([f, n]) => [f, String(n)])) : null;
 
 type Campo =
   | "ingreso"
@@ -190,18 +221,21 @@ export function CapturaCliente({
     }
     return inicial;
   });
-  // Del ingreso, lo que es de otros días (fecha de producción → unidades),
-  // para que la rotación lo marque con su color.
-  const [anteriores, setAnteriores] = useState<Record<number, Record<string, string>>>(() =>
-    Object.fromEntries(
-      movimientosIniciales
-        .map((m) => [m.producto_id, normalizarAnterior(m.ingreso_anterior as Record<string, unknown> | null)] as const)
-        .filter(([, a]) => a)
-        .map(([id, a]) => [id, Object.fromEntries(Object.entries(a!).map(([f, n]) => [f, String(n)]))])
-    )
-  );
+  // De qué día (color) es parte del ingreso, la devolución o el cambio
+  // (fecha de producción → unidades). El del ingreso lo usa la rotación.
+  const [anteriores, setAnteriores] = useState<Record<CampoDia, Record<number, PorDia>>>(() => {
+    const inicial = { ingreso: {}, devolucion: {}, cambio: {} } as Record<CampoDia, Record<number, PorDia>>;
+    for (const m of movimientosIniciales) {
+      for (const c of CAMPOS_DIA) {
+        const a = aTexto(normalizarAnterior(m[columnaDia(c)] as Record<string, unknown> | null));
+        if (a) inicial[c][m.producto_id] = a;
+      }
+    }
+    return inicial;
+  });
   const anterioresRef = useRef(anteriores);
-  const [anterioresAbiertos, setAnterioresAbiertos] = useState<Set<number>>(new Set());
+  // Desplegables abiertos: `${campo}-${productoId}`.
+  const [anterioresAbiertos, setAnterioresAbiertos] = useState<Set<string>>(new Set());
   const [estados, setEstados] = useState<Record<number, EstadoFila>>({});
   // Nota por producto (para la devolución: "3 negros, 2 rosados…").
   const [notas, setNotas] = useState<Record<number, string>>(() =>
@@ -255,7 +289,9 @@ export function CapturaCliente({
           m.sin_decorar,
           (m.nota ?? "").trim(),
           esPrincipal ? null : m.saldo_final,
-          esPrincipal ? null : normalizarAnterior(m.ingreso_anterior as Record<string, unknown> | null),
+          ...CAMPOS_DIA.map((c) =>
+            esPrincipal ? null : normalizarAnterior(m[columnaDia(c)] as Record<string, unknown> | null)
+          ),
         ]),
       ])
     )
@@ -267,7 +303,9 @@ export function CapturaCliente({
       ...CAMPOS.map((campo) => aEntero(v[campo])),
       (notasRef.current[productoId] ?? "").trim(),
       esPrincipal ? null : finalONulo(v.saldo_final),
-      esPrincipal ? null : normalizarAnterior(anterioresRef.current[productoId]),
+      ...CAMPOS_DIA.map((c) =>
+        esPrincipal ? null : normalizarAnterior(anterioresRef.current[c][productoId])
+      ),
     ]);
   }, [esPrincipal]);
 
@@ -360,7 +398,9 @@ export function CapturaCliente({
           ? {}
           : {
               saldo_final: finalONulo(v.saldo_final),
-              ingreso_anterior: normalizarAnterior(anterioresRef.current[productoId]),
+              ingreso_anterior: normalizarAnterior(anterioresRef.current.ingreso[productoId]),
+              devolucion_anterior: normalizarAnterior(anterioresRef.current.devolucion[productoId]),
+              cambio_anterior: normalizarAnterior(anterioresRef.current.cambio[productoId]),
             }),
         updated_at: new Date().toISOString(),
         updated_by: userId,
@@ -435,12 +475,14 @@ export function CapturaCliente({
           saldo_final: f.saldo_final != null ? String(f.saldo_final) : "",
         };
         if (f.nota) notasRef.current = { ...notasRef.current, [f.producto_id]: f.nota };
-        const ant = normalizarAnterior(f.ingreso_anterior);
-        if (ant) {
-          anterioresRef.current = {
-            ...anterioresRef.current,
-            [f.producto_id]: Object.fromEntries(Object.entries(ant).map(([d, n]) => [d, String(n)])),
-          };
+        for (const c of CAMPOS_DIA) {
+          const ant = aTexto(normalizarAnterior(f[columnaDia(c)]));
+          if (ant) {
+            anterioresRef.current = {
+              ...anterioresRef.current,
+              [c]: { ...anterioresRef.current[c], [f.producto_id]: ant },
+            };
+          }
         }
         suciasRef.current.add(f.producto_id);
       }
@@ -489,11 +531,12 @@ export function CapturaCliente({
     );
   };
 
-  const alCambiarAnterior = (productoId: number, dia: string, crudo: string) => {
+  const alCambiarAnterior = (campo: CampoDia, productoId: number, dia: string, crudo: string) => {
     const limpio = crudo.replace(/\D/g, "").slice(0, 5);
+    const delCampo = anterioresRef.current[campo];
     anterioresRef.current = {
       ...anterioresRef.current,
-      [productoId]: { ...(anterioresRef.current[productoId] ?? {}), [dia]: limpio },
+      [campo]: { ...delCampo, [productoId]: { ...(delCampo[productoId] ?? {}), [dia]: limpio } },
     };
     setAnteriores(anterioresRef.current);
     suciasRef.current.add(productoId);
@@ -862,10 +905,6 @@ export function CapturaCliente({
             const v = valores[producto.id] ?? FILA_VACIA;
             // En Principal todos los productos anotan Decorado / Sin decorar.
             const conDecoracion = esPrincipal;
-            const deOtroDia = Object.values(anteriores[producto.id] ?? {}).reduce(
-              (t, n) => t + aEntero(n),
-              0
-            );
             // Vendido hoy (tiendas): solo si contaron el inventario final.
             const final = finalONulo(v.saldo_final);
             const vendido =
@@ -935,52 +974,82 @@ export function CapturaCliente({
                     </label>
                   ))}
                 </div>
+                {/* "¿De qué día?" de ingreso, devolución y cambio: desplegables,
+                    solo cuando el campo tiene algo. */}
                 {!esPrincipal &&
-                  (Object.keys(anteriores[producto.id] ?? {}).some((d) => anteriores[producto.id][d]) ||
-                  anterioresAbiertos.has(producto.id) ? (
-                    <fieldset className="mt-2 rounded-md border border-dashed p-2">
-                      <legend className="px-1 text-xs text-muted-foreground">
-                        Del ingreso, ¿cuántos son de otro día?
-                      </legend>
-                      <div className="grid grid-cols-3 gap-2">
-                        {diasAnteriores.map((dia) => (
-                          <label key={dia} className="flex flex-col gap-1">
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <ChipColorDia fecha={dia} />
-                              {nombreDia(dia)}
+                  CAMPOS_DIA.map((campo) => {
+                    const cantidad = aEntero(v[campo]);
+                    const porDia = anteriores[campo][producto.id] ?? {};
+                    const anotados = diasAnteriores.filter((d) => aEntero(porDia[d] ?? "") > 0);
+                    if (cantidad === 0 && anotados.length === 0) return null;
+                    const clave = `${campo}-${producto.id}`;
+                    const abierto = anterioresAbiertos.has(clave);
+                    const suma = Object.values(porDia).reduce((t, n) => t + aEntero(n), 0);
+                    const texto = TEXTO_DIA[campo];
+                    const nombreProducto = `${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`;
+                    return (
+                      <div key={campo} className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAnterioresAbiertos((s) => {
+                              const n = new Set(s);
+                              if (n.has(clave)) n.delete(clave);
+                              else n.add(clave);
+                              return n;
+                            })
+                          }
+                          aria-expanded={abierto}
+                          className="flex min-h-9 w-full items-center gap-1.5 text-left text-xs font-medium text-primary"
+                        >
+                          <span aria-hidden className={`inline-block transition-transform ${abierto ? "rotate-90" : ""}`}>
+                            ▸
+                          </span>
+                          <span className="underline-offset-4 hover:underline">{texto.abrir}</span>
+                          {!abierto && anotados.length > 0 && (
+                            <span className="ml-auto flex flex-wrap items-center justify-end gap-1 font-normal text-muted-foreground">
+                              {anotados.map((d) => (
+                                <span key={d} className="flex items-center gap-1">
+                                  {aEntero(porDia[d])}
+                                  <ChipColorDia fecha={d} />
+                                </span>
+                              ))}
                             </span>
-                            <Input
-                              inputMode="numeric"
-                              value={anteriores[producto.id]?.[dia] ?? ""}
-                              onChange={(e) => alCambiarAnterior(producto.id, dia, e.target.value)}
-                              onBlur={() => alSalirDelCampo(producto.id)}
-                              disabled={cerrado || desactualizada}
-                              placeholder="0"
-                              className="h-10 text-base tabular-nums placeholder:text-foreground"
-                              aria-label={`Del ingreso de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}, cuántos son del ${nombreDia(dia)}`}
-                            />
-                          </label>
-                        ))}
+                          )}
+                        </button>
+                        {abierto && (
+                          <fieldset className="mt-1 rounded-md border border-dashed p-2">
+                            <legend className="px-1 text-xs text-muted-foreground">{texto.titulo}</legend>
+                            <div className="grid grid-cols-3 gap-2">
+                              {diasAnteriores.map((dia) => (
+                                <label key={dia} className="flex flex-col gap-1">
+                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <ChipColorDia fecha={dia} />
+                                    {nombreDia(dia)}
+                                  </span>
+                                  <Input
+                                    inputMode="numeric"
+                                    value={porDia[dia] ?? ""}
+                                    onChange={(e) => alCambiarAnterior(campo, producto.id, dia, e.target.value)}
+                                    onBlur={() => alSalirDelCampo(producto.id)}
+                                    disabled={cerrado || desactualizada}
+                                    placeholder="0"
+                                    className="h-10 text-base tabular-nums placeholder:text-foreground"
+                                    aria-label={`De ${texto.nombre} de ${nombreProducto}, cuántos son del ${nombreDia(dia)}`}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                            {suma > cantidad && (
+                              <p className="mt-1 text-xs text-destructive">
+                                Son más que {texto.el} ({cantidad}): revisá los números.
+                              </p>
+                            )}
+                          </fieldset>
+                        )}
                       </div>
-                      {deOtroDia > aEntero(v.ingreso) && (
-                        <p className="mt-1 text-xs text-destructive">
-                          Son más que el ingreso ({aEntero(v.ingreso)}): revisá los números.
-                        </p>
-                      )}
-                    </fieldset>
-                  ) : (
-                    !cerrado &&
-                    !desactualizada &&
-                    aEntero(v.ingreso) > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setAnterioresAbiertos((s) => new Set(s).add(producto.id))}
-                        className="mt-2 block min-h-9 text-xs font-medium text-primary underline-offset-4 hover:underline"
-                      >
-                        + Algunos del ingreso son de otro día
-                      </button>
-                    )
-                  ))}
+                    );
+                  })}
                 {!esPrincipal && (
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <label className="flex flex-col gap-1">
