@@ -14,10 +14,8 @@ Lista de dudas pendientes al repasar el sistema (actualizada el 12 de noviembre 
    *Mientras tanto:* no se creó nada.
 5. **Productos que las tiendas siguen vendiendo pero no están en la lista nueva**: DULCE DE LECHE CHOCOLATE 6, 8 y 10, Porciones de pastel de 8, VOLTEADO MINI CAKE, GLASEADOS DE COCO MINICAKE, CREMA, MIGA/CHOCO, DECORADAS, FLAN VAINILLA COPA y FLAN COCO COPA. ¿Siguen, se dejan de vender, o son los mismos que algún producto nuevo con otro nombre (por ejemplo DULCE DE LECHE CHOCOLATE = CHOCOLATE GLASEADO)?
    *Mientras tanto:* activos, cada uno en su sección.
-6. **Dany**: la lista solo nombra a Kenia en Producción 1. ¿Dany sigue trabajando en esa área (en equipo con Kenia)?
-   *Mientras tanto:* Producción 1 = «Kenia y Dany», hoja a nombre de Kenia.
-7. **Johanna**: la lista solo nombra a Melissa en Producción 2. ¿Johanna ya no trabaja ahí?
-   *Mientras tanto:* Melissa 100 %; Johanna sigue registrada con 0 % (no recibe trabajo).
+6. ~~**Dany**~~ ✅ *Respondida (17 nov):* Producción 1 es un equipo: **Kenia bate y Dany hornea**. La hoja sale a nombre de «Kenia y Dany».
+7. ~~**Johanna**~~ ✅ *Respondida (17 nov):* Johanna es la **engrasadora y multiusos** («el comodín»: sabe hacer de todo), sin área fija. **Melissa** hace los pasteles pequeños (Producción 2). Johanna quedó inactiva en Pasteleras para que la hoja de Producción 2 diga solo «Melissa».
 8. **Audry o Audrey**: ¿cómo se escribe su nombre? En la app dice «Audry».
 9. **Pastelitos carne, pollo y piña (Carolina o Silvia)**: confirmar que los hace completos la que esté ese día, sin dividir.
    *Mientras tanto:* área compartida «Producción 4B / 5B · Carolina o Silvia».
