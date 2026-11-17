@@ -67,7 +67,7 @@ export default async function HistorialPage({
     supabase
       .from("movimientos_diarios")
       .select(
-        "producto_id, cambio, decorado, sin_decorar, nota, ingreso_anterior, devolucion_anterior, cambio_anterior"
+        "producto_id, cambio, decorado, sin_decorar, ingreso_anterior, devolucion_anterior, cambio_anterior"
       )
       .eq("fecha", fecha)
       .eq("sucursal_id", sucursalId),
@@ -189,7 +189,6 @@ export default async function HistorialPage({
                     <th className="px-3 py-2 font-semibold">Ingreso</th>
                     <th className="px-3 py-2 font-semibold">Devolución</th>
                     <th className="px-3 py-2 font-semibold">Pedido</th>
-                    <th className="px-3 py-2 text-left font-semibold">Nota</th>
                   </>
                 ) : (
                   <>
@@ -200,7 +199,6 @@ export default async function HistorialPage({
                     <th className="px-3 py-2 font-semibold">Vendido</th>
                     <th className="px-3 py-2 font-semibold">Pedido</th>
                     <th className="px-3 py-2 font-semibold">Saldo final</th>
-                    <th className="px-3 py-2 text-left font-semibold">Nota</th>
                   </>
                 )}
               </tr>
@@ -225,9 +223,11 @@ export default async function HistorialPage({
                         <td className="px-3 py-1.5">{sinDeco}</td>
                         <td className="px-3 py-1.5 font-semibold">{deco + sinDeco}</td>
                         <td className="px-3 py-1.5">{m.ingreso}</td>
-                        <td className="px-3 py-1.5">{m.devolucion}</td>
+                        <td className="px-3 py-1.5">
+                          {m.devolucion}
+                          <DeQueDia valor={extra?.devolucion_anterior} />
+                        </td>
                         <td className="px-3 py-1.5">{m.pedido}</td>
-                        <td className="px-3 py-1.5 text-left text-xs">{extra?.nota ?? ""}</td>
                       </>
                     ) : (
                       <>
@@ -247,7 +247,6 @@ export default async function HistorialPage({
                         <td className="px-3 py-1.5">{m.vendido}</td>
                         <td className="px-3 py-1.5">{m.pedido}</td>
                         <td className="px-3 py-1.5">{m.saldo_final ?? "—"}</td>
-                        <td className="px-3 py-1.5 text-left text-xs">{extra?.nota ?? ""}</td>
                       </>
                     )}
                   </tr>

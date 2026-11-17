@@ -84,6 +84,9 @@ const TEXTO_DIA: Record<CampoDia, { abrir: string; titulo: string; nombre: strin
   },
 };
 type PorDia = Record<string, string>;
+/** Días que se ofrecen: la devolución, una semana (hay tiendas donde el
+ *  pastel se queda más); ingreso y cambio, los 3 días anteriores. */
+const DIAS_POR_CAMPO: Record<CampoDia, number> = { ingreso: 3, devolucion: 6, cambio: 3 };
 const aTexto = (a: Record<string, number> | null): PorDia | null =>
   a ? Object.fromEntries(Object.entries(a).map(([f, n]) => [f, String(n)])) : null;
 
@@ -204,7 +207,18 @@ export function CapturaCliente({
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   // Días que se pueden elegir cuando parte del ingreso es de otro día.
-  const diasAnteriores = useMemo(() => diasProduccionAnteriores(fecha), [fecha]);
+  const diasPorCampo = useMemo(
+    () =>
+      Object.fromEntries(
+        CAMPOS_DIA.map((c) => [c, diasProduccionAnteriores(fecha, DIAS_POR_CAMPO[c])])
+      ) as Record<CampoDia, string[]>,
+    [fecha]
+  );
+  // Principal solo dice de qué día es su devolución; las tiendas, los tres.
+  const usaDias = useCallback(
+    (c: CampoDia) => !esPrincipal || c === "devolucion",
+    [esPrincipal]
+  );
 
   const [valores, setValores] = useState<Record<number, ValoresFila>>(() => {
     const inicial: Record<number, ValoresFila> = {};
@@ -238,13 +252,18 @@ export function CapturaCliente({
   const [anterioresAbiertos, setAnterioresAbiertos] = useState<Set<string>>(new Set());
   const [estados, setEstados] = useState<Record<number, EstadoFila>>({});
   // Nota por producto (para la devolución: "3 negros, 2 rosados…").
-  const [notas, setNotas] = useState<Record<number, string>>(() =>
+  // La nota de devolución se quitó (17 nov: la reemplazan las casillas por
+  // día); la que ya estaba se conserva al guardar.
+  const [, setNotas] = useState<Record<number, string>>(() =>
     Object.fromEntries(
       movimientosIniciales.filter((m) => m.nota).map((m) => [m.producto_id, m.nota as string])
     )
   );
-  const notasRef = useRef(notas);
-  const [notasAbiertas, setNotasAbiertas] = useState<Set<number>>(new Set());
+  const notasRef = useRef<Record<number, string>>(
+    Object.fromEntries(
+      movimientosIniciales.filter((m) => m.nota).map((m) => [m.producto_id, m.nota as string])
+    )
+  );
   const [guardadas, setGuardadas] = useState<Set<number>>(
     () => new Set(movimientosIniciales.map((m) => m.producto_id))
   );
@@ -290,7 +309,7 @@ export function CapturaCliente({
           (m.nota ?? "").trim(),
           esPrincipal ? null : m.saldo_final,
           ...CAMPOS_DIA.map((c) =>
-            esPrincipal ? null : normalizarAnterior(m[columnaDia(c)] as Record<string, unknown> | null)
+            usaDias(c) ? normalizarAnterior(m[columnaDia(c)] as Record<string, unknown> | null) : null
           ),
         ]),
       ])
@@ -304,10 +323,10 @@ export function CapturaCliente({
       (notasRef.current[productoId] ?? "").trim(),
       esPrincipal ? null : finalONulo(v.saldo_final),
       ...CAMPOS_DIA.map((c) =>
-        esPrincipal ? null : normalizarAnterior(anterioresRef.current[c][productoId])
+        usaDias(c) ? normalizarAnterior(anterioresRef.current[c][productoId]) : null
       ),
     ]);
-  }, [esPrincipal]);
+  }, [esPrincipal, usaDias]);
 
   const marcarEstado = useCallback(
     (productoId: number, estado: EstadoFila) => {
@@ -393,13 +412,13 @@ export function CapturaCliente({
         decorado: aEntero(v.decorado),
         sin_decorar: aEntero(v.sin_decorar),
         nota: (notasRef.current[productoId] ?? "").trim() || null,
+        devolucion_anterior: normalizarAnterior(anterioresRef.current.devolucion[productoId]),
         // Principal no cuenta inventario final aquí: no se toca.
         ...(esPrincipal
           ? {}
           : {
               saldo_final: finalONulo(v.saldo_final),
               ingreso_anterior: normalizarAnterior(anterioresRef.current.ingreso[productoId]),
-              devolucion_anterior: normalizarAnterior(anterioresRef.current.devolucion[productoId]),
               cambio_anterior: normalizarAnterior(anterioresRef.current.cambio[productoId]),
             }),
         updated_at: new Date().toISOString(),
@@ -523,6 +542,10 @@ export function CapturaCliente({
     setValores(valoresRef.current);
     // Ingreso, devolución o cambio en 0 o vacío: su "¿De qué día?" se
     // cierra y se borra (no puede haber días de algo que no hay).
+    // La devolución abre sola sus casillas por día al anotar algo.
+    if (campo === "devolucion" && aEntero(limpio) > 0 && aEntero(fila.devolucion) === 0) {
+      setAnterioresAbiertos((s) => new Set(s).add(`devolucion-${productoId}`));
+    }
     if ((CAMPOS_DIA as readonly string[]).includes(campo) && aEntero(limpio) === 0) {
       const c = campo as CampoDia;
       setAnterioresAbiertos((s) => {
@@ -562,18 +585,6 @@ export function CapturaCliente({
     timersRef.current.set(
       productoId,
       setTimeout(() => guardarFilaRef.current(productoId), 800)
-    );
-  };
-
-  const alCambiarNota = (productoId: number, texto: string) => {
-    notasRef.current = { ...notasRef.current, [productoId]: texto.slice(0, 300) };
-    setNotas(notasRef.current);
-    suciasRef.current.add(productoId);
-    const previo = timersRef.current.get(productoId);
-    if (previo) clearTimeout(previo);
-    timersRef.current.set(
-      productoId,
-      setTimeout(() => guardarFilaRef.current(productoId), 1200)
     );
   };
 
@@ -993,8 +1004,8 @@ export function CapturaCliente({
                 </div>
                 {/* "¿De qué día?" de ingreso, devolución y cambio: desplegables,
                     solo cuando el campo tiene algo. */}
-                {!esPrincipal &&
-                  CAMPOS_DIA.map((campo) => {
+                {CAMPOS_DIA.filter(usaDias).map((campo) => {
+                    const diasAnteriores = diasPorCampo[campo];
                     const cantidad = aEntero(v[campo]);
                     const porDia = anteriores[campo][producto.id] ?? {};
                     const anotados = diasAnteriores.filter((d) => aEntero(porDia[d] ?? "") > 0);
@@ -1040,9 +1051,9 @@ export function CapturaCliente({
                             <div className="grid grid-cols-3 gap-2">
                               {diasAnteriores.map((dia) => (
                                 <label key={dia} className="flex flex-col gap-1">
-                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <span className="flex flex-col items-start gap-0.5 text-xs text-muted-foreground">
                                     <ChipColorDia fecha={dia} />
-                                    {nombreDia(dia)}
+                                    <span>{nombreDia(dia)}</span>
                                   </span>
                                   <Input
                                     inputMode="numeric"
@@ -1129,36 +1140,6 @@ export function CapturaCliente({
                       </label>
                     ))}
                   </div>
-                )}
-                {/* Nota (devolución): lo que no entra en números. */}
-                {notas[producto.id] || notasAbiertas.has(producto.id) ? (
-                  <label className="mt-2 flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">
-                      Nota (para la devolución)
-                    </span>
-                    <textarea
-                      value={notas[producto.id] ?? ""}
-                      onChange={(e) => alCambiarNota(producto.id, e.target.value)}
-                      onBlur={() => alSalirDelCampo(producto.id)}
-                      disabled={cerrado || desactualizada}
-                      rows={2}
-                      maxLength={300}
-                      placeholder="Ej.: 3 negros, 2 rosados"
-                      className="rounded-md border bg-background px-3 py-2 text-sm"
-                      aria-label={`Nota de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
-                    />
-                  </label>
-                ) : (
-                  !cerrado &&
-                  !desactualizada && (
-                    <button
-                      type="button"
-                      onClick={() => setNotasAbiertas((s) => new Set(s).add(producto.id))}
-                      className="mt-2 min-h-9 text-xs font-medium text-primary underline-offset-4 hover:underline"
-                    >
-                      + Agregar nota (devolución)
-                    </button>
-                  )
                 )}
               </div>
             );
