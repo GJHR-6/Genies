@@ -29,6 +29,18 @@ export function cantidadNoEnviada(texto: string, mandar: number): number | null 
   return Math.min(n, Math.max(mandar, 0));
 }
 
+/**
+ * Lo escrito en la casilla "Se mandó" → lo que no salió (19 nov: la
+ * encargada anota cuánto se mandó). Vacío = salió todo (null); 20 pedidos
+ * y 12 mandados = faltan 8. Más de lo que había que mandar = salió todo.
+ */
+export function faltaPorMandar(texto: string, mandar: number): number | null {
+  const limpio = texto.replace(/\D/g, "");
+  if (limpio === "") return null;
+  const falta = Math.max(mandar, 0) - parseInt(limpio, 10);
+  return falta > 0 ? falta : null;
+}
+
 /** Lo que sigue pendiente, del más viejo al más nuevo. */
 export function pendientes<T extends Pick<NoEnviado, "fecha" | "enviado_at">>(
   registros: readonly T[]

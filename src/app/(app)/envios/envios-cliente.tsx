@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GRUPO_HOY } from "@/lib/grupos";
 import {
-  cantidadNoEnviada,
   cuandoFue,
+  faltaPorMandar,
   pendientes,
   pendientesPorTienda,
   type NoEnviado,
@@ -50,14 +50,21 @@ export function EnviosCliente({
   const supabase = useMemo(() => createClient(), []);
   const [registros, setRegistros] = useState<NoEnviado[]>(registrosIniciales);
   const [tiendaId, setTiendaId] = useState<number | null>(tiendas[0]?.id ?? null);
-  // Lo escrito en cada casilla de hoy (texto, para no pelear con el cursor).
-  const [borrador, setBorrador] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
+  // Lo escrito en cada casilla «Se mandó» de hoy (texto, para no pelear
+  // con el cursor). Lo guardado es lo que faltó: se muestra mandar − falta.
+  const [borrador, setBorrador] = useState<Record<string, string>>(() => {
+    const mandarDe = new Map(
+      tiendas.flatMap((t) => t.filas.map((f) => [clave(t.id, f.productoId), f.mandar] as const))
+    );
+    return Object.fromEntries(
       registrosIniciales
         .filter((r) => r.fecha === fecha)
-        .map((r) => [clave(r.sucursal_id, r.producto_id), String(r.cantidad)])
-    )
-  );
+        .map((r) => {
+          const k = clave(r.sucursal_id, r.producto_id);
+          return [k, String(Math.max((mandarDe.get(k) ?? r.cantidad) - r.cantidad, 0))];
+        })
+    );
+  });
   const [estados, setEstados] = useState<Record<string, EstadoFila>>({});
 
   const deHoy = useMemo(
@@ -152,9 +159,10 @@ export function EnviosCliente({
 
   const alSalir = (sucursalId: number, productoId: number, mandar: number) => {
     const k = clave(sucursalId, productoId);
-    const cantidad = cantidadNoEnviada(borrador[k] ?? "", mandar);
+    // Lo escrito es lo que se mandó; se guarda lo que faltó.
+    const cantidad = faltaPorMandar(borrador[k] ?? "", mandar);
     const actual = deHoy.get(k);
-    setBorrador((b) => ({ ...b, [k]: cantidad === null ? "" : String(cantidad) }));
+    setBorrador((b) => ({ ...b, [k]: cantidad === null ? "" : String(mandar - cantidad) }));
     if ((actual?.cantidad ?? null) === cantidad) return;
     guardarCantidad.mutate({ sucursalId, productoId, cantidad });
   };
@@ -239,7 +247,7 @@ export function EnviosCliente({
       {/* Despacho de hoy: por tienda, cuánto no salió */}
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-muted-foreground">
-          Despacho de hoy · escribí cuánto <strong>no</strong> se mandó (vacío = salió todo; se suma solo mañana)
+          Despacho de hoy · escribí cuánto <strong>se mandó</strong> si no salió todo (vacío = salió todo). Lo que falte se suma solo mañana.
         </h2>
         {tiendas.length === 0 ? (
           <Aviso tipo="info">Todavía no hay tiendas.</Aviso>
@@ -291,7 +299,8 @@ export function EnviosCliente({
                     <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
                       <th className="px-3 py-2 text-left font-semibold">Producto</th>
                       <th className="px-2 py-2 text-right font-semibold">Mandar</th>
-                      <th className="w-28 px-3 py-2 text-right font-semibold">No se mandó</th>
+                      <th className="w-28 px-3 py-2 text-right font-semibold">Se mandó</th>
+                      <th className="w-20 px-3 py-2 text-right font-semibold">Falta</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -313,7 +322,7 @@ export function EnviosCliente({
                               <span className="block text-xs text-destructive">No se pudo guardar</span>
                             )}
                             {estado === "guardado" && registro && !yaMandado && (
-                              <span className="block text-xs text-aviso">Se suma mañana ✓</span>
+                              <span className="block text-xs text-aviso">Lo que falta se suma mañana ✓</span>
                             )}
                             {yaMandado && (
                               <span className="block text-xs text-exito">Se mandó después ✓</span>
@@ -326,7 +335,7 @@ export function EnviosCliente({
                             <Input
                               inputMode="numeric"
                               value={borrador[k] ?? ""}
-                              placeholder="0"
+                              placeholder={String(f.mandar)}
                               disabled={yaMandado}
                               onChange={(e) =>
                                 setBorrador((b) => ({ ...b, [k]: e.target.value.replace(/\D/g, "").slice(0, 4) }))
@@ -335,12 +344,20 @@ export function EnviosCliente({
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") e.currentTarget.blur();
                               }}
-                              aria-label={`No se mandó de ${nombre(f.productoId)} a ${tienda.nombre}`}
+                              aria-label={`Se mandó de ${nombre(f.productoId)} a ${tienda.nombre}`}
                               className={cn(
                                 "h-10 text-right text-base tabular-nums",
                                 registro && !yaMandado && "border-aviso font-semibold text-aviso"
                               )}
                             />
+                          </td>
+                          <td
+                            className={cn(
+                              "px-3 py-1.5 text-right text-base tabular-nums",
+                              registro ? "font-bold text-aviso" : "text-muted-foreground"
+                            )}
+                          >
+                            {registro?.cantidad ?? 0}
                           </td>
                         </tr>
                       );

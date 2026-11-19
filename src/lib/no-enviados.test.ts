@@ -4,6 +4,7 @@ import {
   cantidadNoEnviada,
   cuandoFue,
   diaProduccionAnterior,
+  faltaPorMandar,
   pendientes,
   pendientesPorTienda,
 } from "./no-enviados";
@@ -60,5 +61,15 @@ describe("arrastre", () => {
         { producto_id: 1, sucursal_id: 5, cantidad: 1, enviado_at: null },
       ])
     ).toEqual({ "1-2": 2, "1-5": 1 });
+  });
+});
+
+describe("faltaPorMandar", () => {
+  it("con lo que se mandó calcula lo que falta", () => {
+    expect(faltaPorMandar("12", 20)).toBe(8);
+    expect(faltaPorMandar("0", 5)).toBe(5);
+    expect(faltaPorMandar("", 5)).toBeNull();
+    expect(faltaPorMandar("5", 5)).toBeNull();
+    expect(faltaPorMandar("9", 5)).toBeNull();
   });
 });
