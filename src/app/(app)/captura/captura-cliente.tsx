@@ -214,9 +214,11 @@ export function CapturaCliente({
       ) as Record<CampoDia, string[]>,
     [fecha]
   );
-  // Principal solo dice de qué día es su devolución; las tiendas, los tres.
+  // Solo las tiendas dicen de qué día es (Principal solo anota Decorado
+  // y Sin decorar).
   const usaDias = useCallback(
-    (c: CampoDia) => !esPrincipal || c === "devolucion",
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    (_c: CampoDia) => !esPrincipal,
     [esPrincipal]
   );
 
@@ -837,8 +839,9 @@ export function CapturaCliente({
         </div>
         {!cerrado && (
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Anotá lo que entró, lo que devolviste y los pedidos. Cada número se
-            guarda solo.
+            {esPrincipal
+              ? "Anotá cuántos hay decorados y sin decorar. Cada número se guarda solo."
+              : "Anotá lo que entró, lo que devolviste y los pedidos. Cada número se guarda solo."}
           </p>
         )}
         {(!enLinea || sinSenal) && !desactualizada && (
@@ -952,13 +955,9 @@ export function CapturaCliente({
                   </div>
                   <BadgeEstado estado={estados[producto.id]} />
                 </div>
-                <div
-                  className={`mt-2 grid gap-2 ${
-                    esPrincipal
-                      ? "grid-cols-2 min-[400px]:grid-cols-4"
-                      : "grid-cols-3 sm:grid-cols-5"
-                  }`}
-                >
+                {/* Principal solo anota Decorado y Sin decorar (19 nov). */}
+                {!esPrincipal && (
+                <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {/* Inicial: con lo que quedó la tienda ayer. Solo se ve. */}
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-muted-foreground">
@@ -979,7 +978,7 @@ export function CapturaCliente({
                       ["pedido", "Pedido"],
                       // Cambio: lo que la tienda manda a Principal para
                       // cambiar (columna CM de la hoja completa).
-                      ...(esPrincipal ? [] : [["cambio", "Cambio"]]),
+                      ["cambio", "Cambio"],
                     ] as const as readonly (readonly [Campo, string])[]
                   ).map(([campo, etiqueta]) => (
                     <label key={campo} className="flex flex-col gap-1">
@@ -1001,6 +1000,7 @@ export function CapturaCliente({
                     </label>
                   ))}
                 </div>
+                )}
                 {/* "¿De qué día?" de ingreso, devolución y cambio: desplegables,
                     solo cuando el campo tiene algo. */}
                 {CAMPOS_DIA.filter(usaDias).map((campo) => {
