@@ -186,9 +186,6 @@ export default async function HistorialPage({
                     <th className="px-3 py-2 font-semibold">Decorado</th>
                     <th className="px-3 py-2 font-semibold">Sin decorar</th>
                     <th className="px-3 py-2 font-semibold">Inv/Total</th>
-                    <th className="px-3 py-2 font-semibold">Ingreso</th>
-                    <th className="px-3 py-2 font-semibold">Devolución</th>
-                    <th className="px-3 py-2 font-semibold">Pedido</th>
                   </>
                 ) : (
                   <>
@@ -222,12 +219,6 @@ export default async function HistorialPage({
                         <td className="px-3 py-1.5">{deco}</td>
                         <td className="px-3 py-1.5">{sinDeco}</td>
                         <td className="px-3 py-1.5 font-semibold">{deco + sinDeco}</td>
-                        <td className="px-3 py-1.5">{m.ingreso}</td>
-                        <td className="px-3 py-1.5">
-                          {m.devolucion}
-                          <DeQueDia valor={extra?.devolucion_anterior} />
-                        </td>
-                        <td className="px-3 py-1.5">{m.pedido}</td>
                       </>
                     ) : (
                       <>
