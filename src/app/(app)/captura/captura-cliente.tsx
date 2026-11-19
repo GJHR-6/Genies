@@ -1113,7 +1113,7 @@ export function CapturaCliente({
                     </div>
                 )}
                 {conDecoracion && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="mt-2 grid grid-cols-3 gap-2">
                     {(
                       [
                         ["decorado", "Decorado"],
@@ -1138,6 +1138,18 @@ export function CapturaCliente({
                         />
                       </label>
                     ))}
+                    {/* Inventario total = Decorado + Sin decorar: se calcula
+                        solo y no se cambia (19 nov). */}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-muted-foreground">Inventario total</span>
+                      <div
+                        className="flex h-11 items-center rounded-md border border-dashed bg-muted px-3 text-base font-semibold tabular-nums"
+                        aria-label={`Inventario total de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}: ${aEntero(v.decorado) + aEntero(v.sin_decorar)}`}
+                        title="Decorado + Sin decorar. Se calcula solo."
+                      >
+                        {aEntero(v.decorado) + aEntero(v.sin_decorar)}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

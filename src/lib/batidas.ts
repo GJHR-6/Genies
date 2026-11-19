@@ -1,4 +1,5 @@
 import { totalesPorProducto, type SugeridosDelDia } from "./sugeridos";
+import { esPorcion } from "./porciones";
 
 /**
  * Batidas (reunión 16 oct y mensaje del 21 oct 2026).
@@ -176,7 +177,8 @@ export function batidasDelCuadro(params: {
  * PROD automático (16 nov, sin reparto): lo que hay que producir de cada
  * producto (sugeridos − sin decorar) va entero en la batida 1; se reparte
  * en más batidas a mano en el cuadro completo. Los que solo se decoran
- * (área Decoración) no se producen.
+ * (área Decoración) y las porciones (se cortan de pasteles completos, 19
+ * nov) no se producen.
  */
 export function prodAutomatico(
   dia: Pick<SugeridosDelDia, "productos" | "sucursales" | "celdas" | "sinDecorar">,
@@ -186,6 +188,7 @@ export function prodAutomatico(
   const resultado = new Map<number, number[]>();
   for (const p of dia.productos) {
     if (areaDecoracionId !== null && p.area_id === areaDecoracionId) continue;
+    if (esPorcion(p)) continue;
     const aProducir = totales.get(p.id)?.aProducir ?? 0;
     if (aProducir > 0) resultado.set(p.id, [aProducir]);
   }

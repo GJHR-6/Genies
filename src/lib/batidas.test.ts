@@ -201,4 +201,18 @@ describe("prodAutomatico", () => {
     );
     expect(resultado).toEqual(new Map([[1, [9]]]));
   });
+
+  it("las porciones no se producen (se cortan de pasteles completos)", () => {
+    const porcion = { ...prod(4, 1), nombre: "Porciones VAINILLA" };
+    const resultado = prodAutomatico(
+      {
+        productos: [porcion],
+        sucursales: [{ id: 10, nombre: "A" }],
+        celdas: { "4-10": celda(6) },
+        sinDecorar: {},
+      },
+      9
+    );
+    expect(resultado.size).toBe(0);
+  });
 });
