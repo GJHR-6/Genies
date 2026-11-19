@@ -78,6 +78,7 @@ export function CuadroCompleto({
         batidas={batidas}
         pedidos={dia.pedidos}
         mandarOverride={dia.mandarOverride}
+        arrastre={dia.arrastre}
       />
     </article>
   );

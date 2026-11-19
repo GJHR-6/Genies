@@ -49,7 +49,7 @@ export const GRUPO_HOY = {
       clave: "envios",
       href: "/envios",
       titulo: "Lo que no se mandó",
-      descripcion: "Al despachar, anotá lo que no salió para cada tienda. Queda pendiente hasta que se manda.",
+      descripcion: "Al despachar, anotá lo que no salió para cada tienda. Se suma solo a lo que se manda el día siguiente.",
       icono: PackageX,
       color: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
       paso: 4,

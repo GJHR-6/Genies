@@ -29,17 +29,17 @@ describe("filaHojaCompleta", () => {
     expect(f.sinDeco).toBe(6);
     expect(f.invTotal).toBe(14);
     expect(f.tiendas).toEqual([
-      { sucursalId: 20, mandar: 5, cm: null, sugerido: 9, ajustado: false },
-      { sucursalId: 30, mandar: 4, cm: 2, sugerido: 4, ajustado: false },
+      { sucursalId: 20, mandar: 5, cm: null, sugerido: 9, ajustado: false, arrastre: 0 },
+      { sucursalId: 30, mandar: 4, cm: 2, sugerido: 4, ajustado: false, arrastre: 0 },
     ]);
     expect(f.saldo).toBe(14 + 2 - 5 - 4);
   });
 
   it("lo que se manda: ajuste del admin > pedido > nada", () => {
     const conAjuste = { ...dia, mandarOverride: { "1-20": 0 } };
-    expect(aMandar(conAjuste, "1-20")).toEqual({ mandar: 0, ajustado: true });
-    expect(aMandar(conAjuste, "1-30")).toEqual({ mandar: 4, ajustado: false });
-    expect(aMandar(conAjuste, "3-20")).toEqual({ mandar: null, ajustado: false });
+    expect(aMandar(conAjuste, "1-20")).toEqual({ mandar: 0, ajustado: true, arrastre: 0 });
+    expect(aMandar(conAjuste, "1-30")).toEqual({ mandar: 4, ajustado: false, arrastre: 0 });
+    expect(aMandar(conAjuste, "3-20")).toEqual({ mandar: null, ajustado: false, arrastre: 0 });
     const f = filaHojaCompleta(conAjuste, { id: 1, lleva_decoracion: true }, tiendas);
     expect(f.saldo).toBe(14 + 2 - 0 - 4);
   });
@@ -49,7 +49,7 @@ describe("filaHojaCompleta", () => {
     expect(f.deco).toBe(10);
     expect(f.sinDeco).toBeNull();
     expect(f.invTotal).toBe(10);
-    expect(f.tiendas[1]).toEqual({ sucursalId: 30, mandar: null, cm: null, sugerido: null, ajustado: false });
+    expect(f.tiendas[1]).toEqual({ sucursalId: 30, mandar: null, cm: null, sugerido: null, ajustado: false, arrastre: 0 });
     expect(f.saldo).toBe(7);
   });
 
@@ -82,9 +82,18 @@ describe("total de sección", () => {
     expect(t.sinDeco).toBe(6);
     expect(t.invTotal).toBe(24);
     expect(t.tiendas).toEqual([
-      { sucursalId: 20, mandar: 8, cm: null, sugerido: 12, ajustado: false },
-      { sucursalId: 30, mandar: 4, cm: 2, sugerido: 4, ajustado: false },
+      { sucursalId: 20, mandar: 8, cm: null, sugerido: 12, ajustado: false, arrastre: 0 },
+      { sucursalId: 30, mandar: 4, cm: 2, sugerido: 4, ajustado: false, arrastre: 0 },
     ]);
     expect(t.saldo).toBe(a.saldo + b.saldo);
+  });
+
+  it("lo que no salió el día anterior se suma a lo que se manda", () => {
+    const dia = { pedidos: { "1-20": 10, "1-30": 4 }, mandarOverride: { "1-30": 6 }, arrastre: { "1-20": 2, "1-30": 1, "2-20": 3 } };
+    expect(aMandar(dia, "1-20")).toEqual({ mandar: 12, ajustado: false, arrastre: 2 });
+    // Sin pedido hoy: igual se manda lo de ayer.
+    expect(aMandar(dia, "2-20")).toEqual({ mandar: 3, ajustado: false, arrastre: 3 });
+    // El ajuste del admin es el total final.
+    expect(aMandar(dia, "1-30")).toEqual({ mandar: 6, ajustado: true, arrastre: 0 });
   });
 });

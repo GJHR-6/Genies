@@ -3,7 +3,7 @@ import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { cargarSugeridosDelDia, type SugeridosDelDia } from "@/lib/sugeridos";
 import { aMandar } from "@/lib/hoja-completa";
 import { ordenarProductos } from "@/lib/orden-productos";
-import { DIAS_PENDIENTES, type NoEnviado } from "@/lib/no-enviados";
+import { diaProduccionAnterior, type NoEnviado } from "@/lib/no-enviados";
 import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
 import { GRUPO_HOY } from "@/lib/grupos";
 import { EnviosCliente, type TiendaEnvio } from "./envios-cliente";
@@ -13,20 +13,19 @@ export const dynamic = "force-dynamic";
 export default async function EnviosPage() {
   const supabase = await createClient();
   const fecha = hoyTegucigalpa();
-  const desde = new Date(`${fecha}T12:00:00Z`);
-  desde.setUTCDate(desde.getUTCDate() - DIAS_PENDIENTES);
-  const desdeIso = desde.toISOString().slice(0, 10);
+  // Lo que no salió el día con producción anterior se suma hoy (19 nov).
+  const anterior = diaProduccionAnterior(fecha);
 
   let dia: SugeridosDelDia;
   let registros: NoEnviado[];
   try {
     const [diaCargado, registrosRes] = await Promise.all([
       cargarSugeridosDelDia(supabase, fecha),
-      // Los de hoy (mandados o no) y lo que sigue pendiente de días atrás.
+      // Los de hoy y los del día anterior (que se suman hoy).
       supabase
         .from("no_enviados")
         .select("id, fecha, sucursal_id, producto_id, cantidad, enviado_at")
-        .or(`fecha.eq.${fecha},and(enviado_at.is.null,fecha.gte.${desdeIso})`),
+        .in("fecha", [fecha, anterior]),
     ]);
     if (registrosRes.error) throw new Error(registrosRes.error.message);
     dia = diaCargado;
@@ -43,7 +42,7 @@ export default async function EnviosPage() {
   }
 
   // Lo que se le manda hoy a cada tienda: igual que la hoja de despacho
-  // (su pedido o el ajuste del admin en el cuadro completo).
+  // (su pedido + lo que no salió ayer, o el ajuste del admin).
   const productos = ordenarProductos(dia.productos);
   const tiendas: TiendaEnvio[] = dia.sucursales
     .filter((s) => s.id !== dia.principalId)
@@ -51,10 +50,10 @@ export default async function EnviosPage() {
       id: s.id,
       nombre: s.nombre,
       filas: productos
-        .map((p) => ({
-          productoId: p.id,
-          mandar: aMandar(dia, `${p.id}-${s.id}`).mandar ?? 0,
-        }))
+        .map((p) => {
+          const { mandar, arrastre } = aMandar(dia, `${p.id}-${s.id}`);
+          return { productoId: p.id, mandar: mandar ?? 0, arrastre };
+        })
         .filter((f) => f.mandar > 0),
     }));
 
@@ -65,6 +64,7 @@ export default async function EnviosPage() {
   return (
     <EnviosCliente
       fecha={fecha}
+      anterior={anterior}
       fechaLegible={formatoLargo(fecha)}
       tiendas={tiendas}
       nombres={nombres}

@@ -739,21 +739,20 @@ export function CapturaCliente({
 
       {noEnviados.length > 0 && (
         <div role="status" className="rounded-xl border border-aviso/30 bg-aviso/10 px-4 py-3 text-sm">
-          <p className="font-semibold text-aviso">Principal te quedó debiendo</p>
+          <p className="font-semibold text-aviso">Hoy te llega de más</p>
+          <p className="text-xs text-muted-foreground">
+            Esto no salió {noEnviados[0] ? cuandoFue(noEnviados[0].fecha, fecha) : "ayer"}: te lo mandan hoy junto con tu pedido.
+          </p>
           <ul className="mt-1 space-y-0.5">
             {noEnviados.map((n) => (
               <li key={n.id} className="flex justify-between gap-3">
-                <span>
-                  {n.nombre}{" "}
-                  <span className="text-xs text-muted-foreground">({cuandoFue(n.fecha, fecha)})</span>
-                </span>
+                <span>{n.nombre}</span>
                 <span className="font-bold tabular-nums">{n.cantidad}</span>
               </li>
             ))}
           </ul>
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Ya está anotado en Principal y te lo mandan en cuanto se pueda: no
-            hace falta volver a pedirlo.
+            Anotalo en tu Ingreso cuando llegue. No hace falta volver a pedirlo.
           </p>
         </div>
       )}

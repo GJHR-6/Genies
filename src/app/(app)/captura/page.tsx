@@ -1,7 +1,7 @@
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
-import { DIAS_PENDIENTES } from "@/lib/no-enviados";
+import { diaProduccionAnterior } from "@/lib/no-enviados";
 import { CapturaCliente } from "./captura-cliente";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +24,6 @@ export default async function CapturaPage() {
   const fecha = hoyTegucigalpa();
   const sucursalId = perfil.sucursalId;
 
-  const desde = new Date(`${fecha}T12:00:00Z`);
-  desde.setUTCDate(desde.getUTCDate() - DIAS_PENDIENTES);
 
   const [productosRes, movimientosRes, previosRes, cierreRes, sucursalRes, noEnviadosRes] =
     await Promise.all([
@@ -61,13 +59,13 @@ export default async function CapturaPage() {
         .select("es_principal")
         .eq("id", sucursalId)
         .single(),
-      // Lo que Principal no le pudo mandar y sigue pendiente.
+      // Lo que no salió el día anterior: hoy le llega junto con su pedido.
       supabase
         .from("no_enviados")
         .select("id, fecha, cantidad, productos(nombre, tamano)")
         .eq("sucursal_id", sucursalId)
         .is("enviado_at", null)
-        .gte("fecha", desde.toISOString().slice(0, 10))
+        .eq("fecha", diaProduccionAnterior(fecha))
         .order("fecha"),
     ]);
 

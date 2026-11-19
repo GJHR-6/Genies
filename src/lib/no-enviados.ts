@@ -1,7 +1,10 @@
 /**
  * Control de lo que no se mandó (reunión del 16 oct; en el sistema desde
  * el 3 nov 2026). Al despachar se anota, por tienda y producto, cuánto no
- * salió; queda pendiente hasta que se manda después (`enviado_at`).
+ * salió. Desde el 19 nov se suma solo a lo que se manda el siguiente día
+ * con producción (el domingo pasa al lunes); si ese día tampoco sale, se
+ * vuelve a anotar y pasa al siguiente. `enviado_at` = se mandó después el
+ * mismo día (ya no se suma).
  */
 
 export type NoEnviado = {
@@ -61,4 +64,29 @@ export function cuandoFue(fecha: string, hoy: string): string {
   })
     .format(new Date(`${fecha}T12:00:00Z`))
     .replace(/\./g, "");
+}
+
+/** El día con producción anterior a `fecha` (salta el domingo). */
+export function diaProduccionAnterior(fecha: string): string {
+  const d = new Date(`${fecha}T12:00:00Z`);
+  do {
+    d.setUTCDate(d.getUTCDate() - 1);
+  } while (d.getUTCDay() === 0);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Lo que no salió el día anterior y se suma a lo de hoy, por
+ * `${productoId}-${sucursalId}` (solo lo que no se mandó después).
+ */
+export function arrastre(
+  registros: readonly Pick<NoEnviado, "producto_id" | "sucursal_id" | "cantidad" | "enviado_at">[]
+): Record<string, number> {
+  const total: Record<string, number> = {};
+  for (const r of registros) {
+    if (r.enviado_at !== null || r.cantidad <= 0) continue;
+    const clave = `${r.producto_id}-${r.sucursal_id}`;
+    total[clave] = (total[clave] ?? 0) + r.cantidad;
+  }
+  return total;
 }

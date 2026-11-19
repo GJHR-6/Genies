@@ -53,4 +53,16 @@ describe("totalesPorProducto", () => {
     const t = totalesPorProducto(dia);
     expect(t.get(3)).toEqual({ total: 2, sinDecorar: 9, aProducir: 0, aDecorar: 2 });
   });
+
+  it("lo que no salió ayer se suma a lo que hay que producir", () => {
+    const t = totalesPorProducto({
+      productos: [producto(1, false)],
+      sucursales: [{ id: 10, nombre: "A" }],
+      celdas: { "1-10": celda(5) },
+      sinDecorar: {},
+      arrastre: { "1-10": 2 },
+    });
+    expect(t.get(1)?.total).toBe(7);
+    expect(t.get(1)?.aProducir).toBe(7);
+  });
 });

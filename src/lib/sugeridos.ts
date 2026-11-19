@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types";
 import { ordenarSucursales } from "./orden-sucursales";
+import { arrastre as sumarArrastre, diaProduccionAnterior } from "./no-enviados";
 
 export type CeldaSugerido = {
   objetivo: number;
@@ -47,6 +48,11 @@ export type SugeridosDelDia = {
   pedidos: Record<string, number>;
   /** Ajuste del admin a lo que se manda (misma clave); manda sobre el pedido. */
   mandarOverride: Record<string, number>;
+  /**
+   * Lo que no salió el día con producción anterior (misma clave): se suma a
+   * lo que se manda hoy y a lo que hay que producir (19 nov).
+   */
+  arrastre: Record<string, number>;
   /** Saldo de Principal hoy (producto → unidades), si ya lo anotó. */
   saldoPrincipal: Record<number, number>;
   /** Id de la sucursal Principal (no sale como columna de tienda). */
@@ -67,16 +73,18 @@ export type TotalProducto = {
 /**
  * Totales del día por producto. Lo que ya está sin decorar en Principal se
  * descuenta de la producción (se hornea solo la diferencia), lleve o no
- * decoración; la decoración es el total de los que llevan decoración.
+ * decoración; la decoración es el total de los que llevan decoración. Lo
+ * que no salió el día anterior se suma (hay que mandarlo hoy).
  */
 export function totalesPorProducto(
-  dia: Pick<SugeridosDelDia, "productos" | "sucursales" | "celdas" | "sinDecorar">
+  dia: Pick<SugeridosDelDia, "productos" | "sucursales" | "celdas" | "sinDecorar"> &
+    Partial<Pick<SugeridosDelDia, "arrastre">>
 ): Map<number, TotalProducto> {
   const resultado = new Map<number, TotalProducto>();
   for (const p of dia.productos) {
     let total = 0;
     for (const s of dia.sucursales) {
-      total += dia.celdas[`${p.id}-${s.id}`]?.sugerido ?? 0;
+      total += (dia.celdas[`${p.id}-${s.id}`]?.sugerido ?? 0) + (dia.arrastre?.[`${p.id}-${s.id}`] ?? 0);
     }
     const sinDecorar = Math.max(dia.sinDecorar[p.id] ?? 0, 0);
     resultado.set(p.id, {
@@ -134,7 +142,7 @@ export async function cargarSugeridosDelDia(
 ): Promise<SugeridosDelDia> {
   const dow = diaSemana(fecha);
 
-  const [productosRes, sucursalesRes, reglasRes, sugeridosRes, principalRes, cambiosRes] =
+  const [productosRes, sucursalesRes, reglasRes, sugeridosRes, principalRes, cambiosRes, arrastreRes] =
     await Promise.all([
       supabase
         .from("productos")
@@ -171,6 +179,11 @@ export async function cargarSugeridosDelDia(
         .select("producto_id, sucursal_id, cambio, pedido, mandar_override")
         .eq("fecha", fecha)
         .or("cambio.gt.0,pedido.gt.0,mandar_override.not.is.null"),
+      supabase
+        .from("no_enviados")
+        .select("producto_id, sucursal_id, cantidad, enviado_at")
+        .eq("fecha", diaProduccionAnterior(fecha))
+        .is("enviado_at", null),
     ]);
 
   const error =
@@ -179,7 +192,8 @@ export async function cargarSugeridosDelDia(
     reglasRes.error ??
     sugeridosRes.error ??
     principalRes.error ??
-    cambiosRes.error;
+    cambiosRes.error ??
+    arrastreRes.error;
   if (error) throw new Error(error.message);
 
   const objetivos = new Map<string, number>();
@@ -257,6 +271,7 @@ export async function cargarSugeridosDelDia(
     cambios,
     pedidos,
     mandarOverride,
+    arrastre: sumarArrastre(arrastreRes.data ?? []),
     saldoPrincipal,
     principalId,
   };

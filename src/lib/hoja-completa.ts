@@ -26,6 +26,8 @@ export type FilaHojaCompleta = {
     sugerido: number | null;
     /** Lo cambió administración (no es el pedido de la tienda). */
     ajustado: boolean;
+    /** Lo que no salió el día anterior y va incluido en `mandar`. */
+    arrastre: number;
   }[];
   saldo: number;
 };
@@ -41,7 +43,8 @@ export function filaHojaCompleta(
     | "mandarOverride"
     | "saldoPrincipal"
     | "principalId"
-  >,
+  > &
+    Partial<Pick<SugeridosDelDia, "arrastre">>,
   producto: { id: number; lleva_decoracion: boolean },
   tiendas: { id: number }[]
 ): FilaHojaCompleta {
@@ -60,10 +63,10 @@ export function filaHojaCompleta(
   const porTienda = tiendas.map((t) => {
     const clave = `${producto.id}-${t.id}`;
     const celda = dia.celdas[clave];
-    const { mandar, ajustado } = aMandar(dia, clave);
+    const { mandar, ajustado, arrastre } = aMandar(dia, clave);
     const cm = dia.cambios[clave] ?? null;
     saldo += (cm ?? 0) - (mandar ?? 0);
-    return { sucursalId: t.id, mandar, cm, sugerido: celda ? celda.sugerido : null, ajustado };
+    return { sucursalId: t.id, mandar, cm, sugerido: celda ? celda.sugerido : null, ajustado, arrastre };
   });
 
   return { deco, sinDeco, invTotal, tiendas: porTienda, saldo };
@@ -71,15 +74,24 @@ export function filaHojaCompleta(
 
 /**
  * Lo que se le manda a una tienda (clave `${productoId}-${sucursalId}`): el
- * ajuste del admin si hay; si no, el pedido de la tienda; sin pedido, nada.
+ * ajuste del admin si hay; si no, el pedido de la tienda más lo que no salió
+ * el día anterior; sin nada de eso, nada.
  */
 export function aMandar(
-  dia: Pick<SugeridosDelDia, "pedidos" | "mandarOverride">,
+  dia: Pick<SugeridosDelDia, "pedidos" | "mandarOverride"> & Partial<Pick<SugeridosDelDia, "arrastre">>,
   clave: string
-): { mandar: number | null; ajustado: boolean } {
+): { mandar: number | null; ajustado: boolean; arrastre: number } {
+  // Lo que no salió el día anterior se suma solo (19 nov). El ajuste del
+  // admin es el total final: ya lo incluye.
+  const arrastre = dia.arrastre?.[clave] ?? 0;
   const ajuste = dia.mandarOverride[clave];
-  if (ajuste !== undefined) return { mandar: ajuste, ajustado: true };
-  return { mandar: dia.pedidos[clave] ?? null, ajustado: false };
+  if (ajuste !== undefined) return { mandar: ajuste, ajustado: true, arrastre: 0 };
+  const pedido = dia.pedidos[clave] ?? null;
+  return {
+    mandar: pedido === null && arrastre === 0 ? null : (pedido ?? 0) + arrastre,
+    ajustado: false,
+    arrastre,
+  };
 }
 
 /** Secciones de masa que llevan fila de total al final (como en el Excel). */
@@ -105,6 +117,7 @@ export function sumarFilas(filas: FilaHojaCompleta[]): FilaHojaCompleta {
         cm: suma(total.tiendas[i]?.cm ?? null, t.cm),
         sugerido: suma(total.tiendas[i]?.sugerido ?? null, t.sugerido),
         ajustado: false,
+        arrastre: (total.tiendas[i]?.arrastre ?? 0) + t.arrastre,
       })),
       saldo: total.saldo + f.saldo,
     }),

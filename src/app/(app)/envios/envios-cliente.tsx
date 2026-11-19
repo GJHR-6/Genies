@@ -21,8 +21,8 @@ import { cn } from "@/lib/utils";
 export type TiendaEnvio = {
   id: number;
   nombre: string;
-  /** Lo que se le manda hoy (solo productos con algo). */
-  filas: { productoId: number; mandar: number }[];
+  /** Lo que se le manda hoy (solo productos con algo); incluye lo de ayer. */
+  filas: { productoId: number; mandar: number; arrastre: number }[];
 };
 
 type EstadoFila = "guardando" | "guardado" | "error";
@@ -31,6 +31,7 @@ const clave = (sucursalId: number, productoId: number) => `${sucursalId}-${produ
 
 export function EnviosCliente({
   fecha,
+  anterior,
   fechaLegible,
   tiendas,
   nombres,
@@ -38,6 +39,8 @@ export function EnviosCliente({
   registrosIniciales,
 }: {
   fecha: string;
+  /** Día con producción anterior: lo que no salió ahí se suma hoy. */
+  anterior: string;
   fechaLegible: string;
   tiendas: TiendaEnvio[];
   nombres: Record<number, string>;
@@ -66,10 +69,13 @@ export function EnviosCliente({
       ),
     [registros, fecha]
   );
-  const porTienda = useMemo(() => pendientesPorTienda(registros), [registros]);
-  const listaPendientes = useMemo(() => pendientes(registros), [registros]);
-  // Ya mandados (los de hoy y los que se marcaron en esta visita).
-  const mandadosHoy = registros.filter((r) => r.enviado_at !== null);
+  // Lo que no salió el día anterior: se suma a lo de hoy.
+  const deAyer = useMemo(() => registros.filter((r) => r.fecha === anterior), [registros, anterior]);
+  const porTienda = useMemo(() => pendientesPorTienda(deAyer), [deAyer]);
+  const listaPendientes = useMemo(() => pendientes(deAyer), [deAyer]);
+  // Los de ayer que sí salieron después (ya no se suman).
+  const mandadosHoy = deAyer.filter((r) => r.enviado_at !== null);
+  const cuando = cuandoFue(anterior, fecha);
   const nombre = (id: number) => nombres[id] ?? `Producto ${id}`;
 
   // Guardar la casilla "No se mandó" de hoy (vacío = se mandó todo).
@@ -168,13 +174,13 @@ export function EnviosCliente({
         }
       />
 
-      {/* Pendientes: lo que no salió y todavía no se mandó */}
+      {/* Lo que no salió el día anterior: hoy se suma solo a lo que se manda. */}
       <div className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold text-muted-foreground">
-          Pendiente de mandar
+          No salió {cuando}: se suma a lo de hoy
         </h2>
         {listaPendientes.length === 0 ? (
-          <Aviso tipo="exito">No hay nada pendiente: todo lo anotado ya se mandó.</Aviso>
+          <Aviso tipo="exito">Todo lo de {cuando} salió: hoy no se suma nada.</Aviso>
         ) : (
           <ul className="divide-y rounded-xl border bg-card">
             {listaPendientes.map((r) => (
@@ -182,7 +188,7 @@ export function EnviosCliente({
                 <span className="min-w-0 flex-1">
                   <span className="font-medium">{nombre(r.producto_id)}</span>
                   <span className="block text-xs text-muted-foreground">
-                    {nombresTienda[r.sucursal_id] ?? "Tienda"} · no salió {cuandoFue(r.fecha, fecha)}
+                    {nombresTienda[r.sucursal_id] ?? "Tienda"} · va incluido en «Mandar» de hoy
                   </span>
                 </span>
                 <span className="text-lg font-bold tabular-nums">{r.cantidad}</span>
@@ -192,7 +198,7 @@ export function EnviosCliente({
                   disabled={marcarEnviado.isPending}
                 >
                   <Check />
-                  Ya se mandó
+                  Sí salió {cuando}
                 </Button>
               </li>
             ))}
@@ -201,7 +207,7 @@ export function EnviosCliente({
         {mandadosHoy.length > 0 && (
           <details className="text-sm">
             <summary className="cursor-pointer text-muted-foreground">
-              Mandados después, hoy ({mandadosHoy.length})
+              Salieron {cuando} más tarde, no se suman ({mandadosHoy.length})
             </summary>
             <ul className="mt-2 divide-y rounded-xl border">
               {mandadosHoy.map((r) => (
@@ -233,7 +239,7 @@ export function EnviosCliente({
       {/* Despacho de hoy: por tienda, cuánto no salió */}
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-muted-foreground">
-          Despacho de hoy · escribí cuánto <strong>no</strong> se mandó (vacío = salió todo)
+          Despacho de hoy · escribí cuánto <strong>no</strong> se mandó (vacío = salió todo; se suma solo mañana)
         </h2>
         {tiendas.length === 0 ? (
           <Aviso tipo="info">Todavía no hay tiendas.</Aviso>
@@ -298,11 +304,16 @@ export function EnviosCliente({
                         <tr key={k} className="border-b last:border-b-0">
                           <td className="px-3 py-1.5">
                             <span className="font-medium">{nombre(f.productoId)}</span>
+                            {f.arrastre > 0 && (
+                              <span className="block text-xs text-muted-foreground">
+                                Incluye {f.arrastre} de {cuando}
+                              </span>
+                            )}
                             {estado === "error" && (
                               <span className="block text-xs text-destructive">No se pudo guardar</span>
                             )}
                             {estado === "guardado" && registro && !yaMandado && (
-                              <span className="block text-xs text-aviso">Pendiente ✓</span>
+                              <span className="block text-xs text-aviso">Se suma mañana ✓</span>
                             )}
                             {yaMandado && (
                               <span className="block text-xs text-exito">Se mandó después ✓</span>

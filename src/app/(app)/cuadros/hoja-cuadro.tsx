@@ -103,6 +103,8 @@ type Props = {
   pedidos: Record<string, number>;
   /** Ajustes del admin a lo que se manda a cada tienda. */
   mandarOverride: Record<string, number>;
+  /** Lo que no salió el día anterior (se suma a lo que se manda hoy). */
+  arrastre?: Record<string, number>;
 };
 
 /**
@@ -126,7 +128,7 @@ const CAMPO_NUMERO = "h-8 w-16 text-right tabular-nums";
  * Principal de hoy; lo de cada tienda es su sugerido (override). El SALDO
  * se recalcula al instante.
  */
-export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, principal, batidas, pedidos, mandarOverride: ajustesProp }: Props) {
+export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, principal, batidas, pedidos, mandarOverride: ajustesProp, arrastre = {} }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [celdas, setCeldas] = useState(celdasProp);
@@ -591,6 +593,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                     cambios,
                     pedidos,
                     mandarOverride,
+                    arrastre,
                     saldoPrincipal: principal.saldo,
                     principalId: principal.id,
                   },
@@ -1099,7 +1102,7 @@ function CeldaEnviar({
   etiqueta: string;
   className?: string;
 }) {
-  const { mandar, sugerido, ajustado } = tienda;
+  const { mandar, sugerido, ajustado, arrastre } = tienda;
   if (mandar === null && sugerido === null) {
     return (
       <td
@@ -1110,12 +1113,21 @@ function CeldaEnviar({
       </td>
     );
   }
-  const referencia =
-    sugerido === null ? null : (
-      <span className="block text-[11px] leading-tight text-muted-foreground print:hidden">
-        sug. {sugerido}
-      </span>
-    );
+  const referencia = (
+    <>
+      {/* Lo que no salió ayer: va incluido (también al imprimir). */}
+      {arrastre > 0 && (
+        <span className="block text-[11px] font-semibold leading-tight text-aviso print:text-black">
+          +{arrastre} de ayer
+        </span>
+      )}
+      {sugerido !== null && (
+        <span className="block text-[11px] leading-tight text-muted-foreground print:hidden">
+          sug. {sugerido}
+        </span>
+      )}
+    </>
+  );
   if (edicion?.tipo === "enviar" && edicion.clave === clave) {
     return (
       <td className={cn("px-1 py-0.5 text-right", className)}>
@@ -1137,7 +1149,15 @@ function CeldaEnviar({
         onClick={() =>
           setEdicion({ tipo: "enviar", clave, valor: ajustado && mandar !== null ? String(mandar) : "" })
         }
-        title={ajustado ? "Cambiado por administración" : mandar === null ? "La tienda no pidió" : "Pedido de la tienda"}
+        title={
+          ajustado
+            ? "Cambiado por administración"
+            : mandar === null
+              ? "La tienda no pidió"
+              : arrastre > 0
+                ? `Pedido de la tienda + ${arrastre} que no salieron ayer`
+                : "Pedido de la tienda"
+        }
         className={cn(BOTON_CELDA, ajustado && "font-semibold text-primary")}
         aria-label={`${etiqueta}: ${mandar ?? "sin pedido"}${ajustado ? " (ajustado)" : ""}${
           sugerido !== null ? `, sugerido ${sugerido}` : ""

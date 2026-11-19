@@ -11,6 +11,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
+import { diaProduccionAnterior } from "@/lib/no-enviados";
 import { colorDelDia } from "@/lib/color-dia";
 import { GRUPO_HOY, type ClaveHoy } from "@/lib/grupos";
 import { pasoDelDia, saludo } from "@/lib/paso-del-dia";
@@ -38,7 +39,12 @@ export default async function HoyPage() {
       .select("id", { count: "exact", head: true })
       .eq("fecha", fecha)
       .not("sugerido_override", "is", null),
-    supabase.from("no_enviados").select("sucursal_id").is("enviado_at", null),
+    // Lo que no salió el día anterior: se suma a lo que se manda hoy.
+    supabase
+      .from("no_enviados")
+      .select("sucursal_id")
+      .eq("fecha", diaProduccionAnterior(fecha))
+      .is("enviado_at", null),
   ]);
 
   const tiendasTotal = sucursales.count ?? 0;
@@ -140,12 +146,12 @@ export default async function HoyPage() {
   );
 }
 
-/** Tarjeta "Lo que no se mandó": cuántos productos quedaron pendientes. */
+/** Tarjeta "Lo que no se mandó": lo del día anterior que se suma hoy. */
 function estadoEnvios(pendientes: { sucursal_id: number }[]): EstadoTarjeta {
-  if (pendientes.length === 0) return { texto: "Nada pendiente", tono: "exito" };
+  if (pendientes.length === 0) return { texto: "Nada de ayer por sumar", tono: "exito" };
   const tiendas = new Set(pendientes.map((p) => p.sucursal_id)).size;
   return {
-    texto: `${pendientes.length} ${pendientes.length === 1 ? "producto pendiente" : "productos pendientes"} en ${tiendas} ${tiendas === 1 ? "tienda" : "tiendas"}`,
+    texto: `${pendientes.length} ${pendientes.length === 1 ? "producto" : "productos"} de ayer se suman hoy (${tiendas} ${tiendas === 1 ? "tienda" : "tiendas"})`,
     tono: "aviso",
   };
 }

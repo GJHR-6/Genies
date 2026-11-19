@@ -13,14 +13,13 @@ import { Aviso } from "@/components/encabezado-seccion";
 import { ordenarProductos } from "@/lib/orden-productos";
 import { aMandar } from "@/lib/hoja-completa";
 import { BotonImprimir } from "../boton-imprimir";
-import { cuandoFue, DIAS_PENDIENTES } from "@/lib/no-enviados";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Hojas de despacho (reunión 16 oct 2026): una hoja por tienda con lo que
- * le toca y su saldo, para tachar lo enviado; abajo, lo que quedó pendiente
- * de días anteriores. La "hoja completa" (INVENTARIO DIARIO) se quitó el
+ * le toca y su saldo, para tachar lo enviado. Lo que no salió el día
+ * anterior ya va sumado en «Mandar» (19 nov). La "hoja completa" (INVENTARIO DIARIO) se quitó el
  * 16 nov: era lo mismo que el cuadro completo de /cuadros, que se imprime
  * solo con "Cuadro completo".
  */
@@ -45,24 +44,8 @@ export default async function DespachoPage({
   }
 
   let dia: SugeridosDelDia;
-  let pendientes: { id: number; fecha: string; sucursal_id: number; producto_id: number; cantidad: number }[];
-  const desde = new Date(`${fecha}T12:00:00Z`);
-  desde.setUTCDate(desde.getUTCDate() - DIAS_PENDIENTES);
   try {
-    const [d, pendientesRes] = await Promise.all([
-      cargarSugeridosDelDia(supabase, fecha),
-      // Lo que no salió días anteriores y sigue pendiente (va en la hoja de la tienda).
-      supabase
-        .from("no_enviados")
-        .select("id, fecha, sucursal_id, producto_id, cantidad")
-        .is("enviado_at", null)
-        .lt("fecha", fecha)
-        .gte("fecha", desde.toISOString().slice(0, 10))
-        .order("fecha"),
-    ]);
-    if (pendientesRes.error) throw new Error(pendientesRes.error.message);
-    dia = d;
-    pendientes = pendientesRes.data ?? [];
+    dia = await cargarSugeridosDelDia(supabase, fecha);
   } catch {
     return (
       <section className="flex flex-col gap-4">
@@ -99,8 +82,7 @@ export default async function DespachoPage({
 
       {sucursales.map((s) => {
         const suyos = productos.filter((p) => pedido(p.id, s.id) > 0);
-        const deAntes = pendientes.filter((n) => n.sucursal_id === s.id);
-        if (suyos.length === 0 && deAntes.length === 0) return null;
+        if (suyos.length === 0) return null;
         return (
           <article
             key={s.id}
@@ -109,7 +91,7 @@ export default async function DespachoPage({
             <EncabezadoHoja
               titulo={`Despacho — ${s.nombre}`}
               fecha={fecha}
-              nota="Marcá lo que se mandó. Lo que no salió se anota solo en el sistema (Hoy → Lo que no se mandó), no en esta hoja: así queda pendiente y no se manda doble. Saldo = lo que la tienda tenía en su inventario de hoy."
+              nota="Marcá lo que se mandó. «Mandar» ya incluye lo que no salió ayer. Lo que no salga hoy se anota en el sistema (Hoy → Lo que no se mandó) y se suma solo a mañana. Saldo = lo que la tienda tenía en su inventario de hoy."
             />
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -126,7 +108,14 @@ export default async function DespachoPage({
                     key={p.id}
                     className="border-b border-border/60 print:border-black/40"
                   >
-                    <td className="py-1.5 pr-2 font-medium">{nombre(p)}</td>
+                    <td className="py-1.5 pr-2 font-medium">
+                      {nombre(p)}
+                      {(dia.arrastre[`${p.id}-${s.id}`] ?? 0) > 0 && s.id !== dia.principalId && (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground print:text-black/70">
+                          (incluye {dia.arrastre[`${p.id}-${s.id}`]} de ayer)
+                        </span>
+                      )}
+                    </td>
                     <td className="px-2 py-1.5 text-right tabular-nums">
                       {celdas[`${p.id}-${s.id}`]?.saldo ?? "—"}
                     </td>
@@ -148,34 +137,6 @@ export default async function DespachoPage({
                 </tr>
               </tfoot>
             </table>
-            {deAntes.length > 0 && (
-              <div className="mt-4">
-                <h3 className="mb-1 text-sm font-bold">
-                  Pendiente de días anteriores (no se mandó)
-                </h3>
-                <table className="w-full border-collapse text-sm">
-                  <tbody>
-                    {deAntes.map((n) => {
-                      const prod = todos.find((p) => p.id === n.producto_id);
-                      return (
-                        <tr key={n.id} className="border-b border-border/60 print:border-black/40">
-                          <td className="py-1.5 pr-2 font-medium">
-                            {prod ? nombre(prod) : `Producto ${n.producto_id}`}
-                            <span className="ml-2 text-xs text-muted-foreground print:text-black/60">
-                              {cuandoFue(n.fecha, fecha)}
-                            </span>
-                          </td>
-                          <td className="w-20 px-2 py-1.5 text-right text-base font-bold tabular-nums">
-                            {n.cantidad}
-                          </td>
-                          <td className="w-20 px-2 py-1.5 text-center">☐</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
             <Firmas />
           </article>
         );
