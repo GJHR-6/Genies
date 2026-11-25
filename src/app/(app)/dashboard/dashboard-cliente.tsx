@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -10,6 +9,8 @@ import {
   type SucursalBase,
 } from "@/lib/resumen-dia";
 import { ChipColorDia } from "@/components/color-dia";
+import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
+import { GRUPO_HOY } from "@/lib/grupos";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,9 +22,13 @@ import {
 } from "@/components/ui/dialog";
 
 const ESTILO_ESTADO = {
-  cerrado: { texto: "Completo ✓", clase: "bg-[#2E7D32]/10 text-[#2E7D32]" },
-  en_captura: { texto: "En captura ⟳", clase: "bg-[#B45309]/10 text-[#B45309]" },
-  sin_iniciar: { texto: "Sin iniciar", clase: "bg-muted text-muted-foreground" },
+  cerrado: { texto: "Terminó ✓", clase: "bg-exito/10 text-exito", barra: "bg-exito" },
+  en_captura: { texto: "Contando…", clase: "bg-aviso/10 text-aviso", barra: "bg-aviso" },
+  sin_iniciar: {
+    texto: "No ha empezado",
+    clase: "bg-muted text-muted-foreground",
+    barra: "bg-muted-foreground/30",
+  },
 } as const;
 
 function horaTegucigalpa(iso: string): string {
@@ -153,57 +158,64 @@ export function DashboardCliente({
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">Dashboard</h1>
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-            <span>{fechaLegible}</span>
+      <EncabezadoSeccion
+        grupo={GRUPO_HOY}
+        actual="tiendas"
+        detalle={
+          <>
+            <span className="first-letter:uppercase">{fechaLegible}</span>
             <ChipColorDia fecha={fecha} />
-          </p>
-        </div>
-        <Link
-          href="/sugeridos"
-          className="text-sm font-medium text-[#1F4E79] underline-offset-4 hover:underline"
-        >
-          Ver sugeridos →
-        </Link>
-      </div>
+            <span>· Se actualiza sola</span>
+          </>
+        }
+      />
 
-      {todasCerradas && (
-        <Link
-          href="/sugeridos"
-          className="rounded-lg bg-[#1F4E79] px-4 py-3 text-center text-base font-semibold text-white hover:bg-[#1F4E79]/90"
-        >
-          Generar cuadros de producción →
-        </Link>
+      {todasCerradas ? (
+        <Aviso tipo="exito">
+          Todas las tiendas terminaron su inventario. Los sugeridos y los cuadros
+          ya están completos.
+        </Aviso>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Si una tienda ya no va a cambiar nada pero olvidó terminar, podés
+          cerrarle el día vos con su botón.
+        </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {resumen.map((s) => {
           const estilo = ESTILO_ESTADO[s.estado];
           return (
-            <div key={s.id} className="rounded-lg border bg-card p-4 shadow-xs">
+            <div key={s.id} className="flex flex-col rounded-2xl border bg-card p-4 shadow-xs">
               <div className="flex items-start justify-between gap-2">
-                <h2 className="font-semibold">{s.nombre}</h2>
+                <h2 className="text-lg font-semibold">{s.nombre}</h2>
                 <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${estilo.clase}`}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${estilo.clase}`}
                 >
                   {estilo.texto}
                 </span>
               </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full transition-all ${estilo.barra}`}
+                  style={{
+                    width: `${totalProductos ? Math.min(100, Math.round((s.capturados / totalProductos) * 100)) : 0}%`,
+                  }}
+                />
+              </div>
               <p className="mt-2 text-sm tabular-nums text-muted-foreground">
-                {s.capturados}/{totalProductos} productos
+                {s.capturados} de {totalProductos} productos contados
               </p>
               <p className="text-sm text-muted-foreground">
                 {s.ultimoRegistro
-                  ? `Último registro: ${horaTegucigalpa(s.ultimoRegistro)}`
-                  : "Sin registros hoy"}
+                  ? `Último cambio: ${horaTegucigalpa(s.ultimoRegistro)}`
+                  : "Todavía no ha anotado nada hoy"}
               </p>
-              <div className="mt-3">
+              <div className="mt-auto pt-3">
                 {s.estado === "cerrado" ? (
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="lg"
                     onClick={() =>
                       mutacionEstado.mutate({
                         sucursalId: s.id,
@@ -212,16 +224,16 @@ export function DashboardCliente({
                     }
                     disabled={mutacionEstado.isPending}
                   >
-                    Reabrir día
+                    Volver a abrir
                   </Button>
                 ) : (
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="lg"
                     onClick={() => setSucursalACerrar(s)}
                     disabled={mutacionEstado.isPending}
                   >
-                    Cerrar día
+                    Cerrar el día
                   </Button>
                 )}
               </div>
@@ -241,11 +253,12 @@ export function DashboardCliente({
             <DialogTitle>¿Cerrar el día de {sucursalACerrar?.nombre}?</DialogTitle>
             <DialogDescription>
               Lleva {sucursalACerrar?.capturados ?? 0} de {totalProductos}{" "}
-              productos con captura. La tienda quedará en modo lectura.
+              productos contados. Después de cerrar, la tienda ya no podrá
+              cambiar números (podés volver a abrirlo si hace falta).
             </DialogDescription>
           </DialogHeader>
           {mutacionEstado.isError && (
-            <p className="text-sm text-[#B3261E]">
+            <p className="text-sm text-destructive">
               No se pudo cerrar el día. Intentá de nuevo.
             </p>
           )}
@@ -258,7 +271,6 @@ export function DashboardCliente({
               Cancelar
             </Button>
             <Button
-              className="bg-[#1F4E79] hover:bg-[#1F4E79]/90"
               onClick={() =>
                 sucursalACerrar &&
                 mutacionEstado.mutate({

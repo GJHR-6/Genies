@@ -21,25 +21,180 @@ export type Database = {
         Row: {
           activa: boolean
           encargadas: string
+          es_decoracion: boolean
           id: number
           nombre: string
           orden: number
+          trabajo_en_equipo: boolean
         }
         Insert: {
           activa?: boolean
           encargadas: string
+          es_decoracion?: boolean
           id?: never
           nombre: string
           orden: number
+          trabajo_en_equipo?: boolean
         }
         Update: {
           activa?: boolean
           encargadas?: string
+          es_decoracion?: boolean
           id?: never
           nombre?: string
           orden?: number
+          trabajo_en_equipo?: boolean
         }
         Relationships: []
+      }
+      asignaciones: {
+        Row: {
+          cantidad: number
+          cantidad_hecha: number
+          estado: string
+          fecha: string
+          id: number
+          pastelera_id: number | null
+          producto_id: number
+          tanda: number
+          tipo: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cantidad: number
+          cantidad_hecha?: number
+          estado?: string
+          fecha: string
+          id?: never
+          pastelera_id?: number | null
+          producto_id: number
+          tanda?: number
+          tipo: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cantidad?: number
+          cantidad_hecha?: number
+          estado?: string
+          fecha?: string
+          id?: never
+          pastelera_id?: number | null
+          producto_id?: number
+          tanda?: number
+          tipo?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignaciones_pastelera_id_fkey"
+            columns: ["pastelera_id"]
+            isOneToOne: false
+            referencedRelation: "pasteleras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignaciones_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      batidas_ajuste: {
+        Row: {
+          cantidad: number
+          fecha: string
+          id: number
+          producto_id: number
+          tanda: number
+          tipo: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cantidad: number
+          fecha: string
+          id?: never
+          producto_id: number
+          tanda: number
+          tipo: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cantidad?: number
+          fecha?: string
+          id?: never
+          producto_id?: number
+          tanda?: number
+          tipo?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batidas_ajuste_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      no_enviados: {
+        Row: {
+          cantidad: number
+          enviado_at: string | null
+          enviado_by: string | null
+          fecha: string
+          id: number
+          producto_id: number
+          sucursal_id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cantidad: number
+          enviado_at?: string | null
+          enviado_by?: string | null
+          fecha: string
+          id?: never
+          producto_id: number
+          sucursal_id: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cantidad?: number
+          enviado_at?: string | null
+          enviado_by?: string | null
+          fecha?: string
+          id?: never
+          producto_id?: number
+          sucursal_id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "no_enviados_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "no_enviados_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cierres_dia: {
         Row: {
@@ -93,12 +248,19 @@ export type Database = {
       }
       movimientos_diarios: {
         Row: {
+          cambio: number
           decorado: number
           devolucion: number
           fecha: string
           id: number
           ingreso: number
+          mandar_override: number | null
+          nota: string | null
+          ingreso_anterior: Json | null
+          devolucion_anterior: Json | null
+          cambio_anterior: Json | null
           pedido: number
+          restante: number | null
           producto_id: number
           saldo_final: number | null
           saldo_inicial: number
@@ -109,12 +271,19 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          cambio?: number
           decorado?: number
           devolucion?: number
           fecha: string
           id?: never
           ingreso?: number
+          mandar_override?: number | null
+          nota?: string | null
+          ingreso_anterior?: Json | null
+          devolucion_anterior?: Json | null
+          cambio_anterior?: Json | null
           pedido?: number
+          restante?: number | null
           producto_id: number
           saldo_final?: number | null
           saldo_inicial?: number
@@ -125,12 +294,19 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          cambio?: number
           decorado?: number
           devolucion?: number
           fecha?: string
           id?: never
           ingreso?: number
+          mandar_override?: number | null
+          nota?: string | null
+          ingreso_anterior?: Json | null
+          devolucion_anterior?: Json | null
+          cambio_anterior?: Json | null
           pedido?: number
+          restante?: number | null
           producto_id?: number
           saldo_final?: number | null
           saldo_inicial?: number
@@ -156,6 +332,68 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pasteleras: {
+        Row: {
+          activa: boolean
+          area_id: number
+          id: number
+          nombre: string
+          orden: number
+          porcentaje: number
+          requiere_pin: boolean
+        }
+        Insert: {
+          activa?: boolean
+          area_id: number
+          id?: never
+          nombre: string
+          orden?: number
+          porcentaje?: number
+          requiere_pin?: boolean
+        }
+        Update: {
+          activa?: boolean
+          area_id?: number
+          id?: never
+          nombre?: string
+          orden?: number
+          porcentaje?: number
+          requiere_pin?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pasteleras_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "areas_produccion"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planes_dia: {
+        Row: {
+          estado: string
+          fecha: string
+          generado_at: string | null
+          publicado_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          estado?: string
+          fecha: string
+          generado_at?: string | null
+          publicado_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          estado?: string
+          fecha?: string
+          generado_at?: string | null
+          publicado_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       perfiles: {
         Row: {
@@ -190,35 +428,47 @@ export type Database = {
         Row: {
           activo: boolean
           area_id: number | null
+          area_decoracion_id: number | null
           categoria: string | null
           departamento_id: number | null
           id: number
           lleva_decoracion: boolean
+          libras: number | null
           nombre: string
+          orden: number | null
           orden_area: number | null
           tamano: string | null
+          temporada: boolean
         }
         Insert: {
           activo?: boolean
           area_id?: number | null
+          area_decoracion_id?: number | null
           categoria?: string | null
           departamento_id?: number | null
           id?: never
           lleva_decoracion?: boolean
+          libras?: number | null
           nombre: string
+          orden?: number | null
           orden_area?: number | null
           tamano?: string | null
+          temporada?: boolean
         }
         Update: {
           activo?: boolean
           area_id?: number | null
+          area_decoracion_id?: number | null
           categoria?: string | null
           departamento_id?: number | null
           id?: never
           lleva_decoracion?: boolean
+          libras?: number | null
           nombre?: string
+          orden?: number | null
           orden_area?: number | null
           tamano?: string | null
+          temporada?: boolean
         }
         Relationships: [
           {
@@ -397,7 +647,52 @@ export type Database = {
       }
     }
     Functions: {
+      saldo_anterior: {
+        Args: { p_fecha: string; p_producto: number; p_sucursal: number }
+        Returns: number
+      }
+      saldos_anteriores: {
+        Args: { p_fecha: string; p_sucursal: number }
+        Returns: {
+          producto_id: number
+          saldo: number
+        }[]
+      }
+      admin_usuarios: {
+        Args: never
+        Returns: {
+          creado: string
+          email: string
+          nombre: string | null
+          rol: Database["public"]["Enums"]["rol_usuario"] | null
+          sucursal_id: number | null
+          ultimo_ingreso: string | null
+          user_id: string
+        }[]
+      }
       es_admin: { Args: never; Returns: boolean }
+      fijar_pin_pastelera: {
+        Args: { p_pastelera: number; p_pin: string }
+        Returns: undefined
+      }
+      reemplazar_asignaciones: {
+        Args: { p_fecha: string; p_filas: Json }
+        Returns: number
+      }
+      registrar_avance: {
+        Args: {
+          p_asignacion: number
+          p_estado?: string
+          p_hecha: number
+          p_pastelera?: number
+          p_pin: string
+        }
+        Returns: Database["public"]["Tables"]["asignaciones"]["Row"]
+      }
+      verificar_pin_pastelera: {
+        Args: { p_pastelera: number; p_pin: string }
+        Returns: boolean
+      }
       rol_actual: {
         Args: never
         Returns: Database["public"]["Enums"]["rol_usuario"]

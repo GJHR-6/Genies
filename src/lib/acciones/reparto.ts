@@ -1,0 +1,105 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { obtenerPerfil } from "@/lib/supabase/perfil";
+import { hoyTegucigalpa } from "@/lib/fechas";
+import { cargarSugeridosDelDia, totalesPorProducto } from "@/lib/sugeridos";
+import { generarReparto } from "@/lib/reparto";
+import { prodEscritoPorBatida } from "@/lib/batidas";
+import {
+  COLUMNAS_PASTELERA,
+  aPastelera,
+  idsAreasEnEquipo,
+} from "@/lib/asignaciones";
+import { colorDelDia } from "@/lib/color-dia";
+
+export type ResultadoAccion =
+  | { ok: true; mensaje: string }
+  | { ok: false; mensaje: string };
+
+async function exigirAdmin(): Promise<ResultadoAccion | null> {
+  const perfil = await obtenerPerfil();
+  if (perfil?.rol !== "admin") {
+    return { ok: false, mensaje: "Solo administración puede hacer esto." };
+  }
+  return null;
+}
+
+/**
+ * Genera el reparto de hoy desde los sugeridos (mismos números que el
+ * cuadro: «A producir» y «Decorar») y los porcentajes fijos de cada pastelera. Reemplaza el reparto
+ * anterior.
+ */
+export async function generarRepartoDelDia(): Promise<ResultadoAccion> {
+  const sinPermiso = await exigirAdmin();
+  if (sinPermiso) return sinPermiso;
+
+  const fecha = hoyTegucigalpa();
+  if (!colorDelDia(fecha)) {
+    return { ok: false, mensaje: "Hoy es domingo: no hay producción." };
+  }
+
+  const supabase = await createClient();
+  try {
+    const [dia, pastelerasRes, areasRes, ajustesRes] = await Promise.all([
+      cargarSugeridosDelDia(supabase, fecha),
+      supabase.from("pasteleras").select(COLUMNAS_PASTELERA),
+      supabase
+        .from("areas_produccion")
+        .select("id, es_decoracion, activa, trabajo_en_equipo"),
+      // PROD escrito por batida en el cuadro completo: manda sobre el total.
+      supabase
+        .from("batidas_ajuste")
+        .select("producto_id, tipo, tanda, cantidad")
+        .eq("fecha", fecha)
+        .eq("tipo", "produccion"),
+    ]);
+    if (pastelerasRes.error) throw new Error(pastelerasRes.error.message);
+    if (ajustesRes.error) throw new Error(ajustesRes.error.message);
+    if (areasRes.error) throw new Error(areasRes.error.message);
+
+    // Producción = suma de sugeridos menos lo que ya está sin decorar en
+    // Principal; decoración = suma de sugeridos (igual que el cuadro).
+    const totalesDia = totalesPorProducto(dia);
+    const totales = new Map<number, number>();
+    const totalesDecoracion = new Map<number, number>();
+    for (const [id, t] of totalesDia) {
+      if (t.aProducir > 0) totales.set(id, t.aProducir);
+      if (t.aDecorar > 0) totalesDecoracion.set(id, t.aDecorar);
+    }
+
+    const areaDecoracion =
+      (areasRes.data ?? []).find((a) => a.es_decoracion && a.activa) ?? null;
+
+    const filas = generarReparto({
+      fecha,
+      productos: dia.productos,
+      totales,
+      totalesDecoracion,
+      pasteleras: (pastelerasRes.data ?? []).map(aPastelera),
+      areaDecoracionId: areaDecoracion?.id ?? null,
+      areasEnEquipo: idsAreasEnEquipo(areasRes.data ?? []),
+      prodPorBatida: prodEscritoPorBatida(
+        (ajustesRes.data ?? []).map((x) => ({ ...x, tipo: "produccion" as const }))
+      ),
+    });
+
+    const { data, error } = await supabase.rpc("reemplazar_asignaciones", {
+      p_fecha: fecha,
+      p_filas: filas,
+    });
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/asignar");
+    return {
+      ok: true,
+      mensaje: `Listo: se repartieron ${data ?? filas.length} trabajos. Revisalo y tocá «Imprimir hojas».`,
+    };
+  } catch {
+    return {
+      ok: false,
+      mensaje: "No se pudo hacer el reparto. Revisá que haya internet e intentá de nuevo.",
+    };
+  }
+}

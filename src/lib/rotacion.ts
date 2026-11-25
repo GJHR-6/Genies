@@ -7,6 +7,7 @@
  */
 
 import { diaAnterior } from "./fechas";
+import { diaSemana } from "./sugeridos";
 
 export type IngresoDia = { fecha: string; ingreso: number };
 
@@ -68,6 +69,49 @@ export function estimarLotes(
     });
   }
   return lotes;
+}
+
+/**
+ * Días de producción anteriores a `fecha` (sin domingos), del más reciente
+ * al más viejo: los que la tienda puede elegir cuando parte del ingreso de
+ * hoy es de otro día.
+ */
+export function diasProduccionAnteriores(fecha: string, cuantos = 3): string[] {
+  const dias: string[] = [];
+  let f = fecha;
+  while (dias.length < cuantos) {
+    f = diaAnterior(f);
+    if (diaSemana(f) !== 0) dias.push(f);
+  }
+  return dias;
+}
+
+/** Ingreso de días anteriores: fecha de producción → unidades. */
+export type IngresoAnterior = Record<string, number>;
+
+/**
+ * Reparte el ingreso de un día por fecha de producción: lo que la tienda
+ * dijo que es de días anteriores va a esos días (sin pasarse del ingreso,
+ * empezando por lo más viejo) y el resto queda en `fecha`.
+ */
+export function ingresoPorProduccion(
+  fecha: string,
+  ingreso: number,
+  anterior: IngresoAnterior | null | undefined
+): IngresoDia[] {
+  const resultado: IngresoDia[] = [];
+  let restante = Math.max(ingreso, 0);
+  const previos = Object.entries(anterior ?? {})
+    .filter(([f, n]) => f < fecha && Number.isFinite(n) && n > 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+  for (const [f, n] of previos) {
+    const unidades = Math.min(Math.floor(n), restante);
+    if (unidades <= 0) break;
+    resultado.push({ fecha: f, ingreso: unidades });
+    restante -= unidades;
+  }
+  if (restante > 0) resultado.push({ fecha, ingreso: restante });
+  return resultado;
 }
 
 /** Lotes con edad de alerta (prioridad o regresar), del más viejo al más nuevo. */

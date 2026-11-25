@@ -1,0 +1,218 @@
+import { describe, expect, it } from "vitest";
+import {
+  batidasDelCuadro,
+  batidasUsadas,
+  formatoLibras,
+  formatoTandas,
+  librasPorBatida,
+  tandasPorProducto,
+} from "./batidas";
+import { prodAutomatico, prodEscritoPorBatida } from "./batidas";
+
+describe("formatoTandas", () => {
+  it("separa las batidas con * como el Excel", () => {
+    expect(formatoTandas([39, 2, 0, 0])).toBe("39*2");
+    expect(formatoTandas([0, 10, 0, 0])).toBe("0*10");
+    expect(formatoTandas([10, 0, 5, 0])).toBe("10*0*5");
+  });
+  it("una sola batida sin *", () => {
+    expect(formatoTandas([4, 0, 0, 0])).toBe("4");
+  });
+  it("vacío si no hay nada", () => {
+    expect(formatoTandas([0, 0, 0, 0])).toBe("");
+  });
+});
+
+describe("tandasPorProducto", () => {
+  it("suma las pasteleras y separa por tipo", () => {
+    const m = tandasPorProducto(
+      [
+        { producto_id: 1, tipo: "produccion", tanda: 1, cantidad: 6 },
+        { producto_id: 1, tipo: "produccion", tanda: 1, cantidad: 4 },
+        { producto_id: 1, tipo: "produccion", tanda: 2, cantidad: 20 },
+        { producto_id: 1, tipo: "decoracion", tanda: 1, cantidad: 39 },
+      ],
+      "produccion"
+    );
+    expect(m.get(1)).toEqual([10, 20, 0, 0]);
+  });
+});
+
+describe("librasPorBatida", () => {
+  const productos = [
+    { id: 1, categoria: "VAINILLA", libras: 1.75 },
+    { id: 2, categoria: "VAINILLA", libras: 2.5 },
+    { id: 3, categoria: "CHOCOLATE", libras: 2 },
+    { id: 4, categoria: "QUEQUITOS", libras: null },
+  ];
+
+  it("suma libras por masa y por tanda, solo producción", () => {
+    const r = librasPorBatida(
+      [
+        { producto_id: 1, tipo: "produccion", tanda: 1, cantidad: 20 },
+        { producto_id: 2, tipo: "produccion", tanda: 1, cantidad: 10 },
+        { producto_id: 2, tipo: "produccion", tanda: 2, cantidad: 4 },
+        { producto_id: 1, tipo: "decoracion", tanda: 1, cantidad: 99 },
+        { producto_id: 4, tipo: "produccion", tanda: 1, cantidad: 50 },
+      ],
+      productos
+    );
+    expect(r).toEqual([
+      { masa: "VAINILLA", libras: [60, 10, 0, 0], excedidas: [] },
+      { masa: "CHOCOLATE", libras: [0, 0, 0, 0], excedidas: [] },
+    ]);
+  });
+
+  it("marca las batidas que pasan de 100 lb", () => {
+    const r = librasPorBatida(
+      [
+        { producto_id: 1, tipo: "produccion", tanda: 1, cantidad: 40 },
+        { producto_id: 2, tipo: "produccion", tanda: 1, cantidad: 13 },
+        { producto_id: 1, tipo: "produccion", tanda: 3, cantidad: 57 },
+      ],
+      productos
+    );
+    // T1: 40×1.75 + 13×2.5 = 102.5 · T3: 57×1.75 = 99.75
+    expect(r[0]).toEqual({
+      masa: "VAINILLA",
+      libras: [102.5, 0, 99.75, 0],
+      excedidas: [1],
+    });
+  });
+
+  it("exactamente 100 lb no se pasa", () => {
+    const r = librasPorBatida(
+      [{ producto_id: 3, tipo: "produccion", tanda: 2, cantidad: 50 }],
+      productos
+    );
+    expect(r.find((m) => m.masa === "CHOCOLATE")?.excedidas).toEqual([]);
+  });
+});
+
+describe("formatoLibras", () => {
+  it("agrega lb y redondea a un decimal", () => {
+    expect(formatoLibras([84, 60.25, 0, 0])).toBe("84*60.3 lb");
+    expect(formatoLibras([0, 0, 0, 0])).toBe("");
+  });
+});
+
+describe("batidasDelCuadro", () => {
+  const productos = [
+    { id: 1, lleva_decoracion: true },
+    { id: 2, lleva_decoracion: false },
+  ];
+  const prodAutomatico = new Map([
+    [1, [20, 5, 0, 0]],
+    [2, [8, 0, 0, 0]],
+  ]);
+
+  it("DEC 1 = sin decorar, DEC 2 = lo que se hornea (si lleva decoración)", () => {
+    const r = batidasDelCuadro({ productos, prodAutomatico, sinDecorar: { 1: 7, 2: 3 }, ajustes: [] });
+    expect(r.dec.get(1)).toEqual([7, 25, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.dec.get(2)).toEqual([3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.prod.get(1)).toEqual([20, 5, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it("lo escrito a mano manda; DEC 2 usa el PROD ajustado", () => {
+    const r = batidasDelCuadro({
+      productos,
+      prodAutomatico,
+      sinDecorar: {},
+      ajustes: [
+        { producto_id: 1, tipo: "produccion", tanda: 2, cantidad: 10 },
+        { producto_id: 2, tipo: "decoracion", tanda: 3, cantidad: 4 },
+      ],
+    });
+    expect(r.prod.get(1)).toEqual([20, 10, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.dec.get(1)).toEqual([0, 30, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.dec.get(2)).toEqual([0, 0, 4, 0, 0, 0, 0, 0, 0, 0]);
+    expect(r.ajustadas.has("1-produccion-2")).toBe(true);
+  });
+
+  it("un 0 escrito a mano borra lo automático", () => {
+    const r = batidasDelCuadro({
+      productos,
+      prodAutomatico,
+      sinDecorar: { 1: 7 },
+      ajustes: [
+        { producto_id: 1, tipo: "decoracion", tanda: 1, cantidad: 0 },
+        { producto_id: 1, tipo: "decoracion", tanda: 2, cantidad: 0 },
+      ],
+    });
+    expect(r.dec.has(1)).toBe(false);
+  });
+});
+
+describe("hasta 10 batidas", () => {
+  it("una batida escrita a mano después de la 4 se suma a DEC 2", () => {
+    const r = batidasDelCuadro({
+      productos: [{ id: 1, lleva_decoracion: true }],
+      prodAutomatico: new Map([[1, [10, 0, 0, 0]]]),
+      sinDecorar: {},
+      ajustes: [{ producto_id: 1, tipo: "produccion", tanda: 9, cantidad: 6 }],
+    });
+    expect(r.prod.get(1)?.[8]).toBe(6);
+    expect(r.dec.get(1)?.[1]).toBe(16);
+    expect(batidasUsadas(r.dec, r.prod)).toBe(9);
+  });
+
+  it("sin nada, se usa 1 batida", () => {
+    expect(batidasUsadas(new Map(), new Map())).toBe(1);
+  });
+});
+
+describe("prodEscritoPorBatida", () => {
+  it("solo PROD, por batida, de los productos con algo escrito", () => {
+    const m = prodEscritoPorBatida([
+      { producto_id: 8, tipo: "produccion", tanda: 1, cantidad: 15 },
+      { producto_id: 8, tipo: "produccion", tanda: 2, cantidad: 12 },
+      { producto_id: 8, tipo: "decoracion", tanda: 1, cantidad: 16 },
+      { producto_id: 9, tipo: "decoracion", tanda: 1, cantidad: 3 },
+    ]);
+    expect(m.get(8)?.slice(0, 3)).toEqual([15, 12, 0]);
+    expect(m.has(9)).toBe(false);
+  });
+});
+
+describe("prodAutomatico", () => {
+  const prod = (id: number, area_id: number | null) => ({
+    id,
+    nombre: `P${id}`,
+    tamano: null,
+    categoria: null,
+    departamento_id: null,
+    area_id,
+    area_decoracion_id: null,
+    orden_area: null,
+    orden: id,
+    lleva_decoracion: false,
+  });
+  const celda = (sugerido: number) => ({ objetivo: sugerido, saldo: 0, sugerido, esOverride: false, conCaptura: true });
+
+  it("lo que hay que producir (sugeridos − sin decorar) va en la batida 1; lo de Decoración no se produce", () => {
+    const resultado = prodAutomatico(
+      {
+        productos: [prod(1, 1), prod(2, 9), prod(3, 1)],
+        sucursales: [{ id: 10, nombre: "A" }, { id: 11, nombre: "B" }],
+        celdas: { "1-10": celda(5), "1-11": celda(7), "2-10": celda(4), "3-10": celda(2) },
+        sinDecorar: { 1: 3, 3: 5 },
+      },
+      9
+    );
+    expect(resultado).toEqual(new Map([[1, [9]]]));
+  });
+
+  it("las porciones no se producen (se cortan de pasteles completos)", () => {
+    const porcion = { ...prod(4, 1), nombre: "Porciones VAINILLA" };
+    const resultado = prodAutomatico(
+      {
+        productos: [porcion],
+        sucursales: [{ id: 10, nombre: "A" }],
+        celdas: { "4-10": celda(6) },
+        sinDecorar: {},
+      },
+      9
+    );
+    expect(resultado.size).toBe(0);
+  });
+});

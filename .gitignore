@@ -42,3 +42,12 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# credenciales locales de demo
+credenciales-demo.txt
+
+# tests E2E (Playwright)
+/e2e/.auth/
+/e2e/.estado/
+/test-results/
+/playwright-report/

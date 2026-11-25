@@ -4,6 +4,19 @@ import { parsearSugerido } from "./migrar-excel";
 // Días: 0=domingo 1=lunes 2=martes 3=miércoles 4=jueves 5=viernes 6=sábado
 
 describe("parsearSugerido", () => {
+  it("lunes a viernes / sábado y domingo (L-V / S-D)", () => {
+    const semana = [1, 2, 3, 4, 5];
+    for (const texto of ["12L-V/24 S-D", "12 L-V/24 S-D", "12 L-V24 S-D", "12  L-V/24S-D"]) {
+      expect(parsearSugerido(texto)).toEqual({
+        porDia: [
+          ...semana.map((dia) => ({ dia, objetivo: 12 })),
+          { dia: 6, objetivo: 24 },
+          { dia: 0, objetivo: 24 },
+        ],
+      });
+    }
+  });
+
   it("número simple → regla diaria", () => {
     expect(parsearSugerido(12).porDia).toEqual([{ dia: null, objetivo: 12 }]);
   });

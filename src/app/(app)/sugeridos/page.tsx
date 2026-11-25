@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { cargarSugeridosDelDia, type SugeridosDelDia } from "@/lib/sugeridos";
+import { Aviso, EncabezadoSeccion } from "@/components/encabezado-seccion";
+import { GRUPO_HOY } from "@/lib/grupos";
 import { SugeridosCliente } from "./sugeridos-cliente";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +20,12 @@ export default async function SugeridosPage() {
 
   if (!dia) {
     return (
-      <section className="space-y-2">
-        <h1 className="text-xl font-bold">Sugeridos</h1>
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          No se pudieron cargar los datos. Recargá la página.
-        </p>
+      <section className="flex flex-col gap-4">
+        <EncabezadoSeccion grupo={GRUPO_HOY} actual="sugeridos" />
+        <Aviso tipo="error">
+          No se pudieron cargar los sugeridos. Revisá que haya internet y
+          recargá la página.
+        </Aviso>
       </section>
     );
   }

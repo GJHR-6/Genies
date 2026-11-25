@@ -1,6 +1,13 @@
+import { compararProductos } from "@/lib/orden-productos";
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
+import { cargarSugeridosDelDia } from "@/lib/sugeridos";
+import { CuadroCompleto, cargarDatosBatidas } from "../cuadros/cuadro-completo";
+import { BotonImprimir } from "../cuadros/boton-imprimir";
+import { ordenarSucursales } from "@/lib/orden-sucursales";
+import { normalizarAnterior } from "@/lib/cola-offline";
+import { ChipColorDia } from "@/components/color-dia";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +29,12 @@ export default async function HistorialPage({
     : hoyTegucigalpa();
 
   const supabase = await createClient();
-  const { data: sucursales } = await supabase
+  const { data: sucursalesDb } = await supabase
     .from("sucursales")
-    .select("id, nombre")
+    .select("id, nombre, es_principal")
     .eq("activa", true)
     .order("id");
+  const sucursales = ordenarSucursales(sucursalesDb ?? []);
 
   // La tienda solo ve su sucursal; el admin elige.
   const sucursalParam = parseInt(params.sucursal ?? "", 10);
@@ -39,7 +47,7 @@ export default async function HistorialPage({
   if (!sucursalId) {
     return (
       <section className="space-y-2">
-        <h1 className="text-xl font-bold">Historial</h1>
+        <h1 className="text-2xl font-bold">Historial</h1>
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Tu usuario no tiene sucursal asignada.
         </p>
@@ -47,11 +55,19 @@ export default async function HistorialPage({
     );
   }
 
-  const [movimientosRes, cierreRes] = await Promise.all([
+  const [movimientosRes, extrasRes, cierreRes] = await Promise.all([
     supabase
       .from("v_movimientos")
       .select(
-        "producto_id, saldo_inicial, ingreso, devolucion, pedido, vendido, saldo_final, productos(nombre, tamano, categoria)"
+        "producto_id, saldo_inicial, ingreso, devolucion, pedido, vendido, saldo_final, productos(nombre, tamano, categoria, orden)"
+      )
+      .eq("fecha", fecha)
+      .eq("sucursal_id", sucursalId),
+    // Cambio, Decorado y Sin decorar no están en v_movimientos: se leen de la tabla.
+    supabase
+      .from("movimientos_diarios")
+      .select(
+        "producto_id, cambio, decorado, sin_decorar, ingreso_anterior, devolucion_anterior, cambio_anterior"
       )
       .eq("fecha", fecha)
       .eq("sucursal_id", sucursalId),
@@ -63,29 +79,50 @@ export default async function HistorialPage({
       .maybeSingle(),
   ]);
 
+  // Mismo orden que el Excel (productos.orden).
   const movimientos = (movimientosRes.data ?? []).sort((a, b) =>
-    `${a.productos?.categoria ?? ""}${a.productos?.nombre ?? ""}`.localeCompare(
-      `${b.productos?.categoria ?? ""}${b.productos?.nombre ?? ""}`,
-      "es"
+    compararProductos(
+      a.productos ?? { nombre: "" },
+      b.productos ?? { nombre: "" }
     )
   );
-  const sucursalNombre =
-    sucursales?.find((s) => s.id === sucursalId)?.nombre ?? "";
+  const extras = new Map(
+    (extrasRes.data ?? []).map((e) => [e.producto_id, e])
+  );
+  const sucursal = sucursales?.find((s) => s.id === sucursalId);
+  const sucursalNombre = sucursal?.nombre ?? "";
+  // Principal anota Decorado / Sin decorar (su inventario = INV/TOTAL del
+  // Excel); las tiendas anotan Cambio (CM) y su saldo.
+  const esPrincipal = sucursal?.es_principal ?? false;
   const cerrado = cierreRes.data?.estado === "cerrado";
+
+  // Principal (admin): el cuadro completo de ese día, igual al primero de
+  // Cuadros y editable. La cuenta de Principal no ve las otras tiendas
+  // (RLS), así que para ella queda la tabla de su inventario.
+  const verCuadro = esAdmin && esPrincipal;
+  const datosCuadro = verCuadro
+    ? await cargarSugeridosDelDia(supabase, fecha)
+        .then(async (d) => [d, await cargarDatosBatidas(supabase, fecha, d)] as const)
+        .catch(() => null)
+    : null;
 
   return (
     <section className="flex flex-col gap-3">
-      <div>
-        <h1 className="text-xl font-bold">Historial</h1>
+      <div className="print:hidden">
+        <h1 className="text-2xl font-bold">Historial</h1>
         <p className="text-sm text-muted-foreground">
-          {sucursalNombre} · {formatoLargo(fecha)}
-          {cerrado ? " · Día cerrado" : ""}
+          Lo que se anotó en días anteriores. Elegí la fecha
+          {esAdmin ? " y la tienda" : ""} y tocá Ver.
+        </p>
+        <p className="text-sm font-medium">
+          {sucursalNombre} · <span className="first-letter:uppercase">{formatoLargo(fecha)}</span>
+          {cerrado ? " · Terminado" : ""}
         </p>
       </div>
 
       <form
         method="get"
-        className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3"
+        className="flex flex-wrap items-end gap-2 rounded-lg border bg-card p-3 print:hidden"
       >
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Fecha
@@ -115,52 +152,128 @@ export default async function HistorialPage({
         )}
         <button
           type="submit"
-          className="h-10 rounded-md bg-[#1F4E79] px-4 text-sm font-medium text-white hover:bg-[#1F4E79]/90"
+          className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           Ver
         </button>
       </form>
 
-      {movimientos.length === 0 ? (
+      {verCuadro ? (
+        datosCuadro ? (
+          <>
+            <div className="flex justify-end print:hidden">
+              <BotonImprimir texto="Imprimir cuadro" />
+            </div>
+            <CuadroCompleto fecha={fecha} dia={datosCuadro[0]} batidas={datosCuadro[1]} />
+          </>
+        ) : (
+          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            No se pudo cargar el cuadro. Revisá que haya internet y recargá la página.
+          </p>
+        )
+      ) : movimientos.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Sin registros para esa fecha.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-right">
                 <th className="px-3 py-2 text-left font-semibold">Producto</th>
-                <th className="px-3 py-2 font-semibold">Saldo inicial</th>
-                <th className="px-3 py-2 font-semibold">Ingreso</th>
-                <th className="px-3 py-2 font-semibold">Devolución</th>
-                <th className="px-3 py-2 font-semibold">Vendido</th>
-                <th className="px-3 py-2 font-semibold">Pedido</th>
-                <th className="px-3 py-2 font-semibold">Saldo final</th>
+                {esPrincipal ? (
+                  <>
+                    <th className="px-3 py-2 font-semibold">Decorado</th>
+                    <th className="px-3 py-2 font-semibold">Sin decorar</th>
+                    <th className="px-3 py-2 font-semibold">Inv/Total</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-3 py-2 font-semibold">Saldo inicial</th>
+                    <th className="px-3 py-2 font-semibold">Ingreso</th>
+                    <th className="px-3 py-2 font-semibold">Devolución</th>
+                    <th className="px-3 py-2 font-semibold">Cambio</th>
+                    <th className="px-3 py-2 font-semibold">Vendido</th>
+                    <th className="px-3 py-2 font-semibold">Pedido</th>
+                    <th className="px-3 py-2 font-semibold">Saldo final</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
-              {movimientos.map((m) => (
-                <tr
-                  key={m.producto_id}
-                  className="border-b text-right tabular-nums last:border-b-0"
-                >
-                  <td className="px-3 py-1.5 text-left font-medium">
-                    {m.productos?.nombre}
-                    {m.productos?.tamano ? ` · ${m.productos.tamano}` : ""}
-                  </td>
-                  <td className="px-3 py-1.5">{m.saldo_inicial}</td>
-                  <td className="px-3 py-1.5">{m.ingreso}</td>
-                  <td className="px-3 py-1.5">{m.devolucion}</td>
-                  <td className="px-3 py-1.5">{m.vendido}</td>
-                  <td className="px-3 py-1.5">{m.pedido}</td>
-                  <td className="px-3 py-1.5">{m.saldo_final ?? "—"}</td>
-                </tr>
-              ))}
+              {movimientos.map((m) => {
+                const extra = m.producto_id != null ? extras.get(m.producto_id) : undefined;
+                const deco = extra?.decorado ?? 0;
+                const sinDeco = extra?.sin_decorar ?? 0;
+                return (
+                  <tr
+                    key={m.producto_id}
+                    className="border-b text-right tabular-nums last:border-b-0"
+                  >
+                    <td className="px-3 py-1.5 text-left font-medium">
+                      {m.productos?.nombre}
+                      {m.productos?.tamano ? ` · ${m.productos.tamano}` : ""}
+                    </td>
+                    {esPrincipal ? (
+                      <>
+                        <td className="px-3 py-1.5">{deco}</td>
+                        <td className="px-3 py-1.5">{sinDeco}</td>
+                        <td className="px-3 py-1.5 font-semibold">{deco + sinDeco}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-1.5">{m.saldo_inicial}</td>
+                        <td className="px-3 py-1.5">
+                          {m.ingreso}
+                          <DeQueDia valor={extra?.ingreso_anterior} />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {m.devolucion}
+                          <DeQueDia valor={extra?.devolucion_anterior} />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {extra?.cambio ?? 0}
+                          <DeQueDia valor={extra?.cambio_anterior} />
+                        </td>
+                        <td className="px-3 py-1.5">{m.vendido}</td>
+                        <td className="px-3 py-1.5">{m.pedido}</td>
+                        <td className="px-3 py-1.5">{m.saldo_final ?? "—"}</td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
     </section>
+  );
+}
+
+const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+/**
+ * De qué día (color) son parte del ingreso, la devolución o el cambio, como
+ * lo anotó la tienda: "2 del [AMARILLO] vie 13". Nada si no lo anotó.
+ */
+function DeQueDia({ valor }: { valor: unknown }) {
+  const porDia = normalizarAnterior(valor as Record<string, unknown> | null);
+  if (!porDia) return null;
+  return (
+    <span className="mt-0.5 flex flex-col items-end gap-0.5">
+      {Object.entries(porDia).map(([fecha, n]) => {
+        const d = new Date(`${fecha}T12:00:00Z`);
+        return (
+          <span key={fecha} className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <span>{n} del</span>
+            <ChipColorDia fecha={fecha} className="scale-90" />
+            <span>
+              {DIAS_CORTOS[d.getUTCDay()]} {d.getUTCDate()}
+            </span>
+          </span>
+        );
+      })}
+    </span>
   );
 }

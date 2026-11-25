@@ -4,7 +4,7 @@ import { colorDelDia } from "@/lib/color-dia";
 import { ChipColorDia } from "@/components/color-dia";
 import {
   estimarLotes,
-  lotesRezagados,
+  ingresoPorProduccion,
   accionPorDias,
   DIAS_PRIORIDAD,
   DIAS_REGRESAR,
@@ -12,6 +12,10 @@ import {
   type IngresoDia,
   type LoteEstimado,
 } from "@/lib/rotacion";
+import { ordenarSucursales } from "@/lib/orden-sucursales";
+import { normalizarAnterior } from "@/lib/cola-offline";
+import { obtenerPerfil } from "@/lib/supabase/perfil";
+import { SelectorSucursal } from "./selector-sucursal";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +28,17 @@ type ProductoRezagado = {
 };
 
 const ETIQUETA_ACCION = {
+  fresco: {
+    texto: "A tiempo · no se regresa",
+    clase: "bg-exito/10 text-exito",
+  },
   prioridad: {
     texto: "Prioridad de venta",
-    clase: "bg-[#B45309]/10 text-[#B45309]",
+    clase: "bg-aviso/10 text-aviso",
   },
   regresar: {
     texto: "Regresar a Principal",
-    clase: "bg-[#B91C1C]/10 text-[#B91C1C]",
+    clase: "bg-destructive/10 text-destructive",
   },
 } as const;
 
@@ -63,9 +71,16 @@ function PastillaColor({ fechaIso }: { fechaIso: string | null }) {
   );
 }
 
-export default async function RotacionPage() {
+export default async function RotacionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sucursal?: string }>;
+}) {
   const supabase = await createClient();
+  const perfil = await obtenerPerfil();
   const hoy = hoyTegucigalpa();
+  const params = await searchParams;
+  const sucursalFiltro = params.sucursal ? parseInt(params.sucursal) : null;
 
   // Ventana de fechas: hoy y los 6 días anteriores.
   const fechas: string[] = [hoy];
@@ -87,14 +102,10 @@ export default async function RotacionPage() {
     ingreso: number;
     devolucion: number;
     saldo_final: number | null;
+    ingreso_anterior: unknown;
   }[];
   let filasAyer: typeof filasHoy;
-  let ingresosPrevios: {
-    fecha: string;
-    sucursal_id: number;
-    producto_id: number;
-    ingreso: number;
-  }[];
+  let ingresosPrevios: (typeof filasHoy[number] & { fecha: string })[];
   try {
     // Una consulta por día para no exceder el límite de filas por petición.
     const [productosRes, sucursalesRes, hoyRes, ayerRes, ...previasRes] =
@@ -111,21 +122,22 @@ export default async function RotacionPage() {
         supabase
           .from("movimientos_diarios")
           .select(
-            "sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final"
+            "sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final, ingreso_anterior"
           )
           .eq("fecha", hoy),
         supabase
           .from("movimientos_diarios")
           .select(
-            "sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final"
+            "sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final, ingreso_anterior"
           )
           .eq("fecha", ayer),
         ...previas.map((f) =>
           supabase
             .from("movimientos_diarios")
-            .select("fecha, sucursal_id, producto_id, ingreso")
+            .select(
+              "fecha, sucursal_id, producto_id, saldo_inicial, ingreso, devolucion, saldo_final, ingreso_anterior"
+            )
             .eq("fecha", f)
-            .gt("ingreso", 0)
         ),
       ]);
     const error =
@@ -136,14 +148,15 @@ export default async function RotacionPage() {
       previasRes.find((r) => r.error)?.error;
     if (error) throw new Error(error.message);
     productos = productosRes.data ?? [];
-    sucursales = sucursalesRes.data ?? [];
+    sucursales = ordenarSucursales(sucursalesRes.data ?? []);
     filasHoy = hoyRes.data ?? [];
     filasAyer = ayerRes.data ?? [];
     ingresosPrevios = previasRes.flatMap((r) => r.data ?? []);
   } catch {
     return (
       <section className="space-y-2">
-        <h1 className="text-xl font-bold">Rotación de producto</h1>
+        <h1 className="text-2xl font-bold">Rotación de producto</h1>
+        <p className="text-sm text-muted-foreground">Cuántos días lleva cada producto en la tienda, para vender primero lo más viejo.</p>
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           No se pudieron cargar los datos. Recargá la página.
         </p>
@@ -153,9 +166,15 @@ export default async function RotacionPage() {
 
   const nombreProducto = new Map(productos.map((p) => [p.id, p]));
 
-  // Saldo actual por producto × sucursal: la captura de hoy o, si aún no
-  // hay, el saldo final de ayer.
+  // Saldo actual: la fila más reciente de cada producto × sucursal (16 nov:
+  // los lunes no hay domingo, así que se busca el último día anotado).
   const saldos = new Map<string, number>();
+  for (const m of [...ingresosPrevios].sort((a, b) => a.fecha.localeCompare(b.fecha))) {
+    saldos.set(
+      `${m.producto_id}-${m.sucursal_id}`,
+      m.saldo_final ?? Math.max(m.saldo_inicial + m.ingreso - m.devolucion, 0)
+    );
+  }
   for (const m of filasAyer) {
     const saldo =
       m.saldo_final ??
@@ -171,37 +190,42 @@ export default async function RotacionPage() {
 
   // Ingresos de la ventana por producto × sucursal (para fechar el saldo).
   const ingresos = new Map<string, IngresoDia[]>();
+  // Lo que la tienda dijo que es de otro día va con la fecha (color) de ese día.
   const agregarIngreso = (
     clave: string,
     fecha: string,
-    ingreso: number
+    ingreso: number,
+    anterior: unknown
   ): void => {
     if (ingreso <= 0) return;
     const lista = ingresos.get(clave) ?? [];
-    lista.push({ fecha, ingreso });
+    lista.push(
+      ...ingresoPorProduccion(fecha, ingreso, normalizarAnterior(anterior as Record<string, unknown> | null))
+    );
     ingresos.set(clave, lista);
   };
   for (const m of filasHoy) {
-    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, hoy, m.ingreso);
+    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, hoy, m.ingreso, m.ingreso_anterior);
   }
   for (const m of filasAyer) {
-    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, ayer, m.ingreso);
+    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, ayer, m.ingreso, m.ingreso_anterior);
   }
   for (const m of ingresosPrevios) {
-    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, m.fecha, m.ingreso);
+    agregarIngreso(`${m.producto_id}-${m.sucursal_id}`, m.fecha, m.ingreso, m.ingreso_anterior);
   }
 
-  // Productos con pastel rezagado por sucursal.
+  // Todo lo que hay en cada tienda, por edad (10 nov: también lo que está a
+  // tiempo, para ver qué no se regresa).
   const porSucursal = new Map<number, ProductoRezagado[]>();
-  let unidadesPrioridad = 0;
-  let unidadesRegresar = 0;
   for (const [clave, saldo] of saldos) {
     if (saldo <= 0) continue;
     const [productoId, sucursalId] = clave.split("-").map(Number);
+    if (sucursalFiltro && sucursalId !== sucursalFiltro) continue;
     const producto = nombreProducto.get(productoId);
     if (!producto) continue;
-    const rezagados = lotesRezagados(
-      estimarLotes(saldo, hoy, ingresos.get(clave) ?? [])
+    // Del más viejo al más nuevo.
+    const rezagados = estimarLotes(saldo, hoy, ingresos.get(clave) ?? []).sort(
+      (a, b) => b.dias - a.dias
     );
     if (rezagados.length === 0) continue;
     const lista = porSucursal.get(sucursalId) ?? [];
@@ -213,10 +237,6 @@ export default async function RotacionPage() {
       lotes: rezagados,
     });
     porSucursal.set(sucursalId, lista);
-    for (const l of rezagados) {
-      if (accionPorDias(l.dias) === "regresar") unidadesRegresar += l.unidades;
-      else unidadesPrioridad += l.unidades;
-    }
   }
   for (const lista of porSucursal.values()) {
     lista.sort(
@@ -227,29 +247,55 @@ export default async function RotacionPage() {
     (s) => (porSucursal.get(s.id) ?? []).length > 0
   );
 
+  // Contadores: solo los grupos visibles.
+  let unidadesPrioridad = 0;
+  let unidadesRegresar = 0;
+  let unidadesATiempo = 0;
+  for (const s of gruposConAlerta) {
+    for (const p of porSucursal.get(s.id) ?? []) {
+      for (const l of p.lotes) {
+        const accion = accionPorDias(l.dias);
+        if (accion === "regresar") unidadesRegresar += l.unidades;
+        else if (accion === "prioridad") unidadesPrioridad += l.unidades;
+        else unidadesATiempo += l.unidades;
+      }
+    }
+  }
+
   // Leyenda: colores de lunes a sábado (semana que termina hoy o la próxima).
   const semanaLeyenda: string[] = [];
   for (let f = hoy, i = 0; i < VENTANA_DIAS; i++, f = diaAnterior(f)) {
     if (colorDelDia(f)) semanaLeyenda.unshift(f);
   }
 
+  const puedeElegirSucursal = perfil?.rol === "admin" || perfil?.rol === "principal";
+
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-bold">Rotación de producto</h1>
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span>{formatoLargo(hoy)}</span>
-          <ChipColorDia fecha={hoy} conEtiqueta />
-        </p>
+        <h1 className="text-2xl font-bold">Rotación de producto</h1>
+        <p className="text-sm text-muted-foreground">Cuántos días lleva cada producto en la tienda, para vender primero lo más viejo.</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <span>{formatoLargo(hoy)}</span>
+            <ChipColorDia fecha={hoy} conEtiqueta />
+          </p>
+          {puedeElegirSucursal && (
+            <SelectorSucursal
+              sucursales={sucursales}
+              seleccionada={sucursalFiltro}
+            />
+          )}
+        </div>
       </div>
 
       <div className="rounded-lg border bg-card p-4 text-sm">
         <p>
           Cada pastel lleva el color del día en que se produjo. Con{" "}
           <strong>{DIAS_PRIORIDAD} días</strong> en tienda tiene{" "}
-          <strong className="text-[#B45309]">prioridad de venta</strong>; con{" "}
+          <strong className="text-aviso">prioridad de venta</strong>; con{" "}
           <strong>{DIAS_REGRESAR} días o más</strong> se{" "}
-          <strong className="text-[#B91C1C]">
+          <strong className="text-destructive">
             regresa a Principal para cambio
           </strong>
           .
@@ -270,9 +316,9 @@ export default async function RotacionPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border bg-card p-3">
-          <p className="text-2xl font-bold tabular-nums text-[#B91C1C]">
+          <p className="text-2xl font-bold tabular-nums text-destructive">
             {unidadesRegresar}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -280,19 +326,26 @@ export default async function RotacionPage() {
           </p>
         </div>
         <div className="rounded-lg border bg-card p-3">
-          <p className="text-2xl font-bold tabular-nums text-[#B45309]">
+          <p className="text-2xl font-bold tabular-nums text-aviso">
             {unidadesPrioridad}
           </p>
           <p className="text-xs text-muted-foreground">
             unidades con prioridad de venta ({DIAS_PRIORIDAD} días)
           </p>
         </div>
+        <div className="rounded-lg border bg-card p-3">
+          <p className="text-2xl font-bold tabular-nums text-exito">
+            {unidadesATiempo}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            unidades a tiempo (menos de {DIAS_PRIORIDAD} días): no se regresan
+          </p>
+        </div>
       </div>
 
       {gruposConAlerta.length === 0 && (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Sin pastel rezagado: todo el inventario a la vista tiene menos de{" "}
-          {DIAS_PRIORIDAD} días.
+          No hay inventario en tienda para mostrar.
         </p>
       )}
 
@@ -315,7 +368,6 @@ export default async function RotacionPage() {
                 </div>
                 {p.lotes.map((l) => {
                   const accion = accionPorDias(l.dias);
-                  if (accion === "fresco") return null;
                   const etiqueta = ETIQUETA_ACCION[accion];
                   return (
                     <div
@@ -335,7 +387,11 @@ export default async function RotacionPage() {
                         ·{" "}
                         {l.dias >= VENTANA_DIAS
                           ? `${VENTANA_DIAS}+ días`
-                          : `${l.dias} días`}
+                          : l.dias === 0
+                            ? "de hoy"
+                            : l.dias === 1
+                              ? "1 día"
+                              : `${l.dias} días`}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-semibold ${etiqueta.clase}`}

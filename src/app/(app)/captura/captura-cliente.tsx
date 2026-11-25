@@ -9,8 +9,20 @@ import {
 } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { TablesInsert } from "@/lib/types";
-import { ChipColorDia } from "@/components/color-dia";
+import {
+  almacenDelNavegador,
+  firmaFila,
+  normalizarAnterior,
+  leerCola,
+  ponerEnCola,
+  quitarDeCola,
+  type FilaPendiente,
+} from "@/lib/cola-offline";
+import { hoyTegucigalpa } from "@/lib/fechas";
+import { diasProduccionAnteriores } from "@/lib/rotacion";
+import { cuandoFue } from "@/lib/no-enviados";
+import { AvisoColorDia, ChipColorDia } from "@/components/color-dia";
+import { ModoSinInternet } from "@/components/modo-sin-internet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,11 +48,57 @@ type MovimientoInicial = {
   ingreso: number;
   devolucion: number;
   pedido: number;
+  cambio: number;
   decorado: number;
   sin_decorar: number;
+  nota: string | null;
+  saldo_final: number | null;
+  ingreso_anterior: unknown;
+  devolucion_anterior: unknown;
+  cambio_anterior: unknown;
 };
 
-type Campo = "ingreso" | "devolucion" | "pedido" | "decorado" | "sin_decorar";
+/** Campos que pueden decir de qué día (color) son los pasteles. */
+const CAMPOS_DIA = ["ingreso", "devolucion", "cambio"] as const;
+type CampoDia = (typeof CAMPOS_DIA)[number];
+const columnaDia = (c: CampoDia) => `${c}_anterior` as const;
+/** Textos del desplegable de cada campo. */
+const TEXTO_DIA: Record<CampoDia, { abrir: string; titulo: string; nombre: string; el: string }> = {
+  ingreso: {
+    abrir: "¿Algo del ingreso es de otro día?",
+    titulo: "Del ingreso, ¿cuántos son de otro día?",
+    nombre: "ingreso",
+    el: "el ingreso",
+  },
+  devolucion: {
+    abrir: "¿De qué día es la devolución?",
+    titulo: "De la devolución, ¿de qué día son?",
+    nombre: "devolución",
+    el: "la devolución",
+  },
+  cambio: {
+    abrir: "¿De qué día es el cambio?",
+    titulo: "Del cambio, ¿de qué día son?",
+    nombre: "cambio",
+    el: "el cambio",
+  },
+};
+type PorDia = Record<string, string>;
+/** Días que se ofrecen: la devolución, una semana (hay tiendas donde el
+ *  pastel se queda más); ingreso y cambio, los 3 días anteriores. */
+const DIAS_POR_CAMPO: Record<CampoDia, number> = { ingreso: 3, devolucion: 6, cambio: 3 };
+const aTexto = (a: Record<string, number> | null): PorDia | null =>
+  a ? Object.fromEntries(Object.entries(a).map(([f, n]) => [f, String(n)])) : null;
+
+type Campo =
+  | "ingreso"
+  | "devolucion"
+  | "pedido"
+  | "cambio"
+  | "decorado"
+  | "sin_decorar"
+  // Inventario final: vacío = no se contó (no es 0).
+  | "saldo_final";
 type ValoresFila = Record<Campo, string>;
 type EstadoFila = "guardando" | "guardado" | "pendiente" | "error";
 
@@ -48,17 +106,34 @@ const FILA_VACIA: ValoresFila = {
   ingreso: "",
   devolucion: "",
   pedido: "",
+  cambio: "",
   decorado: "",
   sin_decorar: "",
+  saldo_final: "",
 };
 
 const CAMPOS: Campo[] = [
   "ingreso",
   "devolucion",
   "pedido",
+  "cambio",
   "decorado",
   "sin_decorar",
 ];
+
+const CLAVE_ORDEN = "genies:orden-inventario";
+
+const DIAS_CORTOS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+/** "Sáb 14" para una fecha ISO. */
+function nombreDia(fechaIso: string): string {
+  const d = new Date(`${fechaIso}T12:00:00Z`);
+  return `${DIAS_CORTOS[d.getUTCDay()]} ${d.getUTCDate()}`;
+}
+
+/** Inventario final: vacío = no se contó (null), no 0. */
+function finalONulo(valor: string): number | null {
+  return valor === "" ? null : aEntero(valor);
+}
 
 function aEntero(valor: string): number {
   const n = parseInt(valor, 10);
@@ -72,18 +147,29 @@ function normalizar(texto: string): string {
     .replace(/\p{M}/gu, "");
 }
 
-function esErrorDeRed(error: unknown): boolean {
+/**
+ * ¿El servidor rechazó el dato (día terminado, permiso…)? Todo lo demás se
+ * trata como falta de internet: el dato queda en la tablet y se reintenta
+ * solo. (Cada navegador avisa distinto: el iPad dice «Load failed».)
+ */
+function esRechazoDelServidor(error: unknown): boolean {
   const mensaje = error instanceof Error ? error.message : String(error);
-  return /fetch|network|conexi|timeout|abort/i.test(mensaje);
+  return /violates|permission|policy|denied|ya se terminó|solo se puede|invalid input|duplicate|jwt|unauthorized/i.test(
+    mensaje
+  );
+}
+
+function esErrorDeRed(error: unknown): boolean {
+  return !esRechazoDelServidor(error);
 }
 
 function BadgeEstado({ estado }: { estado: EstadoFila | undefined }) {
   if (!estado) return null;
   const estilos: Record<EstadoFila, { texto: string; clase: string }> = {
     guardando: { texto: "Guardando…", clase: "text-muted-foreground" },
-    guardado: { texto: "Guardado ✓", clase: "text-[#2E7D32]" },
-    pendiente: { texto: "Pendiente ⟳", clase: "text-[#B45309]" },
-    error: { texto: "No se pudo guardar", clase: "text-[#B3261E]" },
+    guardado: { texto: "Guardado ✓", clase: "text-exito" },
+    pendiente: { texto: "Guardado en la tablet ✓", clase: "text-exito" },
+    error: { texto: "Revisá este número", clase: "text-destructive" },
   };
   const { texto, clase } = estilos[estado];
   return (
@@ -102,6 +188,8 @@ type Props = {
   productos: Producto[];
   movimientosIniciales: MovimientoInicial[];
   saldosAnteriores: Record<number, number>;
+  /** Lo que Principal no le pudo mandar y sigue pendiente. */
+  noEnviados: { id: number; fecha: string; cantidad: number; nombre: string }[];
 };
 
 export function CapturaCliente({
@@ -115,8 +203,24 @@ export function CapturaCliente({
   productos,
   movimientosIniciales,
   saldosAnteriores,
+  noEnviados,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  // Días que se pueden elegir cuando parte del ingreso es de otro día.
+  const diasPorCampo = useMemo(
+    () =>
+      Object.fromEntries(
+        CAMPOS_DIA.map((c) => [c, diasProduccionAnteriores(fecha, DIAS_POR_CAMPO[c])])
+      ) as Record<CampoDia, string[]>,
+    [fecha]
+  );
+  // Solo las tiendas dicen de qué día es (Principal solo anota Decorado
+  // y Sin decorar).
+  const usaDias = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    (_c: CampoDia) => !esPrincipal,
+    [esPrincipal]
+  );
 
   const [valores, setValores] = useState<Record<number, ValoresFila>>(() => {
     const inicial: Record<number, ValoresFila> = {};
@@ -125,26 +229,64 @@ export function CapturaCliente({
         ingreso: m.ingreso ? String(m.ingreso) : "",
         devolucion: m.devolucion ? String(m.devolucion) : "",
         pedido: m.pedido ? String(m.pedido) : "",
+        cambio: m.cambio ? String(m.cambio) : "",
         decorado: m.decorado ? String(m.decorado) : "",
         sin_decorar: m.sin_decorar ? String(m.sin_decorar) : "",
+        saldo_final: m.saldo_final !== null ? String(m.saldo_final) : "",
       };
     }
     return inicial;
   });
+  // De qué día (color) es parte del ingreso, la devolución o el cambio
+  // (fecha de producción → unidades). El del ingreso lo usa la rotación.
+  const [anteriores, setAnteriores] = useState<Record<CampoDia, Record<number, PorDia>>>(() => {
+    const inicial = { ingreso: {}, devolucion: {}, cambio: {} } as Record<CampoDia, Record<number, PorDia>>;
+    for (const m of movimientosIniciales) {
+      for (const c of CAMPOS_DIA) {
+        const a = aTexto(normalizarAnterior(m[columnaDia(c)] as Record<string, unknown> | null));
+        if (a) inicial[c][m.producto_id] = a;
+      }
+    }
+    return inicial;
+  });
+  const anterioresRef = useRef(anteriores);
+  // Desplegables abiertos: `${campo}-${productoId}`.
+  const [anterioresAbiertos, setAnterioresAbiertos] = useState<Set<string>>(new Set());
   const [estados, setEstados] = useState<Record<number, EstadoFila>>({});
+  // Nota por producto (para la devolución: "3 negros, 2 rosados…").
+  // La nota de devolución se quitó (17 nov: la reemplazan las casillas por
+  // día); la que ya estaba se conserva al guardar.
+  const [, setNotas] = useState<Record<number, string>>(() =>
+    Object.fromEntries(
+      movimientosIniciales.filter((m) => m.nota).map((m) => [m.producto_id, m.nota as string])
+    )
+  );
+  const notasRef = useRef<Record<number, string>>(
+    Object.fromEntries(
+      movimientosIniciales.filter((m) => m.nota).map((m) => [m.producto_id, m.nota as string])
+    )
+  );
   const [guardadas, setGuardadas] = useState<Set<number>>(
     () => new Set(movimientosIniciales.map((m) => m.producto_id))
   );
   const [busqueda, setBusqueda] = useState("");
   const [cerrado, setCerrado] = useState(cerradoInicial);
-  const [enLinea, setEnLinea] = useState(
-    () => typeof navigator === "undefined" || navigator.onLine
-  );
+  // Arranca "en línea" igual en servidor y navegador (Node también tiene un
+  // `navigator` global, sin onLine); el estado real se lee al montar.
+  const [enLinea, setEnLinea] = useState(true);
+  // El navegador dice "en línea" pero los datos no llegan (wifi débil).
+  const [sinSenal, setSinSenal] = useState(false);
   const [dialogoCierre, setDialogoCierre] = useState(false);
   const [avisoLive, setAvisoLive] = useState("");
+  // Página vieja (abierta sin internet desde la copia de la tablet o
+  // dejada abierta de un día para otro): no se anota en un día que ya pasó.
+  const [desactualizada, setDesactualizada] = useState(false);
+  // Filas de otros días que quedaron en la tablet y no se pudieron subir.
+  const [otrosDiasPendientes, setOtrosDiasPendientes] = useState(0);
 
   const valoresRef = useRef(valores);
   const cerradoRef = useRef(cerrado);
+  const desactualizadaRef = useRef(false);
   useEffect(() => {
     cerradoRef.current = cerrado;
   }, [cerrado]);
@@ -163,8 +305,14 @@ export function CapturaCliente({
           m.ingreso,
           m.devolucion,
           m.pedido,
+          m.cambio,
           m.decorado,
           m.sin_decorar,
+          (m.nota ?? "").trim(),
+          esPrincipal ? null : m.saldo_final,
+          ...CAMPOS_DIA.map((c) =>
+            usaDias(c) ? normalizarAnterior(m[columnaDia(c)] as Record<string, unknown> | null) : null
+          ),
         ]),
       ])
     )
@@ -172,8 +320,15 @@ export function CapturaCliente({
 
   const serializar = useCallback((productoId: number): string => {
     const v = valoresRef.current[productoId] ?? FILA_VACIA;
-    return JSON.stringify(CAMPOS.map((campo) => aEntero(v[campo])));
-  }, []);
+    return JSON.stringify([
+      ...CAMPOS.map((campo) => aEntero(v[campo])),
+      (notasRef.current[productoId] ?? "").trim(),
+      esPrincipal ? null : finalONulo(v.saldo_final),
+      ...CAMPOS_DIA.map((c) =>
+        usaDias(c) ? normalizarAnterior(anterioresRef.current[c][productoId]) : null
+      ),
+    ]);
+  }, [esPrincipal, usaDias]);
 
   const marcarEstado = useCallback(
     (productoId: number, estado: EstadoFila) => {
@@ -185,7 +340,7 @@ export function CapturaCliente({
   const mutacionGuardar = useMutation({
     mutationFn: async (vars: {
       productoId: number;
-      payload: TablesInsert<"movimientos_diarios">;
+      payload: FilaPendiente;
       clave: string;
     }) => {
       const { error } = await supabase
@@ -193,8 +348,12 @@ export function CapturaCliente({
         .upsert(vars.payload, { onConflict: "fecha,sucursal_id,producto_id" });
       if (error) throw new Error(error.message);
     },
-    retry: (intentos, error) => esErrorDeRed(error) && intentos < 3,
-    onSuccess: (_datos, { productoId, clave }) => {
+    // Un reintento rápido; si sigue sin llegar, queda en la tablet (aviso
+    // tranquilo) y se reintenta solo cada 12 s y al volver el internet.
+    retry: (intentos, error) => esErrorDeRed(error) && intentos < 1,
+    retryDelay: 1000,
+    onSuccess: (_datos, { productoId, payload, clave }) => {
+      quitarDeCola(almacenDelNavegador(), userId, payload);
       ultimoGuardadoRef.current.set(productoId, clave);
       setGuardadas((prev) => {
         if (prev.has(productoId)) return prev;
@@ -202,6 +361,7 @@ export function CapturaCliente({
         nuevo.add(productoId);
         return nuevo;
       });
+      setSinSenal(false);
       if (serializar(productoId) !== clave) {
         // La usuaria siguió escribiendo mientras se guardaba.
         guardarFilaRef.current(productoId);
@@ -213,13 +373,20 @@ export function CapturaCliente({
     onError: (error, { productoId }) => {
       if (esErrorDeRed(error)) {
         marcarEstado(productoId, "pendiente");
-        setAvisoLive("Sin conexión, reintentando");
+        setSinSenal(true);
+        setAvisoLive("Guardado en la tablet; se sube solo cuando vuelva el internet");
         const previo = reintentosRef.current.get(productoId);
         if (previo) clearTimeout(previo);
         reintentosRef.current.set(
           productoId,
           setTimeout(() => guardarFilaRef.current(productoId), 12_000)
         );
+      } else if (/ya se terminó/i.test(error.message)) {
+        // Administración terminó el día desde su pantalla.
+        cerradoRef.current = true;
+        setCerrado(true);
+        marcarEstado(productoId, "error");
+        setAvisoLive("El día ya se terminó");
       } else {
         marcarEstado(productoId, "error");
         setAvisoLive("Error al guardar");
@@ -229,13 +396,13 @@ export function CapturaCliente({
 
   const guardarFila = useCallback(
     (productoId: number) => {
-      if (cerradoRef.current) return;
+      if (cerradoRef.current || desactualizadaRef.current) return;
       if (!suciasRef.current.has(productoId)) return;
       const clave = serializar(productoId);
       if (ultimoGuardadoRef.current.get(productoId) === clave) return;
 
       const v = valoresRef.current[productoId] ?? FILA_VACIA;
-      const payload: TablesInsert<"movimientos_diarios"> = {
+      const payload: FilaPendiente = {
         fecha,
         sucursal_id: sucursalId,
         producto_id: productoId,
@@ -243,11 +410,24 @@ export function CapturaCliente({
         ingreso: aEntero(v.ingreso),
         devolucion: aEntero(v.devolucion),
         pedido: aEntero(v.pedido),
+        cambio: aEntero(v.cambio),
         decorado: aEntero(v.decorado),
         sin_decorar: aEntero(v.sin_decorar),
+        nota: (notasRef.current[productoId] ?? "").trim() || null,
+        devolucion_anterior: normalizarAnterior(anterioresRef.current.devolucion[productoId]),
+        // Principal no cuenta inventario final aquí: no se toca.
+        ...(esPrincipal
+          ? {}
+          : {
+              saldo_final: finalONulo(v.saldo_final),
+              ingreso_anterior: normalizarAnterior(anterioresRef.current.ingreso[productoId]),
+              cambio_anterior: normalizarAnterior(anterioresRef.current.cambio[productoId]),
+            }),
         updated_at: new Date().toISOString(),
         updated_by: userId,
       };
+      // Primero a la tablet: si no hay señal o se cierra la página, no se pierde.
+      ponerEnCola(almacenDelNavegador(), userId, payload);
       marcarEstado(
         productoId,
         typeof navigator !== "undefined" && !navigator.onLine
@@ -264,14 +444,144 @@ export function CapturaCliente({
     guardarFilaRef.current = guardarFila;
   }, [guardarFila]);
 
+  // Filas de otros días (o de otra sucursal) que quedaron en la tablet: se
+  // suben tal cual se anotaron. Las de hoy las sube `guardarFila`.
+  const subirOtrosDias = useCallback(async () => {
+    const almacen = almacenDelNavegador();
+    const otras = leerCola(almacen, userId).filter(
+      (f) => f.fecha !== fecha || f.sucursal_id !== sucursalId
+    );
+    let fallidas = 0;
+    for (const f of otras) {
+      const { error } = await supabase
+        .from("movimientos_diarios")
+        .upsert(f, { onConflict: "fecha,sucursal_id,producto_id" });
+      if (error) fallidas++;
+      else quitarDeCola(almacen, userId, f);
+    }
+    setOtrosDiasPendientes(fallidas);
+  }, [supabase, userId, fecha, sucursalId]);
+
+  // Al abrir: revisar si la página es de hoy y recuperar lo que quedó en la
+  // tablet sin subir.
+  useEffect(() => {
+    // Abierta sin internet (copia de la tablet) y de otro día. Con internet
+    // la página viene del servidor: no se usa el reloj de la tablet, que
+    // puede estar mal puesto.
+    if (!navigator.onLine && fecha !== hoyTegucigalpa()) {
+      desactualizadaRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDesactualizada(true);
+    }
+    const almacen = almacenDelNavegador();
+    const deHoy = leerCola(almacen, userId).filter((f) => {
+      if (f.fecha !== fecha || f.sucursal_id !== sucursalId) return false;
+      // Ya estaba subida (se cortó antes de quitarla de la tablet).
+      if (ultimoGuardadoRef.current.get(f.producto_id) === firmaFila(f)) {
+        quitarDeCola(almacen, userId, f);
+        return false;
+      }
+      return true;
+    });
+    if (deHoy.length > 0 && !desactualizadaRef.current) {
+      const nuevos = { ...valoresRef.current };
+      for (const f of deHoy) {
+        nuevos[f.producto_id] = {
+          ingreso: f.ingreso ? String(f.ingreso) : "",
+          devolucion: f.devolucion ? String(f.devolucion) : "",
+          pedido: f.pedido ? String(f.pedido) : "",
+          cambio: f.cambio ? String(f.cambio) : "",
+          decorado: f.decorado ? String(f.decorado) : "",
+          sin_decorar: f.sin_decorar ? String(f.sin_decorar) : "",
+          saldo_final: f.saldo_final != null ? String(f.saldo_final) : "",
+        };
+        if (f.nota) notasRef.current = { ...notasRef.current, [f.producto_id]: f.nota };
+        for (const c of CAMPOS_DIA) {
+          const ant = aTexto(normalizarAnterior(f[columnaDia(c)]));
+          if (ant) {
+            anterioresRef.current = {
+              ...anterioresRef.current,
+              [c]: { ...anterioresRef.current[c], [f.producto_id]: ant },
+            };
+          }
+        }
+        suciasRef.current.add(f.producto_id);
+      }
+      valoresRef.current = nuevos;
+      setValores(nuevos);
+      setNotas(notasRef.current);
+      setAnteriores(anterioresRef.current);
+      for (const f of deHoy) guardarFilaRef.current(f.producto_id);
+    }
+    if (navigator.onLine) void subirOtrosDias();
+    // Solo al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Página que quedó abierta de un día para otro: cuando cambia la fecha
+  // de la tablet, deja de anotar en el día que ya pasó.
+  useEffect(() => {
+    const diaAlAbrir = hoyTegucigalpa();
+    const revisar = () => {
+      if (hoyTegucigalpa() !== diaAlAbrir && !desactualizadaRef.current) {
+        desactualizadaRef.current = true;
+        setDesactualizada(true);
+      }
+    };
+    const intervalo = setInterval(revisar, 60_000);
+    document.addEventListener("visibilitychange", revisar);
+    return () => {
+      clearInterval(intervalo);
+      document.removeEventListener("visibilitychange", revisar);
+    };
+  }, []);
+
   const alCambiar = (productoId: number, campo: Campo, crudo: string) => {
     const limpio = crudo.replace(/\D/g, "").slice(0, 5);
     const fila = valoresRef.current[productoId] ?? FILA_VACIA;
     const nueva = { ...fila, [campo]: limpio };
     valoresRef.current = { ...valoresRef.current, [productoId]: nueva };
     setValores(valoresRef.current);
+    // Ingreso, devolución o cambio en 0 o vacío: su "¿De qué día?" se
+    // cierra y se borra (no puede haber días de algo que no hay).
+    // La devolución abre sola sus casillas por día al anotar algo.
+    if (campo === "devolucion" && aEntero(limpio) > 0 && aEntero(fila.devolucion) === 0) {
+      setAnterioresAbiertos((s) => new Set(s).add(`devolucion-${productoId}`));
+    }
+    if ((CAMPOS_DIA as readonly string[]).includes(campo) && aEntero(limpio) === 0) {
+      const c = campo as CampoDia;
+      setAnterioresAbiertos((s) => {
+        if (!s.has(`${c}-${productoId}`)) return s;
+        const n = new Set(s);
+        n.delete(`${c}-${productoId}`);
+        return n;
+      });
+      if (anterioresRef.current[c][productoId]) {
+        const resto = { ...anterioresRef.current[c] };
+        delete resto[productoId];
+        anterioresRef.current = { ...anterioresRef.current, [c]: resto };
+        setAnteriores(anterioresRef.current);
+      }
+    }
     suciasRef.current.add(productoId);
 
+    const previo = timersRef.current.get(productoId);
+    if (previo) clearTimeout(previo);
+    timersRef.current.set(
+      productoId,
+      setTimeout(() => guardarFilaRef.current(productoId), 800)
+    );
+  };
+
+  const alCambiarAnterior = (campo: CampoDia, productoId: number, dia: string, crudo: string) => {
+    const limpio = crudo.replace(/\D/g, "").slice(0, 5);
+    const delCampo = anterioresRef.current[campo];
+    anterioresRef.current = {
+      ...anterioresRef.current,
+      [campo]: { ...delCampo, [productoId]: { ...(delCampo[productoId] ?? {}), [dia]: limpio } },
+    };
+    setAnteriores(anterioresRef.current);
+    suciasRef.current.add(productoId);
     const previo = timersRef.current.get(productoId);
     if (previo) clearTimeout(previo);
     timersRef.current.set(
@@ -290,6 +600,7 @@ export function CapturaCliente({
   useEffect(() => {
     const alVolver = () => {
       setEnLinea(true);
+      void subirOtrosDias();
       for (const productoId of suciasRef.current) {
         if (
           ultimoGuardadoRef.current.get(productoId) !== serializar(productoId)
@@ -299,26 +610,29 @@ export function CapturaCliente({
       }
     };
     const alCaer = () => setEnLinea(false);
+    if (!navigator.onLine) alCaer();
     window.addEventListener("online", alVolver);
     window.addEventListener("offline", alCaer);
     return () => {
       window.removeEventListener("online", alVolver);
       window.removeEventListener("offline", alCaer);
     };
-  }, [serializar]);
+  }, [serializar, subirOtrosDias]);
 
-  // Aviso al salir con cambios sin guardar.
+  // Aviso al salir mientras se sube algo. Lo pendiente sin internet ya
+  // quedó en la tablet, así que no hace falta avisar por eso.
   const haySinGuardar = Object.values(estados).some(
     (e) => e === "guardando" || e === "pendiente"
   );
+  const subiendo = Object.values(estados).some((e) => e === "guardando");
   useEffect(() => {
-    if (!haySinGuardar) return;
+    if (!subiendo) return;
     const avisar = (evento: BeforeUnloadEvent) => {
       evento.preventDefault();
     };
     window.addEventListener("beforeunload", avisar);
     return () => window.removeEventListener("beforeunload", avisar);
-  }, [haySinGuardar]);
+  }, [subiendo]);
 
   const mutacionCierre = useMutation({
     mutationFn: async () => {
@@ -341,33 +655,130 @@ export function CapturaCliente({
     },
   });
 
+  // Orden de la lista: el del Excel (por sección) o A–Z. Cada tablet o
+  // teléfono recuerda su elección (solo comodidad: si falla, queda Excel).
+  const [ordenAZ, setOrdenAZ] = useState(false);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOrdenAZ(localStorage.getItem(CLAVE_ORDEN) === "az");
+    } catch {
+      /* sin almacenamiento: orden del Excel */
+    }
+  }, []);
+  const cambiarOrden = (az: boolean) => {
+    setOrdenAZ(az);
+    try {
+      localStorage.setItem(CLAVE_ORDEN, az ? "az" : "excel");
+    } catch {
+      /* sin almacenamiento: vale solo para esta visita */
+    }
+  };
+
+  // Productos que la tienda tiene que contar al cerrar: con existencia
+  // (inicial + ingreso − devolución) y sin inventario final anotado.
+  const faltaFinal = (p: Producto) =>
+    !esPrincipal &&
+    (valores[p.id]?.saldo_final ?? "") === "" &&
+    (saldosAnteriores[p.id] ?? 0) +
+      aEntero(valores[p.id]?.ingreso ?? "") -
+      aEntero(valores[p.id]?.devolucion ?? "") >
+      0;
+  // "Ver los que faltan": la lista se fija al tocarlo, para que un producto
+  // no desaparezca mientras se escribe su número.
+  const [soloFaltan, setSoloFaltan] = useState<Set<number> | null>(null);
+
   const grupos = useMemo(() => {
-    const termino = normalizar(busqueda.trim());
-    const visibles = termino
-      ? productos.filter((p) => normalizar(p.nombre).includes(termino))
-      : productos;
+    // Cada palabra debe aparecer en nombre, tamaño o categoría:
+    // "choco 10" encuentra "CHOCOLATE · 10X2".
+    const palabras = normalizar(busqueda.trim()).split(/\s+/).filter(Boolean);
+    const visibles =
+      palabras.length > 0
+        ? productos.filter((p) => {
+            const texto = normalizar(
+              `${p.nombre} ${p.tamano ?? ""} ${p.categoria ?? ""}`
+            );
+            return palabras.every((w) => texto.includes(w));
+          })
+        : productos;
+    const filtrados = soloFaltan ? visibles.filter((p) => soloFaltan.has(p.id)) : visibles;
+    if (ordenAZ) {
+      const etiqueta = (p: Producto) => `${p.nombre} ${p.tamano ?? ""}`;
+      const ordenados = [...filtrados].sort((a, b) =>
+        etiqueta(a).localeCompare(etiqueta(b), "es", { numeric: true })
+      );
+      return ordenados.length > 0
+        ? ([["De la A a la Z", ordenados]] as [string, Producto[]][])
+        : [];
+    }
     const porCategoria = new Map<string, Producto[]>();
-    for (const p of visibles) {
+    for (const p of filtrados) {
       const cat = p.categoria ?? "Sin categoría";
       const lista = porCategoria.get(cat);
       if (lista) lista.push(p);
       else porCategoria.set(cat, [p]);
     }
     return [...porCategoria.entries()];
-  }, [productos, busqueda]);
+  }, [productos, busqueda, ordenAZ, soloFaltan]);
 
   const total = productos.length;
   const capturados = guardadas.size;
   const sinCapturar = total - capturados;
+  const sinFinal = productos.filter(faltaFinal);
+  const verLosQueFaltan = () => {
+    setSoloFaltan(new Set(sinFinal.map((p) => p.id)));
+    setBusqueda("");
+    setDialogoCierre(false);
+    // Arriba, donde está el aviso de cuántos faltan y el primero de ellos.
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <section className="flex flex-col gap-3">
+      <ModoSinInternet />
+      {/* Color de hoy, grande, para que la tienda lo vea apenas entra. */}
+      <AvisoColorDia fecha={fecha} />
+
+      {noEnviados.length > 0 && (
+        <div role="status" className="rounded-xl border border-aviso/30 bg-aviso/10 px-4 py-3 text-sm">
+          <p className="font-semibold text-aviso">Hoy te llega de más</p>
+          <p className="text-xs text-muted-foreground">
+            Esto no salió {noEnviados[0] ? cuandoFue(noEnviados[0].fecha, fecha) : "ayer"}: te lo mandan hoy junto con tu pedido.
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {noEnviados.map((n) => (
+              <li key={n.id} className="flex justify-between gap-3">
+                <span>{n.nombre}</span>
+                <span className="font-bold tabular-nums">{n.cantidad}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Anotalo en tu Ingreso cuando llegue. No hace falta volver a pedirlo.
+          </p>
+        </div>
+      )}
+
+      {/* Ayuda corta para las tiendas: qué se anota y cuándo. */}
+      {!esPrincipal && !cerrado && (
+        <div className="rounded-xl border bg-muted/40 px-4 py-2.5 text-sm">
+          <p>
+            <span className="font-semibold">Al recibir:</span> Ingreso (y
+            Devolución si hay).
+          </p>
+          <p>
+            <span className="font-semibold">Al cerrar:</span> contá y anotá el
+            Inventario final y el Pedido para mañana. Si no queda nada, escribí 0.
+          </p>
+        </div>
+      )}
+
       {/* Encabezado fijo: sucursal, fecha, progreso y buscador */}
       <div className="sticky top-0 z-20 -mx-4 border-b bg-background px-4 pb-3 pt-2">
         <div className="flex items-baseline justify-between gap-2">
-          <h1 className="text-lg font-bold leading-tight">Captura del día</h1>
+          <h1 className="text-lg font-bold leading-tight">Inventario de hoy</h1>
           <span className="text-xs tabular-nums text-muted-foreground">
-            {capturados}/{total} productos
+            {capturados} de {total} anotados
           </span>
         </div>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -382,10 +793,10 @@ export function CapturaCliente({
           aria-valuenow={capturados}
           aria-valuemin={0}
           aria-valuemax={total}
-          aria-label="Avance de captura"
+          aria-label="Avance del inventario"
         >
           <div
-            className="h-full rounded-full bg-[#1F4E79] transition-all"
+            className="h-full rounded-full bg-primary transition-all"
             style={{ width: total ? `${(capturados / total) * 100}%` : "0%" }}
           />
         </div>
@@ -397,12 +808,77 @@ export function CapturaCliente({
           aria-label="Buscar producto"
           className="mt-2 h-11"
         />
-        {!enLinea && (
+        <div
+          role="group"
+          aria-label="Orden de la lista"
+          className="mt-2 flex items-center gap-2 text-xs"
+        >
+          <span className="text-muted-foreground">Ordenar:</span>
+          <div className="flex gap-1 rounded-full bg-muted p-1">
+            {(
+              [
+                [false, "Como el Excel"],
+                [true, "A–Z"],
+              ] as const
+            ).map(([az, etiqueta]) => (
+              <button
+                key={etiqueta}
+                type="button"
+                aria-pressed={ordenAZ === az}
+                onClick={() => cambiarOrden(az)}
+                className={`min-h-8 rounded-full px-3 font-medium ${
+                  ordenAZ === az
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+        </div>
+        {!cerrado && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {esPrincipal
+              ? "Anotá cuántos hay decorados y sin decorar. Cada número se guarda solo."
+              : "Anotá lo que entró, lo que devolviste y los pedidos. Cada número se guarda solo."}
+          </p>
+        )}
+        {(!enLinea || sinSenal) && !desactualizada && (
           <p
             role="status"
-            className="mt-2 rounded-md bg-[#B45309]/10 px-3 py-1.5 text-xs font-medium text-[#B45309]"
+            className="mt-2 rounded-md bg-exito/10 px-3 py-1.5 text-xs font-medium text-exito"
           >
-            Sin conexión — los cambios se guardarán al volver la señal.
+            Sin internet por ahora. No te preocupés: todo lo que anotás queda
+            guardado en esta tablet y se sube solo cuando vuelva la señal. Seguí
+            anotando normal; no tenés que hacer nada (solo no cierres sesión).
+          </p>
+        )}
+        {desactualizada && (
+          <div
+            role="status"
+            className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-aviso/10 px-3 py-1.5 text-xs font-medium text-aviso"
+          >
+            <span className="flex-1">
+              Esta pantalla es del {fechaLegible}, no de hoy.
+              {enLinea
+                ? " Recargá para anotar el inventario de hoy."
+                : " Cuando vuelva el internet, recargá para anotar el de hoy."}
+            </span>
+            {enLinea && (
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                Recargar
+              </Button>
+            )}
+          </div>
+        )}
+        {otrosDiasPendientes > 0 && (
+          <p
+            role="status"
+            className="mt-2 rounded-md bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive"
+          >
+            Quedaron {otrosDiasPendientes} productos de otro día sin subir.
+            Siguen guardados en la tablet; avisá a administración.
           </p>
         )}
         {cerrado && (
@@ -410,7 +886,7 @@ export function CapturaCliente({
             role="status"
             className="mt-2 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground"
           >
-            Día cerrado — solo lectura. La administración puede reabrirlo.
+            Ya terminaste el inventario de hoy. Si hay que corregir algo, pedile a administración que lo vuelva a abrir.
           </p>
         )}
       </div>
@@ -431,6 +907,25 @@ export function CapturaCliente({
         </p>
       )}
 
+      {soloFaltan && (
+        <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-aviso/30 bg-aviso/10 px-4 py-2.5 text-sm">
+          <span>
+            {sinFinal.length > 0
+              ? sinFinal.length === 1
+                ? "Te falta 1 por contar"
+                : `Te faltan ${sinFinal.length} por contar`
+              : "¡Listo! Ya contaste todos"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSoloFaltan(null)}
+            className="min-h-9 font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            Ver toda la lista
+          </button>
+        </div>
+      )}
+
       {grupos.map(([categoria, lista]) => (
         <div key={categoria} className="space-y-2">
           <h2 className="pt-1 text-sm font-semibold text-muted-foreground">
@@ -438,7 +933,14 @@ export function CapturaCliente({
           </h2>
           {lista.map((producto) => {
             const v = valores[producto.id] ?? FILA_VACIA;
-            const conDecoracion = esPrincipal && producto.lleva_decoracion;
+            // En Principal todos los productos anotan Decorado / Sin decorar.
+            const conDecoracion = esPrincipal;
+            // Vendido hoy (tiendas): solo si contaron el inventario final.
+            const final = finalONulo(v.saldo_final);
+            const vendido =
+              final === null
+                ? null
+                : (saldosAnteriores[producto.id] ?? 0) + aEntero(v.ingreso) - aEntero(v.devolucion) - final;
             return (
               <div
                 key={producto.id}
@@ -450,19 +952,34 @@ export function CapturaCliente({
                       {producto.nombre}
                       {producto.tamano ? ` · ${producto.tamano}` : ""}
                     </p>
-                    <p className="text-xs tabular-nums text-muted-foreground">
-                      Saldo anterior: {saldosAnteriores[producto.id] ?? 0}
-                    </p>
                   </div>
                   <BadgeEstado estado={estados[producto.id]} />
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
+                {/* Principal solo anota Decorado y Sin decorar (19 nov). */}
+                {!esPrincipal && (
+                <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  {/* Inicial: con lo que quedó la tienda ayer. Solo se ve. */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      Inicial
+                    </span>
+                    <div
+                      className="flex h-11 items-center rounded-md border border-dashed bg-muted px-3 text-base font-medium tabular-nums"
+                      aria-label={`Inicial de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}: ${saldosAnteriores[producto.id] ?? 0}`}
+                      title="Con lo que quedaron ayer. No se cambia."
+                    >
+                      {saldosAnteriores[producto.id] ?? 0}
+                    </div>
+                  </div>
                   {(
                     [
                       ["ingreso", "Ingreso"],
                       ["devolucion", "Devolución"],
                       ["pedido", "Pedido"],
-                    ] as const
+                      // Cambio: lo que la tienda manda a Principal para
+                      // cambiar (columna CM de la hoja completa).
+                      ["cambio", "Cambio"],
+                    ] as const as readonly (readonly [Campo, string])[]
                   ).map(([campo, etiqueta]) => (
                     <label key={campo} className="flex flex-col gap-1">
                       <span className="text-xs text-muted-foreground">
@@ -475,16 +992,128 @@ export function CapturaCliente({
                           alCambiar(producto.id, campo, e.target.value)
                         }
                         onBlur={() => alSalirDelCampo(producto.id)}
-                        disabled={cerrado}
+                        disabled={cerrado || desactualizada}
                         placeholder="0"
-                        className="h-11 text-base tabular-nums"
+                        className="h-11 text-base tabular-nums placeholder:text-foreground"
                         aria-label={`${etiqueta} de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
                       />
                     </label>
                   ))}
                 </div>
+                )}
+                {/* "¿De qué día?" de ingreso, devolución y cambio: desplegables,
+                    solo cuando el campo tiene algo. */}
+                {CAMPOS_DIA.filter(usaDias).map((campo) => {
+                    const diasAnteriores = diasPorCampo[campo];
+                    const cantidad = aEntero(v[campo]);
+                    const porDia = anteriores[campo][producto.id] ?? {};
+                    const anotados = diasAnteriores.filter((d) => aEntero(porDia[d] ?? "") > 0);
+                    if (cantidad === 0) return null;
+                    const clave = `${campo}-${producto.id}`;
+                    const abierto = anterioresAbiertos.has(clave);
+                    const suma = Object.values(porDia).reduce((t, n) => t + aEntero(n), 0);
+                    const texto = TEXTO_DIA[campo];
+                    const nombreProducto = `${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`;
+                    return (
+                      <div key={campo} className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAnterioresAbiertos((s) => {
+                              const n = new Set(s);
+                              if (n.has(clave)) n.delete(clave);
+                              else n.add(clave);
+                              return n;
+                            })
+                          }
+                          aria-expanded={abierto}
+                          className="flex min-h-9 w-full items-center gap-1.5 text-left text-xs font-medium text-primary"
+                        >
+                          <span aria-hidden className={`inline-block transition-transform ${abierto ? "rotate-90" : ""}`}>
+                            ▸
+                          </span>
+                          <span className="underline-offset-4 hover:underline">{texto.abrir}</span>
+                          {!abierto && anotados.length > 0 && (
+                            <span className="ml-auto flex flex-wrap items-center justify-end gap-1 font-normal text-muted-foreground">
+                              {anotados.map((d) => (
+                                <span key={d} className="flex items-center gap-1">
+                                  {aEntero(porDia[d])}
+                                  <ChipColorDia fecha={d} />
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </button>
+                        {abierto && (
+                          <fieldset className="mt-1 rounded-md border border-dashed p-2">
+                            <legend className="px-1 text-xs text-muted-foreground">{texto.titulo}</legend>
+                            <div className="grid grid-cols-3 gap-2">
+                              {diasAnteriores.map((dia) => (
+                                <label key={dia} className="flex flex-col gap-1">
+                                  <span className="flex flex-col items-start gap-0.5 text-xs text-muted-foreground">
+                                    <ChipColorDia fecha={dia} />
+                                    <span>{nombreDia(dia)}</span>
+                                  </span>
+                                  <Input
+                                    inputMode="numeric"
+                                    value={porDia[dia] ?? ""}
+                                    onChange={(e) => alCambiarAnterior(campo, producto.id, dia, e.target.value)}
+                                    onBlur={() => alSalirDelCampo(producto.id)}
+                                    disabled={cerrado || desactualizada}
+                                    placeholder="0"
+                                    className="h-10 text-base tabular-nums placeholder:text-foreground"
+                                    aria-label={`De ${texto.nombre} de ${nombreProducto}, cuántos son del ${nombreDia(dia)}`}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                            {suma > cantidad && (
+                              <p className="mt-1 text-xs text-destructive">
+                                Son más que {texto.el} ({cantidad}): revisá los números.
+                              </p>
+                            )}
+                          </fieldset>
+                        )}
+                      </div>
+                    );
+                  })}
+                {!esPrincipal && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">
+                          Inventario final (al cerrar)
+                        </span>
+                        <Input
+                          inputMode="numeric"
+                          value={v.saldo_final}
+                          onChange={(e) => alCambiar(producto.id, "saldo_final", e.target.value)}
+                          onBlur={() => alSalirDelCampo(producto.id)}
+                          disabled={cerrado || desactualizada}
+                          placeholder="Sin contar"
+                          className="h-11 text-base tabular-nums"
+                          aria-label={`Inventario final de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
+                        />
+                      </label>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Vendido hoy</span>
+                        <div
+                          className={`flex h-11 items-center rounded-md border border-dashed bg-muted px-3 text-base font-semibold tabular-nums ${
+                            vendido !== null && vendido < 0 ? "text-destructive" : ""
+                          }`}
+                          title="Inicial + Ingreso − Devolución − Inventario final. No se escribe."
+                        >
+                          {vendido === null ? "—" : vendido}
+                        </div>
+                        {vendido !== null && vendido < 0 && (
+                          <span className="text-xs text-destructive">
+                            Quedó más de lo que había: revisá los números.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                )}
                 {conDecoracion && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div className="mt-2 grid grid-cols-3 gap-2">
                     {(
                       [
                         ["decorado", "Decorado"],
@@ -502,13 +1131,25 @@ export function CapturaCliente({
                             alCambiar(producto.id, campo, e.target.value)
                           }
                           onBlur={() => alSalirDelCampo(producto.id)}
-                          disabled={cerrado}
+                          disabled={cerrado || desactualizada}
                           placeholder="0"
-                          className="h-11 text-base tabular-nums"
+                          className="h-11 text-base tabular-nums placeholder:text-foreground"
                           aria-label={`${etiqueta} de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}`}
                         />
                       </label>
                     ))}
+                    {/* Inventario total = Decorado + Sin decorar: se calcula
+                        solo y no se cambia (19 nov). */}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-muted-foreground">Inventario total</span>
+                      <div
+                        className="flex h-11 items-center rounded-md border border-dashed bg-muted px-3 text-base font-semibold tabular-nums"
+                        aria-label={`Inventario total de ${producto.nombre}${producto.tamano ? ` ${producto.tamano}` : ""}: ${aEntero(v.decorado) + aEntero(v.sin_decorar)}`}
+                        title="Decorado + Sin decorar. Se calcula solo."
+                      >
+                        {aEntero(v.decorado) + aEntero(v.sin_decorar)}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -517,32 +1158,92 @@ export function CapturaCliente({
         </div>
       ))}
 
-      {!cerrado && total > 0 && (
-        <div className="pb-6 pt-2">
+      {!cerrado && !desactualizada && total > 0 && (
+        <div className="space-y-1.5 pb-6 pt-2">
           <Button
-            className="h-12 w-full bg-[#1F4E79] text-base hover:bg-[#1F4E79]/90"
+            className="h-12 w-full bg-primary text-base hover:bg-primary/90"
             onClick={() => setDialogoCierre(true)}
+            disabled={!enLinea || haySinGuardar}
           >
-            Marcar día completo
+            Terminé el inventario de hoy
           </Button>
+          {(!enLinea || haySinGuardar) && (
+            <p className="text-center text-xs text-muted-foreground">
+              {enLinea
+                ? "Esperá a que se suba todo para terminar."
+                : "Para terminar hace falta internet. Lo anotado ya está guardado en la tablet."}
+            </p>
+          )}
         </div>
       )}
 
       <Dialog open={dialogoCierre} onOpenChange={setDialogoCierre}>
         <DialogContent className="max-w-sm">
+          {sinFinal.length > 0 ? (
+            // Aviso antes de terminar sin contar: sin inventario final no se
+            // sabe cuánto se vendió y el inicial de mañana sale mal. Igual
+            // se puede terminar (16 nov).
+            <>
+              <DialogHeader>
+                <DialogTitle>¡Ya casi! Te faltan unos por contar</DialogTitle>
+                <DialogDescription>
+                  {sinFinal.length === 1
+                    ? "A este producto le falta"
+                    : `A estos ${sinFinal.length} productos les falta`}{" "}
+                  el Inventario final (lo que quedó al cerrar). Si no quedó
+                  nada, poné 0.
+                </DialogDescription>
+              </DialogHeader>
+              <ul className="max-h-40 overflow-y-auto text-sm">
+                {sinFinal.slice(0, 8).map((p) => (
+                  <li key={p.id}>
+                    {p.nombre}
+                    {p.tamano ? ` · ${p.tamano}` : ""}
+                  </li>
+                ))}
+                {sinFinal.length > 8 && (
+                  <li className="text-muted-foreground">y {sinFinal.length - 8} más…</li>
+                )}
+              </ul>
+              {mutacionCierre.isError && (
+                <p className="text-sm text-destructive">
+                  No se pudo guardar. Revisá que haya internet e intentá de nuevo.
+                </p>
+              )}
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={() => mutacionCierre.mutate()}
+                  disabled={mutacionCierre.isPending}
+                >
+                  {mutacionCierre.isPending ? "Guardando…" : "Terminar así"}
+                </Button>
+                <Button
+                  className="h-11 bg-primary hover:bg-primary/90"
+                  onClick={verLosQueFaltan}
+                  disabled={mutacionCierre.isPending}
+                >
+                  Contarlos ahora
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
           <DialogHeader>
-            <DialogTitle>¿Cerrar el día?</DialogTitle>
+            <DialogTitle>¿Terminaste el inventario?</DialogTitle>
             <DialogDescription>
-              Llevás {capturados} de {total} productos con captura.
+              Anotaste {capturados} de {total} productos.
               {sinCapturar > 0
-                ? ` Los ${sinCapturar} productos sin captura quedarán en 0.`
-                : " Todo el catálogo quedó capturado."}{" "}
-              Después del cierre solo la administración puede corregir.
+                ? ` Los ${sinCapturar} que no anotaste quedan en 0.`
+                : " ¡Anotaste todos!"}{" "}
+              Después ya no vas a poder cambiar números; solo administración
+              puede corregir.
             </DialogDescription>
           </DialogHeader>
           {mutacionCierre.isError && (
-            <p className="text-sm text-[#B3261E]">
-              No se pudo cerrar el día. Revisá tu conexión e intentá de nuevo.
+            <p className="text-sm text-destructive">
+              No se pudo guardar. Revisá que haya internet e intentá de nuevo.
             </p>
           )}
           <DialogFooter className="gap-2">
@@ -552,16 +1253,18 @@ export function CapturaCliente({
               onClick={() => setDialogoCierre(false)}
               disabled={mutacionCierre.isPending}
             >
-              Seguir capturando
+              Seguir anotando
             </Button>
             <Button
-              className="h-11 bg-[#1F4E79] hover:bg-[#1F4E79]/90"
+              className="h-11 bg-primary hover:bg-primary/90"
               onClick={() => mutacionCierre.mutate()}
               disabled={mutacionCierre.isPending}
             >
-              {mutacionCierre.isPending ? "Cerrando…" : "Cerrar el día"}
+              {mutacionCierre.isPending ? "Guardando…" : "Sí, terminé"}
             </Button>
           </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </section>

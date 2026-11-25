@@ -1,6 +1,7 @@
 import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { createClient } from "@/lib/supabase/server";
-import { hoyTegucigalpa, diaAnterior, formatoLargo } from "@/lib/fechas";
+import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
+import { diaProduccionAnterior } from "@/lib/no-enviados";
 import { CapturaCliente } from "./captura-cliente";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export default async function CapturaPage() {
   if (!perfil?.sucursalId) {
     return (
       <section className="space-y-2">
-        <h1 className="text-xl font-bold">Captura del día</h1>
+        <h1 className="text-xl font-bold">Inventario de hoy</h1>
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Tu usuario no tiene sucursal asignada. Contactá a la administración.
         </p>
@@ -21,30 +22,32 @@ export default async function CapturaPage() {
 
   const supabase = await createClient();
   const fecha = hoyTegucigalpa();
-  const ayer = diaAnterior(fecha);
   const sucursalId = perfil.sucursalId;
 
-  const [productosRes, movimientosRes, previosRes, cierreRes, sucursalRes] =
+
+  const [productosRes, movimientosRes, previosRes, cierreRes, sucursalRes, noEnviadosRes] =
     await Promise.all([
       supabase
         .from("productos")
         .select("id, nombre, categoria, tamano, lleva_decoracion")
         .eq("activo", true)
+        .order("orden", { nullsFirst: false })
         .order("categoria")
         .order("nombre")
         .order("tamano"),
       supabase
         .from("movimientos_diarios")
         .select(
-          "producto_id, saldo_inicial, ingreso, devolucion, pedido, decorado, sin_decorar"
+          "producto_id, saldo_inicial, ingreso, devolucion, pedido, cambio, decorado, sin_decorar, nota, saldo_final, ingreso_anterior, devolucion_anterior, cambio_anterior"
         )
         .eq("fecha", fecha)
         .eq("sucursal_id", sucursalId),
-      supabase
-        .from("movimientos_diarios")
-        .select("producto_id, saldo_inicial, ingreso, devolucion, saldo_final")
-        .eq("fecha", ayer)
-        .eq("sucursal_id", sucursalId),
+      // Saldo con el que arranca cada producto: lo calcula la base igual
+      // que al guardar (último día anterior con fila, no "ayer" de calendario).
+      supabase.rpc("saldos_anteriores", {
+        p_fecha: fecha,
+        p_sucursal: sucursalId,
+      }),
       supabase
         .from("cierres_dia")
         .select("estado")
@@ -56,6 +59,14 @@ export default async function CapturaPage() {
         .select("es_principal")
         .eq("id", sucursalId)
         .single(),
+      // Lo que no salió el día anterior: hoy le llega junto con su pedido.
+      supabase
+        .from("no_enviados")
+        .select("id, fecha, cantidad, productos(nombre, tamano)")
+        .eq("sucursal_id", sucursalId)
+        .is("enviado_at", null)
+        .eq("fecha", diaProduccionAnterior(fecha))
+        .order("fecha"),
     ]);
 
   const error =
@@ -67,7 +78,7 @@ export default async function CapturaPage() {
   if (error) {
     return (
       <section className="space-y-2">
-        <h1 className="text-xl font-bold">Captura del día</h1>
+        <h1 className="text-xl font-bold">Inventario de hoy</h1>
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           No se pudieron cargar los datos. Recargá la página; si el problema
           sigue, avisá a la administración.
@@ -76,11 +87,9 @@ export default async function CapturaPage() {
     );
   }
 
-  // Saldo anterior por producto: saldo final de ayer, o el calculado si no se contó.
   const saldosAnteriores: Record<number, number> = {};
   for (const m of previosRes.data ?? []) {
-    saldosAnteriores[m.producto_id] =
-      m.saldo_final ?? Math.max(m.saldo_inicial + m.ingreso - m.devolucion, 0);
+    saldosAnteriores[m.producto_id] = m.saldo;
   }
 
   return (
@@ -95,6 +104,15 @@ export default async function CapturaPage() {
       productos={productosRes.data ?? []}
       movimientosIniciales={movimientosRes.data ?? []}
       saldosAnteriores={saldosAnteriores}
+      // Si falla esta consulta, el inventario igual se puede anotar.
+      noEnviados={(noEnviadosRes.data ?? []).map((n) => ({
+        id: n.id,
+        fecha: n.fecha,
+        cantidad: n.cantidad,
+        nombre: n.productos
+          ? `${n.productos.nombre}${n.productos.tamano ? ` · ${n.productos.tamano}` : ""}`
+          : "Producto",
+      }))}
     />
   );
 }

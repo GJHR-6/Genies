@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  diasProduccionAnteriores,
+  ingresoPorProduccion,
   accionPorDias,
   estimarLotes,
   lotesRezagados,
@@ -56,6 +58,45 @@ describe("estimarLotes", () => {
 
   it("saldo cero no genera lotes", () => {
     expect(estimarLotes(0, "2026-07-13", [])).toEqual([]);
+  });
+});
+
+describe("ingresoPorProduccion", () => {
+  it("sin anterior, todo el ingreso es del día", () => {
+    expect(ingresoPorProduccion("2026-11-16", 5, null)).toEqual([
+      { fecha: "2026-11-16", ingreso: 5 },
+    ]);
+  });
+
+  it("separa lo de días anteriores y deja el resto en el día", () => {
+    expect(ingresoPorProduccion("2026-11-16", 5, { "2026-11-14": 2 })).toEqual([
+      { fecha: "2026-11-14", ingreso: 2 },
+      { fecha: "2026-11-16", ingreso: 3 },
+    ]);
+  });
+
+  it("no se pasa del ingreso (primero lo más viejo) e ignora fechas no anteriores", () => {
+    expect(
+      ingresoPorProduccion("2026-11-16", 4, { "2026-11-14": 3, "2026-11-13": 3, "2026-11-16": 9 })
+    ).toEqual([
+      { fecha: "2026-11-13", ingreso: 3 },
+      { fecha: "2026-11-14", ingreso: 1 },
+    ]);
+  });
+
+  it("con lo de otro día, la rotación lo fecha con su color", () => {
+    const lotes = estimarLotes(5, "2026-11-16", ingresoPorProduccion("2026-11-16", 5, { "2026-11-14": 2 }));
+    expect(lotes).toEqual([
+      { fechaProduccion: "2026-11-16", unidades: 3, dias: 0 },
+      { fechaProduccion: "2026-11-14", unidades: 2, dias: 2 },
+    ]);
+  });
+});
+
+describe("diasProduccionAnteriores", () => {
+  it("salta el domingo", () => {
+    // lunes 16 nov 2026 → sábado 14, viernes 13, jueves 12
+    expect(diasProduccionAnteriores("2026-11-16")).toEqual(["2026-11-14", "2026-11-13", "2026-11-12"]);
   });
 });
 
