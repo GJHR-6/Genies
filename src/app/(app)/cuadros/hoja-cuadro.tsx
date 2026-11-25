@@ -32,6 +32,13 @@ import { PanelBatidas, type CambioBatida } from "./panel-batidas";
  */
 const CERO = "0";
 
+/** Color de fondo de la fila separadora por grupo (V · CH · Mixto · otros). */
+const COLOR_SECCION: Record<string, string> = {
+  VAINILLA:  "bg-yellow-100 dark:bg-yellow-900/25 print:bg-yellow-100",
+  CHOCOLATE: "bg-amber-200/70 dark:bg-amber-900/25 print:bg-amber-100",
+  MIXTO:     "bg-sky-100 dark:bg-sky-900/25 print:bg-sky-100",
+};
+
 type Sucursal = { id: number; nombre: string };
 
 /** Lo que Principal anotó hoy, para DECO / SIN DECO / INV/TOTAL y CM. */
@@ -608,7 +615,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                 : [];
               return (
                 <Fragment key={categoria}>
-                  <tr className="border-b bg-muted/30 print:border-black/60 print:bg-black/10">
+                  <tr className={cn("border-b print:border-black/60", COLOR_SECCION[categoria] ?? "bg-muted/30 print:bg-black/10")}>
                     <td colSpan={columnas} className="px-3 py-1.5 text-xs font-bold uppercase">
                       {/* El nombre de la sección queda a la vista al mover la tabla de lado. */}
                       <span className="sticky left-3 print:static">{categoria}</span>

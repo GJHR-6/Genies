@@ -14,6 +14,8 @@ import {
 } from "@/lib/rotacion";
 import { ordenarSucursales } from "@/lib/orden-sucursales";
 import { normalizarAnterior } from "@/lib/cola-offline";
+import { obtenerPerfil } from "@/lib/supabase/perfil";
+import { SelectorSucursal } from "./selector-sucursal";
 
 export const dynamic = "force-dynamic";
 
@@ -69,9 +71,16 @@ function PastillaColor({ fechaIso }: { fechaIso: string | null }) {
   );
 }
 
-export default async function RotacionPage() {
+export default async function RotacionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sucursal?: string }>;
+}) {
   const supabase = await createClient();
+  const perfil = await obtenerPerfil();
   const hoy = hoyTegucigalpa();
+  const params = await searchParams;
+  const sucursalFiltro = params.sucursal ? parseInt(params.sucursal) : null;
 
   // Ventana de fechas: hoy y los 6 días anteriores.
   const fechas: string[] = [hoy];
@@ -208,12 +217,10 @@ export default async function RotacionPage() {
   // Todo lo que hay en cada tienda, por edad (10 nov: también lo que está a
   // tiempo, para ver qué no se regresa).
   const porSucursal = new Map<number, ProductoRezagado[]>();
-  let unidadesPrioridad = 0;
-  let unidadesRegresar = 0;
-  let unidadesATiempo = 0;
   for (const [clave, saldo] of saldos) {
     if (saldo <= 0) continue;
     const [productoId, sucursalId] = clave.split("-").map(Number);
+    if (sucursalFiltro && sucursalId !== sucursalFiltro) continue;
     const producto = nombreProducto.get(productoId);
     if (!producto) continue;
     // Del más viejo al más nuevo.
@@ -230,12 +237,6 @@ export default async function RotacionPage() {
       lotes: rezagados,
     });
     porSucursal.set(sucursalId, lista);
-    for (const l of rezagados) {
-      const accion = accionPorDias(l.dias);
-      if (accion === "regresar") unidadesRegresar += l.unidades;
-      else if (accion === "prioridad") unidadesPrioridad += l.unidades;
-      else unidadesATiempo += l.unidades;
-    }
   }
   for (const lista of porSucursal.values()) {
     lista.sort(
@@ -246,21 +247,46 @@ export default async function RotacionPage() {
     (s) => (porSucursal.get(s.id) ?? []).length > 0
   );
 
+  // Contadores: solo los grupos visibles.
+  let unidadesPrioridad = 0;
+  let unidadesRegresar = 0;
+  let unidadesATiempo = 0;
+  for (const s of gruposConAlerta) {
+    for (const p of porSucursal.get(s.id) ?? []) {
+      for (const l of p.lotes) {
+        const accion = accionPorDias(l.dias);
+        if (accion === "regresar") unidadesRegresar += l.unidades;
+        else if (accion === "prioridad") unidadesPrioridad += l.unidades;
+        else unidadesATiempo += l.unidades;
+      }
+    }
+  }
+
   // Leyenda: colores de lunes a sábado (semana que termina hoy o la próxima).
   const semanaLeyenda: string[] = [];
   for (let f = hoy, i = 0; i < VENTANA_DIAS; i++, f = diaAnterior(f)) {
     if (colorDelDia(f)) semanaLeyenda.unshift(f);
   }
 
+  const puedeElegirSucursal = perfil?.rol === "admin" || perfil?.rol === "principal";
+
   return (
     <section className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-bold">Rotación de producto</h1>
         <p className="text-sm text-muted-foreground">Cuántos días lleva cada producto en la tienda, para vender primero lo más viejo.</p>
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span>{formatoLargo(hoy)}</span>
-          <ChipColorDia fecha={hoy} conEtiqueta />
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            <span>{formatoLargo(hoy)}</span>
+            <ChipColorDia fecha={hoy} conEtiqueta />
+          </p>
+          {puedeElegirSucursal && (
+            <SelectorSucursal
+              sucursales={sucursales}
+              seleccionada={sucursalFiltro}
+            />
+          )}
+        </div>
       </div>
 
       <div className="rounded-lg border bg-card p-4 text-sm">
