@@ -182,6 +182,9 @@ export default async function CuadrosPage({
   const minimoDe = (id: number) =>
     dia.principalId === null ? null : (celdas[`${id}-${dia.principalId}`]?.objetivo ?? null);
   const hoySemana = diaSemana(fecha);
+  // Al imprimir, solo el día de hoy (26 nov: ahorrar papel); en pantalla,
+  // toda la semana.
+  const OTRO_DIA = "print:hidden";
 
   // Lo que decora una pastelera (Catálogos → Productos → «¿Quién lo
   // decora?», 17 nov) sale al final de su hoja, en «Para decorar», con el
@@ -374,7 +377,7 @@ export default async function CuadrosPage({
               {Array.from({ length: porDia }, (_, i) => (
                 <td
                   key={i}
-                  className={`${borde} h-8 w-10 px-1 text-right tabular-nums ${n === hoySemana ? `${hoyClase} ${clase}` : ""}`}
+                  className={`${borde} h-8 w-10 px-1 text-right tabular-nums ${n === hoySemana ? `${hoyClase} ${clase}` : OTRO_DIA}`}
                 >
                   {n === hoySemana && hoy ? hoy[i] : null}
                 </td>
@@ -384,7 +387,7 @@ export default async function CuadrosPage({
         return (
         <article
           key={cuadro.titulo}
-          className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0 print:[page:horizontal]"
+          className="break-after-page rounded-lg border bg-card p-4 print:rounded-none print:border-0 print:p-0"
         >
           <header className="mb-3 flex items-baseline justify-between gap-2 border-b pb-2 print:border-black">
             <h2 className="text-lg font-bold">
@@ -418,7 +421,7 @@ export default async function CuadrosPage({
                   <th
                     key={n}
                     colSpan={porDia}
-                    className={`${borde} px-1 py-1 text-center font-semibold uppercase ${n === hoySemana ? hoyClase : ""}`}
+                    className={`${borde} px-1 py-1 text-center font-semibold uppercase ${n === hoySemana ? hoyClase : OTRO_DIA}`}
                   >
                     {nombre}
                     {n === hoySemana && <span className="sr-only"> (hoy)</span>}
@@ -435,7 +438,7 @@ export default async function CuadrosPage({
                       <th
                         key={titulo}
                         title={titulo.startsWith("B") ? `Batida ${titulo.slice(1)}` : undefined}
-                        className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : ""}`}
+                        className={`${borde} px-1 py-0.5 text-center text-[11px] font-semibold ${n === hoySemana ? hoyClase : OTRO_DIA}`}
                       >
                         {titulo}
                       </th>
@@ -501,8 +504,8 @@ export default async function CuadrosPage({
           <p className="mt-2 text-xs text-muted-foreground print:text-black/60">
             Mínimo = lo que Principal debe tener. Hoy ({color.nombre.toLowerCase()})
             ya trae lo que hay que {esDecoracion ? "decorar" : "producir"}
-, en una casilla por batida (B1, B2…){esDecoracion ? " y el SALDO al final" : ""};
-            los demás días se llenan a mano.
+, en una casilla por batida (B1, B2…){esDecoracion ? " y el SALDO al final" : ""}.
+            <span className="print:hidden"> Los demás días se llenan a mano; al imprimir sale solo hoy.</span>
           </p>
         </article>
         );
