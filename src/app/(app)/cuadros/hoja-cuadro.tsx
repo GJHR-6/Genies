@@ -527,7 +527,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
             // «Todo» tiene muchas columnas: más compacto para que entre en
             // pantalla sin mover de lado (26 nov). Al imprimir, igual que antes.
             vista === "todo" &&
-              "text-[11.5px] [&_td]:px-1 [&_th]:px-1 [&_td_button]:min-w-9 [&_td_button]:px-1 print:text-[9.5px] print:[&_td]:px-2 print:[&_th]:px-2"
+              "text-[11px] [&_td]:px-1 [&_th]:px-1 [&_td_button]:min-w-8 [&_td_button]:px-0.5 print:text-[9.5px] print:[&_td]:px-2 print:[&_th]:px-2"
           )}
         >
           <thead className="sticky top-0 z-[2] bg-muted shadow-[0_1px_0_var(--border)] print:static print:bg-transparent print:shadow-none">
