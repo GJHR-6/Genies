@@ -44,6 +44,9 @@ type Producto = {
 };
 type Opcion = { id: number; nombre: string };
 
+/** Valor del menú para escribir una sección nueva. */
+const NUEVA = "__nueva__";
+
 type Filtro = "activos" | "inactivos" | "temporada" | "todos";
 
 const FILTROS: { valor: Filtro; etiqueta: string }[] = [
@@ -64,6 +67,16 @@ export function ProductosCliente({
   const [filtro, setFiltro] = useState<Filtro>("activos");
   const [editando, setEditando] = useState<Producto | "nuevo" | null>(null);
 
+  // Secciones de los productos activos, en el orden del Excel.
+  const secciones = useMemo(() => {
+    const vistas = new Map<string, number>();
+    for (const p of productos.filter((x) => x.activo)) {
+      const c = p.categoria?.trim();
+      if (c && !vistas.has(c)) vistas.set(c, p.orden ?? Number.MAX_SAFE_INTEGER);
+      else if (c) vistas.set(c, Math.min(vistas.get(c)!, p.orden ?? Number.MAX_SAFE_INTEGER));
+    }
+    return [...vistas.entries()].sort((a, b) => a[1] - b[1]).map(([c]) => c);
+  }, [productos]);
   const nombreArea = useMemo(
     () => new Map(areas.map((a) => [a.id, a.nombre])),
     [areas]
@@ -193,6 +206,7 @@ export function ProductosCliente({
           <FormularioProducto
             key={editando === "nuevo" ? "nuevo" : editando.id}
             producto={editando === "nuevo" ? null : editando}
+            secciones={secciones}
             areas={areas}
             alCerrar={() => setEditando(null)}
           />
@@ -204,10 +218,13 @@ export function ProductosCliente({
 
 function FormularioProducto({
   producto,
+  secciones,
   areas,
   alCerrar,
 }: {
   producto: Producto | null;
+  /** Secciones que ya existen, en el orden de la lista. */
+  secciones: string[];
   areas: (Opcion & { activa: boolean; es_decoracion: boolean })[];
   alCerrar: () => void;
 }) {
@@ -225,6 +242,8 @@ function FormularioProducto({
     lleva_decoracion: producto?.lleva_decoracion ?? false,
     activo: producto?.activo ?? true,
   });
+  // Sección que todavía no existe: se escribe aparte.
+  const [seccionNueva, setSeccionNueva] = useState(false);
   const { enviando, error, ejecutar } = useAccion();
 
   const cambiar = <K extends keyof typeof datos>(
@@ -284,16 +303,45 @@ function FormularioProducto({
             />
           </Campo>
           <Campo
-            etiqueta="Categoría"
+            etiqueta="Sección"
             htmlFor="prod-categoria"
-            ayuda="Agrupa la lista del inventario."
+            ayuda="El grupo en que sale en el inventario, el cuadro completo y las hojas (VAINILLA, PERSONALES…)."
           >
-            <Input
+            {/* Se elige de la lista para no crear secciones repetidas por
+                una tilde o un espacio (26 nov). */}
+            <Selector
               id="prod-categoria"
-              value={datos.categoria}
-              onChange={(e) => cambiar("categoria", e.target.value)}
-              className="h-10"
-            />
+              value={seccionNueva ? NUEVA : datos.categoria}
+              onChange={(e) => {
+                if (e.target.value === NUEVA) {
+                  setSeccionNueva(true);
+                  cambiar("categoria", "");
+                } else {
+                  setSeccionNueva(false);
+                  cambiar("categoria", e.target.value);
+                }
+              }}
+            >
+              <option value="">— Sin sección —</option>
+              {(datos.categoria && !secciones.includes(datos.categoria) && !seccionNueva
+                ? [...secciones, datos.categoria]
+                : secciones
+              ).map((nombre) => (
+                <option key={nombre} value={nombre}>
+                  {nombre}
+                </option>
+              ))}
+              <option value={NUEVA}>+ Sección nueva…</option>
+            </Selector>
+            {seccionNueva && (
+              <Input
+                aria-label="Nombre de la sección nueva"
+                placeholder="Ej.: POSTRES"
+                value={datos.categoria}
+                onChange={(e) => cambiar("categoria", e.target.value.toUpperCase())}
+                className="mt-2 h-10"
+              />
+            )}
           </Campo>
           <Campo
             etiqueta="Área de producción"
