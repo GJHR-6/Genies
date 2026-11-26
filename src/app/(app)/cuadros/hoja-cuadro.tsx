@@ -426,7 +426,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
   }, [productos]);
 
   const edicionProps = { edicion, setEdicion, confirmar };
-  const columnas = 4 + tiendas.length * 2 + 4 + (sucursalPrincipal ? 1 : 0) + 1 + numBatidas;
+  const columnas = 4 + tiendas.length * 2 + 5 + (sucursalPrincipal ? 1 : 0) + 1 + numBatidas;
   const productoPanel = panel === null ? null : (productos.find((p) => p.id === panel) ?? null);
   /** Hay algo de DEC / PROD cambiado a mano en este producto. */
   const conAjuste = (productoId: number, tipo: AjusteBatida["tipo"]) =>
@@ -467,7 +467,25 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
       </div>
 
       <div className="rounded-2xl border bg-muted/40 p-4 text-sm print:hidden">
-        {vista !== "produccion" ? (
+        {vista === "despacho" ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <p>
+              <span className="font-semibold">Lo que va a cada tienda.</span>{" "}
+              <span className="text-muted-foreground">
+                Es el pedido que anotó la tienda (más lo que no salió ayer); abajo,
+                en chico, su sugerido. Tocá un número para cambiarlo y presioná
+                Enter; vacío = vuelve al pedido. CM = cambio de la tienda.
+              </span>
+            </p>
+            <p>
+              <span className="font-semibold">Total a enviar.</span>{" "}
+              <span className="text-muted-foreground">
+                La suma de lo que se manda a las cinco tiendas, sin los cambios.
+                Lo de Principal (Deco, Sin deco, Saldo) está en la pestaña Todo.
+              </span>
+            </p>
+          </div>
+        ) : vista === "todo" ? (
           <div className="grid gap-3 sm:grid-cols-3">
             <p>
               <span className="font-semibold">1. Lo que hay en Principal.</span>{" "}
@@ -536,16 +554,22 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
               <th className="sticky left-0 z-[3] shadow-[1px_0_0_var(--border)] bg-muted px-3 py-2 text-left font-semibold print:static print:bg-transparent">
                 Producto
               </th>
-              <th className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}>Deco</th>
-              <th className={cn("px-2 py-2 text-right font-semibold", col("despacho", "produccion"))}>Sin deco</th>
-              <th className={cn("px-2 py-2 text-right font-semibold", col("despacho"))}>Inv/Total</th>
+              <th className={cn("border-l px-2 py-2 text-right font-semibold", col())}>Deco</th>
+              <th className={cn("px-2 py-2 text-right font-semibold", col("produccion"))}>Sin deco</th>
+              <th className={cn("px-2 py-2 text-right font-semibold", col())}>Inv/Total</th>
               {tiendas.map((t) => (
                 <Fragment key={t.id}>
                   <th className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}>{t.nombre}</th>
                   <th className={cn("px-2 py-2 text-right font-medium text-muted-foreground", col("despacho"))}>CM</th>
                 </Fragment>
               ))}
-              <th className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}>Saldo</th>
+              <th
+                className={cn("border-l bg-yellow-100 px-2 py-2 text-right font-semibold dark:bg-yellow-500/20", col("despacho"))}
+                title="Suma de lo que se manda a las tiendas (sin los cambios)"
+              >
+                Total a enviar
+              </th>
+              <th className={cn("border-l px-2 py-2 text-right font-semibold", col())}>Saldo</th>
               <th
                 className={cn("border-l px-2 py-2 text-left font-semibold", col("produccion"))}
                 title="Cuánto se decora en cada batida: 1 = lo sin decorar, 2 = lo que se hornea"
@@ -568,7 +592,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
               </th>
               {sucursalPrincipal && (
                 <th
-                  className={cn("border-l px-2 py-2 text-right font-semibold", col("despacho"))}
+                  className={cn("border-l px-2 py-2 text-right font-semibold", col())}
                   title="Lo que necesita la vitrina de Principal"
                 >
                   {sucursalPrincipal.nombre}
@@ -642,7 +666,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                               // Sin nada anotado, los que no llevan decoración muestran su saldo.
                               valor={fila.deco ?? 0}
                               etiqueta={`Deco de ${nombre}`}
-                              className={cn("border-l", col("despacho"))}
+                              className={cn("border-l", col())}
                               {...edicionProps}
                             />
                             <CeldaPrincipal
@@ -650,7 +674,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                               producto={p.id}
                               valor={sinDecorar[p.id] ?? 0}
                               etiqueta={`Sin deco de ${nombre}`}
-                              className={col("despacho", "produccion")}
+                              className={col("produccion")}
                               {...edicionProps}
                             />
                           </>
@@ -658,13 +682,13 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                           <>
                             <Numero
                               valor={fila.deco}
-                              className={cn("border-l", col("despacho"))}
+                              className={cn("border-l", col())}
                               titulo="Saldo de Principal (sale de su inventario)"
                             />
-                            <Numero valor={null} className={col("despacho", "produccion")} />
+                            <Numero valor={null} className={col("produccion")} />
                           </>
                         )}
-                        <Numero valor={fila.invTotal} className={cn("font-semibold", col("despacho"))} />
+                        <Numero valor={fila.invTotal} className={cn("font-semibold", col())} />
                         {tiendas.map((t, i) => (
                           <Fragment key={t.id}>
                             <CeldaEnviar
@@ -695,11 +719,20 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                         ))}
                         <td
                           className={cn(
+                            "border-l bg-yellow-50 px-2 py-1.5 text-right font-bold tabular-nums dark:bg-yellow-500/10",
+                            col("despacho")
+                          )}
+                          title="Suma de lo que se manda a las tiendas (sin los cambios)"
+                        >
+                          {fila.tiendas.reduce((t, x) => t + (x.mandar ?? 0), 0)}
+                        </td>
+                        <td
+                          className={cn(
                             "border-l px-2 py-1.5 text-right font-bold tabular-nums",
                             fila.saldo < 0
                               ? "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
                               : "text-exito print:text-black",
-                            col("despacho")
+                            col()
                           )}
                           title={fila.saldo < 0 ? `Faltan ${-fila.saldo}` : "Alcanza con lo que hay en Principal"}
                         >
@@ -734,7 +767,7 @@ export function HojaCuadro({ fecha, productos, sucursales, celdas: celdasProp, p
                             clave={`${p.id}-${sucursalPrincipal.id}`}
                             celda={celdas[`${p.id}-${sucursalPrincipal.id}`]}
                             etiqueta={`Sugerido de ${nombre} en ${sucursalPrincipal.nombre}`}
-                            className={cn("border-l", col("despacho"))}
+                            className={cn("border-l", col())}
                             {...edicionProps}
                           />
                         )}
@@ -829,22 +862,26 @@ function FilaTotalSeccion({
         Total {categoria}
         <span className="block text-xs font-normal text-muted-foreground">sin porciones</span>
       </td>
-      <Numero valor={fila.deco} className={cn("border-l font-bold", col("despacho"))} />
-      <Numero valor={fila.sinDeco} className={cn("font-bold", col("despacho", "produccion"))} />
-      <Numero valor={fila.invTotal} className={cn("font-bold", col("despacho"))} />
+      <Numero valor={fila.deco} className={cn("border-l font-bold", col())} />
+      <Numero valor={fila.sinDeco} className={cn("font-bold", col("produccion"))} />
+      <Numero valor={fila.invTotal} className={cn("font-bold", col())} />
       {fila.tiendas.map((t) => (
         <Fragment key={t.sucursalId}>
           <Numero valor={t.mandar} className={cn("border-l font-bold", col("despacho"))} />
           <Numero valor={t.cm} apagado className={col("despacho")} />
         </Fragment>
       ))}
+      <Numero
+        valor={fila.tiendas.reduce((t, x) => t + (x.mandar ?? 0), 0)}
+        className={cn("border-l bg-yellow-50 font-bold dark:bg-yellow-500/10", col("despacho"))}
+      />
       <td
         className={cn(
           "border-l px-2 py-1.5 text-right tabular-nums",
           fila.saldo < 0
             ? "bg-destructive/10 text-destructive print:bg-transparent print:text-black"
             : "text-exito print:text-black",
-          col("despacho")
+          col()
         )}
       >
         {fila.saldo}
@@ -852,7 +889,7 @@ function FilaTotalSeccion({
       <Texto valor={formatoTandas(dec)} className={cn("border-l", col("produccion"))} />
       <Texto valor={formatoTandas(prod)} className={cn("border-l", col("produccion"))} />
       <Numero valor={restante || null} className={cn("border-l font-bold", col("produccion"))} />
-      {principal !== null && <Numero valor={principal} className={cn("border-l font-bold", col("despacho"))} />}
+      {principal !== null && <Numero valor={principal} className={cn("border-l font-bold", col())} />}
       <td className={cn("border-l px-2 py-1.5 text-right tabular-nums", col("produccion"))}>{total || ""}</td>
       <CeldasLibras libras={libras} total numBatidas={numBatidas} className={col("produccion")} />
     </tr>
