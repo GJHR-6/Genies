@@ -2,6 +2,7 @@ import { obtenerPerfil } from "@/lib/supabase/perfil";
 import { createClient } from "@/lib/supabase/server";
 import { hoyTegucigalpa, formatoLargo } from "@/lib/fechas";
 import { diaProduccionAnterior } from "@/lib/no-enviados";
+import { diaSemana } from "@/lib/sugeridos";
 import { CapturaCliente } from "./captura-cliente";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export default async function CapturaPage() {
   const sucursalId = perfil.sucursalId;
 
 
-  const [productosRes, movimientosRes, previosRes, cierreRes, sucursalRes, noEnviadosRes] =
+  const [productosRes, movimientosRes, previosRes, cierreRes, sucursalRes, noEnviadosRes, reglasRes] =
     await Promise.all([
       supabase
         .from("productos")
@@ -67,6 +68,11 @@ export default async function CapturaPage() {
         .is("enviado_at", null)
         .eq("fecha", diaProduccionAnterior(fecha))
         .order("fecha"),
+      // Objetivos de esta tienda, para mostrar el sugerido de cada producto.
+      supabase
+        .from("reglas_sugerido")
+        .select("producto_id, dia_semana, objetivo")
+        .eq("sucursal_id", sucursalId),
     ]);
 
   const error =
@@ -92,6 +98,22 @@ export default async function CapturaPage() {
     saldosAnteriores[m.producto_id] = m.saldo;
   }
 
+  // Sugerido de hoy = objetivo (el del día de la semana manda sobre el
+  // general) − lo que tiene al empezar el día; nunca menos de 0. Es lo que
+  // debería llegarle de ingreso (26 nov). Si falla la consulta, no se muestra.
+  const dow = diaSemana(fecha);
+  const objetivos = new Map<number, number>();
+  for (const r of reglasRes.data ?? []) {
+    if (r.dia_semana === null && !objetivos.has(r.producto_id)) objetivos.set(r.producto_id, r.objetivo);
+  }
+  for (const r of reglasRes.data ?? []) {
+    if (r.dia_semana === dow) objetivos.set(r.producto_id, r.objetivo);
+  }
+  const sugeridos: Record<number, number> = {};
+  for (const [id, objetivo] of objetivos) {
+    sugeridos[id] = Math.max(objetivo - (saldosAnteriores[id] ?? 0), 0);
+  }
+
   return (
     <CapturaCliente
       fecha={fecha}
@@ -104,6 +126,7 @@ export default async function CapturaPage() {
       productos={productosRes.data ?? []}
       movimientosIniciales={movimientosRes.data ?? []}
       saldosAnteriores={saldosAnteriores}
+      sugeridos={sugeridos}
       // Si falla esta consulta, el inventario igual se puede anotar.
       noEnviados={(noEnviadosRes.data ?? []).map((n) => ({
         id: n.id,

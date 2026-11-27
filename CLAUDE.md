@@ -179,6 +179,9 @@ La cocina no tiene tablet: se quitó `/cocina`, «Enviar a cocina / Quitar de la
 
 - **Pestaña Despacho del cuadro completo** (26 nov): solo las cinco tiendas con su CM y «Total a enviar» (suma de `mandar` de las tiendas, sin los cambios; también en el total de cada sección). Deco, Inv/Total, Saldo y la columna Principal pasan a verse solo en «Todo» (`col()` sin grupos); Sin deco queda en Producción. Al imprimir siguen todas las columnas. CHOCOLATE CRISPIE / FUDGE 10 ahora lleva decoración.
 
+- **Sugerido en el inventario de las tiendas** (26 nov): arriba a la izquierda de cada producto, chico, «Sugerido: N» = objetivo de hoy (el del día de la semana manda sobre el general) − saldo inicial, nunca < 0 (lo que debería llegarle de ingreso). Se calcula en `captura/page.tsx` desde `reglas_sugerido` (lectura abierta por RLS); solo productos con objetivo y solo tiendas (no Principal).
+- **Documento de funciones de administración** (26 nov): https://claude.ai/artifact/BHURVnkphxBHe9esHEZsQY (Claude Docs).
+
 ## Navegación y lenguaje (oct 2026)
 Pantallas **independientes, no secuenciales**: el admin entra a `/hoy` (portada con tarjetas Tiendas · Sugeridos · Cuadros · Reparto, cada una con su estado y un número de paso solo orientativo; `src/lib/paso-del-dia.ts` decide qué tarjeta resaltar, con tests). Menú corto por rol en `src/components/menu-principal.tsx` (admin: Hoy · Catálogos · Rotación · Historial; principal: Inventario · Rotación · Historial; tienda sin Cocina). Grupos en `src/lib/grupos.ts`; cada pantalla usa `<EncabezadoSeccion>` (fila de botones a las demás del grupo, ícono, título, una línea de "para qué sirve") y `<Aviso>`. No usar enlaces "siguiente →/← anterior". Pasteleras vive dentro de Catálogos.
 - **Colores**: solo tokens (`primary`, `secondary`, `exito`, `aviso`, `destructive` en `globals.css`, con modo oscuro); nada de hex en componentes (los hex de `color-dia.ts` son los colores físicos del día, a propósito).
