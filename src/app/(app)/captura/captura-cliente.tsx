@@ -188,6 +188,8 @@ type Props = {
   productos: Producto[];
   movimientosIniciales: MovimientoInicial[];
   saldosAnteriores: Record<number, number>;
+  /** Sugerido de hoy por producto (objetivo − inicial); sin entrada = sin objetivo. */
+  sugeridos?: Record<number, number>;
   /** Lo que Principal no le pudo mandar y sigue pendiente. */
   noEnviados: { id: number; fecha: string; cantidad: number; nombre: string }[];
 };
@@ -203,6 +205,7 @@ export function CapturaCliente({
   productos,
   movimientosIniciales,
   saldosAnteriores,
+  sugeridos = {},
   noEnviados,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
@@ -948,6 +951,15 @@ export function CapturaCliente({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
+                    {/* Sugerido de hoy, chico arriba a la izquierda (tiendas). */}
+                    {!esPrincipal && sugeridos[producto.id] !== undefined && (
+                      <p
+                        className="mb-0.5 text-[11px] font-medium leading-none text-muted-foreground"
+                        title="Lo que debería llegarte hoy: tu objetivo menos lo que tenés al empezar el día"
+                      >
+                        Sugerido: <span className="font-semibold text-foreground">{sugeridos[producto.id]}</span>
+                      </p>
+                    )}
                     <p className="font-medium leading-tight">
                       {producto.nombre}
                       {producto.tamano ? ` · ${producto.tamano}` : ""}
